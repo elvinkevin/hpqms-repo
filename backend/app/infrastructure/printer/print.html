@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Queue Token OPD-001</title>
+<style>
+  @page { size: 80mm auto; margin: 4mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    width: 72mm;
+    color: #000;
+  }
+  .center  { text-align: center; }
+  .divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .hospital { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+  .subtitle { font-size: 11px; }
+  .token-num {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    padding: 6px 0;
+  }
+  .row { display: flex; justify-content: space-between; padding: 2px 0; }
+  .label { color: #555; }
+  .priority-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: #27ae60;
+    color: white;
+    font-weight: bold;
+    font-size: 11px;
+  }
+  .wait { font-size: 14px; font-weight: bold; text-align: center; padding: 4px 0; }
+  .footer { font-size: 10px; text-align: center; color: #333; margin-top: 4px; }
+  @media print { button { display: none; } }
+</style>
+</head>
+<body>
+<div class="center">
+  <div class="hospital">HPQMS HOSPITAL</div>
+  <div class="subtitle">OUTPATIENT QUEUE TICKET</div>
+</div>
+
+<div class="divider"></div>
+
+<div class="center token-num">OPD-001</div>
+
+<div class="divider"></div>
+
+<div class="row"><span class="label">Patient</span><span>emma wamaitha</span></div>
+<div class="row"><span class="label">Department</span><span>OPD</span></div>
+<div class="row">
+  <span class="label">Priority</span>
+  <span class="priority-badge">NON URGENT</span>
+</div>
+<div class="row"><span class="label">Position</span><span>—</span></div>
+<div class="row"><span class="label">Issued</span><span>15:44  •  18 Jul 2026</span></div>
+
+<div class="divider"></div>
+
+<div class="wait">Estimated wait: ~0 min</div>
+
+<div class="divider"></div>
+
+<div class="footer">
+  Keep this slip &amp; watch the display board.<br>
+  You will also receive an SMS update.
+</div>
+
+<br>
+<div class="center">
+  <button onclick="window.print()">Print Slip</button>
+</div>
+</body>
+</html>
