@@ -1,0 +1,1023 @@
+/* ==========================================================================
+   HPQMS Public Patient Display Board
+   css/components.css — UI Components, Semantic States & Overlays
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. HEADER COMPONENTS
+   ========================================================================== */
+
+.facility-branding {
+    min-width: 0;
+}
+
+.facility-logo {
+    display: block;
+
+    width: auto;
+    height: clamp(2rem, 4vh, 3rem);
+
+    max-width: 180px;
+
+    object-fit: contain;
+}
+
+.facility-name {
+    margin: 0;
+
+    min-width: 0;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+
+/* --------------------------------------------------------------------------
+   Clock
+   -------------------------------------------------------------------------- */
+
+.clock {
+    font-family: var(--font-family-mono);
+
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1;
+
+    letter-spacing: 0.05em;
+
+    color: var(--color-brand-accent);
+
+    white-space: nowrap;
+}
+
+
+/* --------------------------------------------------------------------------
+   Connection Indicator
+   -------------------------------------------------------------------------- */
+
+.connection-indicator {
+    display: flex;
+    align-items: center;
+
+    gap: var(--space-sm);
+
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+
+    white-space: nowrap;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+
+    flex: 0 0 10px;
+
+    border-radius: var(--radius-full);
+
+    background: var(--color-net-degraded);
+
+    transition:
+        background-color var(--transition-normal),
+        box-shadow var(--transition-normal);
+}
+
+.connection-indicator[data-status="CONNECTED"] .status-dot {
+    background: var(--color-net-online);
+
+    box-shadow:
+        0 0 8px var(--color-net-online);
+}
+
+.connection-indicator[data-status="DEGRADED"] .status-dot {
+    background: var(--color-net-degraded);
+}
+
+.connection-indicator[data-status="CONNECTING"] .status-dot {
+    background: var(--color-net-degraded);
+}
+
+.connection-indicator[data-status="DISCONNECTED"] .status-dot {
+    background: var(--color-net-offline);
+
+    box-shadow:
+        0 0 8px rgba(239, 68, 68, 0.35);
+}
+
+.status-text {
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1;
+    letter-spacing: 0.06em;
+
+    text-transform: uppercase;
+}
+
+
+/* ==========================================================================
+   2. GENERIC QUEUE CARD
+   ========================================================================== */
+
+.queue-card {
+    position: relative;
+
+    min-width: 0;
+    min-height: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    justify-content: space-between;
+
+    overflow: hidden;
+
+    padding: var(--space-lg);
+
+    background: var(--color-bg-surface);
+
+    border:
+        2px solid var(--color-border-subtle);
+
+    border-radius: var(--radius-md);
+
+    box-shadow: var(--shadow-card);
+
+    transition:
+        border-color var(--transition-normal),
+        background-color var(--transition-normal),
+        opacity var(--transition-normal);
+}
+
+
+/* --------------------------------------------------------------------------
+   Queue Card Header
+   -------------------------------------------------------------------------- */
+
+.queue-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: var(--space-md);
+
+    min-width: 0;
+}
+
+.department-title {
+    margin: 0;
+
+    min-width: 0;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1.1;
+
+    color: var(--color-text-secondary);
+
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+
+/* --------------------------------------------------------------------------
+   Token
+   -------------------------------------------------------------------------- */
+
+.token-number {
+    margin: var(--space-sm) 0;
+
+    font-family: var(--font-family-mono);
+
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1;
+
+    letter-spacing: 0.02em;
+}
+
+
+/* --------------------------------------------------------------------------
+   Service Point
+   -------------------------------------------------------------------------- */
+
+.service-point {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+
+    line-height: 1.2;
+
+    color: var(--color-brand-accent);
+
+    text-transform: uppercase;
+}
+
+
+/* ==========================================================================
+   3. QUEUE STATE STYLING
+   ========================================================================== */
+
+/*
+   IMPORTANT:
+   CALLED is intentionally NOT animated here.
+
+   The persistent board state should remain readable and calm.
+   Flashing/chime behavior belongs exclusively to animations.css
+   and is triggered by ALERT MODE.
+*/
+
+
+/* --------------------------------------------------------------------------
+   CALLED — Static Attention State
+   -------------------------------------------------------------------------- */
+
+.queue-card[data-state="CALLED"] {
+    background: var(--color-state-called-bg);
+
+    border-color:
+        var(--color-state-called-border);
+
+    box-shadow:
+        inset 0 0 0 1px rgba(245, 158, 11, 0.15),
+        var(--shadow-card);
+}
+
+.queue-card[data-state="CALLED"] .token-number {
+    color: var(--color-state-called-text);
+}
+
+
+/* --------------------------------------------------------------------------
+   IN_PROGRESS — Currently Being Served
+   -------------------------------------------------------------------------- */
+
+.queue-card[data-state="IN_PROGRESS"] {
+    background: var(--color-state-serving-bg);
+
+    border-color:
+        var(--color-state-serving-border);
+}
+
+.queue-card[data-state="IN_PROGRESS"] .token-number {
+    color: var(--color-state-serving-text);
+}
+
+
+/* --------------------------------------------------------------------------
+   WAITING
+   -------------------------------------------------------------------------- */
+
+.queue-card[data-state="WAITING"] {
+    background: var(--color-state-waiting-bg);
+
+    border-color:
+        var(--color-state-waiting-border);
+}
+
+
+/* --------------------------------------------------------------------------
+   COMPLETED / RECENT
+   -------------------------------------------------------------------------- */
+
+.queue-card[data-state="COMPLETED"] {
+    background: var(--color-state-recent-bg);
+
+    border-color:
+        var(--color-state-recent-border);
+
+    opacity: 0.65;
+}
+
+
+/* --------------------------------------------------------------------------
+   NO SHOW
+   -------------------------------------------------------------------------- */
+
+.queue-card[data-state="NO_SHOW"] {
+    opacity: 0;
+
+    pointer-events: none;
+}
+
+
+/* ==========================================================================
+   4. ROTATING BOARD — DEPARTMENT ROWS
+   ========================================================================== */
+
+/*
+   This supports the RFH-style concept:
+
+   ┌─────────────────────────────────────────────┐
+   │ DEPARTMENT             TOKEN                │
+   ├─────────────────────────────────────────────┤
+   │ Reception              A-028                │
+   │ Pharmacy               P-014                │
+   │ Laboratory             L-009                │
+   └─────────────────────────────────────────────┘
+
+   JavaScript decides which departments are currently visible.
+   CSS controls their presentation.
+*/
+
+.board-table {
+    width: 100%;
+    height: 100%;
+
+    border-collapse: separate;
+    border-spacing: 0 var(--space-sm);
+
+    table-layout: fixed;
+}
+
+.board-table th {
+    padding:
+        var(--space-sm) var(--space-md);
+
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+
+    color: var(--color-text-muted);
+
+    text-align: left;
+    text-transform: uppercase;
+
+    letter-spacing: 0.08em;
+}
+
+.board-table td {
+    padding:
+        var(--space-md) var(--space-lg);
+
+    background: var(--color-bg-surface);
+
+    border-top:
+        2px solid var(--color-border-subtle);
+
+    border-bottom:
+        2px solid var(--color-border-subtle);
+}
+
+.board-table td:first-child {
+    border-left:
+        2px solid var(--color-border-subtle);
+
+    border-radius:
+        var(--radius-md) 0 0 var(--radius-md);
+}
+
+.board-table td:last-child {
+    border-right:
+        2px solid var(--color-border-subtle);
+
+    border-radius:
+        0 var(--radius-md) var(--radius-md) 0;
+}
+
+
+/* Department column */
+
+.board-department {
+    font-size: var(--font-size-lg);
+
+    font-weight: var(--font-weight-bold);
+
+    text-transform: uppercase;
+}
+
+
+/* Token column */
+
+.board-token {
+    font-family: var(--font-family-mono);
+
+    font-size: var(--font-size-2xl);
+
+    font-weight: var(--font-weight-bold);
+
+    text-align: right;
+
+    white-space: nowrap;
+}
+
+
+/* --------------------------------------------------------------------------
+   Board Row States
+   -------------------------------------------------------------------------- */
+
+.board-row[data-state="CALLED"] td {
+    background: var(--color-state-called-bg);
+
+    border-color:
+        var(--color-state-called-border);
+}
+
+.board-row[data-state="CALLED"] .board-token {
+    color: var(--color-state-called-text);
+}
+
+
+.board-row[data-state="IN_PROGRESS"] td {
+    background: var(--color-state-serving-bg);
+
+    border-color:
+        var(--color-state-serving-border);
+}
+
+.board-row[data-state="IN_PROGRESS"] .board-token {
+    color: var(--color-state-serving-text);
+}
+
+
+/* ==========================================================================
+   5. SERVICE POINT / DESTINATION LABEL
+   ========================================================================== */
+
+.destination-label {
+    display: block;
+
+    margin-bottom: var(--space-xs);
+
+    font-size: var(--font-size-sm);
+
+    font-weight: var(--font-weight-bold);
+
+    color: var(--color-text-secondary);
+
+    letter-spacing: 0.08em;
+
+    text-transform: uppercase;
+}
+
+.service-point,
+.alert-service-point {
+    text-transform: uppercase;
+}
+
+
+/* ==========================================================================
+   6. FOOTER / ANNOUNCEMENT TICKER
+   ========================================================================== */
+
+.ticker-label {
+    flex: 0 0 auto;
+
+    padding:
+        var(--space-xs) var(--space-sm);
+
+    border-radius: var(--radius-sm);
+
+    background: var(--color-brand-primary);
+
+    color: #ffffff;
+
+    font-size: var(--font-size-xs);
+
+    font-weight: var(--font-weight-bold);
+
+    letter-spacing: 0.05em;
+
+    white-space: nowrap;
+}
+
+.announcement-ticker {
+    flex: 1 1 auto;
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    white-space: nowrap;
+}
+
+.announcement-text {
+    display: inline-block;
+
+    margin: 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-base);
+
+    line-height: 1.2;
+}
+
+
+/* --------------------------------------------------------------------------
+   Pagination
+   -------------------------------------------------------------------------- */
+
+.pagination-indicator {
+    flex: 0 0 auto;
+
+    display: flex;
+    align-items: center;
+
+    gap: var(--space-md);
+}
+
+.pagination-text {
+    font-family: var(--font-family-mono);
+
+    font-size: var(--font-size-sm);
+
+    color: var(--color-text-muted);
+
+    white-space: nowrap;
+}
+
+.pagination-dots {
+    display: flex;
+    align-items: center;
+
+    gap: var(--space-xs);
+}
+
+
+/* ==========================================================================
+   7. VIEWPORT LOADING STATE
+   ========================================================================== */
+
+.viewport-loader {
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: var(--space-xl);
+
+    color: var(--color-text-secondary);
+
+    text-align: center;
+}
+
+.viewport-loader p {
+    margin: 0;
+
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+
+    line-height: 1.3;
+}
+
+
+/* ==========================================================================
+   8. IDLE / STANDBY MODE
+   ========================================================================== */
+
+.idle-layer {
+    position: absolute;
+
+    inset: 0;
+
+    z-index: var(--z-idle);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: var(--space-2xl);
+
+    background: var(--color-bg-app);
+}
+
+.idle-layer[hidden],
+.idle-card[hidden] {
+    display: none !important;
+}
+
+.idle-card {
+    width: min(90vw, 900px);
+
+    text-align: center;
+}
+
+.standby-content {
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+
+    gap: var(--space-md);
+}
+
+.standby-content h2 {
+    margin: 0;
+
+    font-size: var(--font-size-3xl);
+
+    font-weight: var(--font-weight-bold);
+}
+
+.standby-content p {
+    margin: 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-lg);
+}
+
+.standby-brand-prompt p {
+    font-size: var(--font-size-base);
+}
+
+.standby-brand-prompt {
+    margin-top: var(--space-lg);
+}
+
+
+/* ==========================================================================
+   9. AMBIENT / SCREEN SAVER MODE
+   ========================================================================== */
+
+.ambient-content {
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+
+    gap: var(--space-xl);
+
+    width: min(90vw, 1000px);
+}
+
+.ambient-clock-hero time {
+    display: block;
+
+    font-family: var(--font-family-mono);
+
+    font-size: var(--font-size-hero);
+
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1;
+
+    color: var(--color-brand-accent);
+}
+
+.ambient-clock-hero span {
+    display: block;
+
+    margin-top: var(--space-md);
+
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-lg);
+
+    text-align: center;
+}
+
+.ambient-announcement-card {
+    width: min(90vw, 700px);
+
+    padding: var(--space-xl);
+
+    background: var(--color-bg-surface);
+
+    border:
+        1px solid var(--color-border-subtle);
+
+    border-radius: var(--radius-lg);
+
+    text-align: center;
+}
+
+.ambient-announcement-card h3 {
+    margin:
+        0 0 var(--space-sm);
+
+    font-size: var(--font-size-lg);
+}
+
+.ambient-announcement-card p {
+    margin: 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-base);
+}
+
+
+/* ==========================================================================
+   10. TOKEN CALL ALERT OVERLAY
+   ========================================================================== */
+
+.alert-layer {
+    position: absolute;
+
+    inset: 0;
+
+    z-index: var(--z-alert);
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: var(--space-lg);
+}
+
+.alert-layer[hidden] {
+    display: none !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   Backdrop
+   -------------------------------------------------------------------------- */
+
+.alert-backdrop {
+    position: absolute;
+
+    inset: 0;
+
+    background:
+        rgba(0, 0, 0, 0.88);
+
+    backdrop-filter: blur(8px);
+}
+
+
+/* --------------------------------------------------------------------------
+   Alert Card
+   -------------------------------------------------------------------------- */
+
+.alert-card {
+    position: relative;
+
+    z-index: 1;
+
+    width: min(90vw, 900px);
+
+    max-height: 90vh;
+
+    overflow: hidden;
+
+    padding: var(--space-2xl);
+
+    background:
+        var(--color-bg-surface-elevated);
+
+    border:
+        4px solid var(--color-state-called-border);
+
+    border-radius: var(--radius-lg);
+
+    text-align: center;
+
+    box-shadow: var(--shadow-alert);
+}
+
+
+/* --------------------------------------------------------------------------
+   Alert Header
+   -------------------------------------------------------------------------- */
+
+.alert-header {
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    flex-wrap: wrap;
+
+    gap: var(--space-md);
+}
+
+.alert-badge {
+    display: inline-block;
+
+    padding:
+        var(--space-xs) var(--space-md);
+
+    border-radius: var(--radius-sm);
+
+    background:
+        var(--color-state-called-border);
+
+    color: var(--color-text-inverse);
+
+    font-size: var(--font-size-lg);
+
+    font-weight: var(--font-weight-bold);
+
+    letter-spacing: 0.1em;
+}
+
+.alert-department {
+    font-size: var(--font-size-lg);
+
+    font-weight: var(--font-weight-bold);
+
+    color: var(--color-text-secondary);
+
+    text-transform: uppercase;
+}
+
+
+/* --------------------------------------------------------------------------
+   Alert Token
+   -------------------------------------------------------------------------- */
+
+.alert-body {
+    margin-top: var(--space-lg);
+}
+
+.alert-token {
+    margin: var(--space-md) 0;
+
+    font-family: var(--font-family-mono);
+
+    font-size: var(--font-size-hero);
+
+    font-weight: var(--font-weight-bold);
+
+    line-height: 0.95;
+
+    color: var(--color-state-called-text);
+
+    letter-spacing: 0.02em;
+}
+
+
+/* --------------------------------------------------------------------------
+   Alert Destination
+   -------------------------------------------------------------------------- */
+
+.alert-destination-group {
+    margin-top: var(--space-xl);
+}
+
+.alert-service-point {
+    font-size: var(--font-size-3xl);
+
+    font-weight: var(--font-weight-bold);
+
+    line-height: 1.1;
+
+    color: var(--color-text-primary);
+}
+
+
+/* --------------------------------------------------------------------------
+   Alert Instruction
+   -------------------------------------------------------------------------- */
+
+.alert-footer {
+    margin-top: var(--space-xl);
+}
+
+.alert-instruction {
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-lg);
+}
+
+
+/* ==========================================================================
+   11. CRITICAL / EMERGENCY ALERT
+   ========================================================================== */
+
+.alert-card[data-alert-type="CRITICAL"] {
+    background:
+        var(--color-state-critical-bg);
+
+    border-color:
+        var(--color-state-critical-border);
+
+    box-shadow: var(--shadow-critical);
+}
+
+.alert-card[data-alert-type="CRITICAL"] .alert-badge {
+    background:
+        var(--color-state-critical-border);
+
+    color: #ffffff;
+}
+
+.alert-card[data-alert-type="CRITICAL"] .alert-token {
+    color:
+        var(--color-state-critical-text);
+}
+
+
+/* ==========================================================================
+   12. SYSTEM STATUS / RECOVERY
+   ========================================================================== */
+
+.system-status-layer {
+    position: absolute;
+
+    inset: 0;
+
+    z-index: var(--z-system);
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: var(--space-xl);
+
+    background:
+        rgba(10, 14, 20, 0.96);
+}
+
+.system-status-layer[hidden] {
+    display: none !important;
+}
+
+.system-status-card {
+    width: min(90vw, 600px);
+
+    padding: var(--space-2xl);
+
+    background: var(--color-bg-surface);
+
+    border:
+        2px solid var(--color-state-critical-border);
+
+    border-radius: var(--radius-md);
+
+    text-align: center;
+
+    box-shadow: var(--shadow-card);
+}
+
+
+/* ==========================================================================
+   13. RESPONSIVE COMPONENT ADJUSTMENTS
+   ========================================================================== */
+
+@media (max-width: 767px) {
+
+    .facility-name {
+        font-size: var(--font-size-lg);
+    }
+
+    .clock {
+        font-size: var(--font-size-lg);
+    }
+
+    .queue-card {
+        padding: var(--space-md);
+    }
+
+    .department-title {
+        font-size: var(--font-size-base);
+    }
+
+    .token-number {
+        font-size: var(--font-size-xl);
+    }
+
+    .alert-card {
+        padding: var(--space-xl);
+    }
+
+    .alert-token {
+        font-size: var(--font-size-3xl);
+    }
+
+    .alert-service-point {
+        font-size: var(--font-size-xl);
+    }
+}
+
+
+@media (max-height: 600px) {
+
+    .alert-card {
+        padding: var(--space-lg);
+    }
+
+    .alert-token {
+        font-size: var(--font-size-3xl);
+    }
+
+    .alert-destination-group {
+        margin-top: var(--space-md);
+    }
+
+    .alert-footer {
+        margin-top: var(--space-md);
+    }
+}

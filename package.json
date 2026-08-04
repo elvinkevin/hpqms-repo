@@ -1,0 +1,25 @@
+{
+  "name": "hqms-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com"
+  },
+  "homepage": "https://github.com",
+  "devDependencies": {
+    "happy-dom": "^20.11.1",
+    "vitest": "^3.0.0"
+  }
+}

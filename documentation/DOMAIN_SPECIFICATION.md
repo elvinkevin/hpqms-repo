@@ -74,3 +74,23 @@ C. Queue Entry Lifecycle (QueueEntryStatus) ┌───────────
               Cancel        │  CANCELLED   │
                             └──────────────┘
 8. Current Implementation StatusDomain Component / FeatureImplementation StatusIntegration Test CoverageAuthentication & RBAC Infrastructure✅ CompleteVerified (Unit/API)Patient Registration & Lookup✅ CompleteVerified (test_reception_workflow.py)Visit Lifecycle Engine✅ CompleteVerified (test_reception_workflow.py)Token Generation Engine✅ CompleteVerified (test_reception_workflow.py)Core Routing Service✅ CompleteVerified (test_reception_workflow.py, test_emergency_workflow.py)Queue State Machine Engine✅ CompleteVerified (test_reception_workflow.py, test_emergency_workflow.py)Reception Workflow✅ Complete100% Integration Test CoverageEmergency Workflow🟡 Active RefinementCore Dispatch VerifiedInter-Departmental Handoffs⏳ PlannedNext MilestoneAppointment Check-In & Priority Boost⏳ PlannedScheduledHMIS / EHR Integration Adapters⏳ PlannedScheduled
+
+
+
+PHASE 1 — Display specification
+        ↓
+PHASE 2 — Display data contract / schemas
+        ↓
+PHASE 3 — DisplayService domain logic
+        ↓
+PHASE 4 — DisplayService tests
+        ↓
+PHASE 5 — Notification event model
+        ↓
+PHASE 6 — NotificationService
+        ↓
+PHASE 7 — Public display frontend
+        ↓
+PHASE 8 — Staff queue frontend
+        ↓
+PHASE 9 — Responsive testing

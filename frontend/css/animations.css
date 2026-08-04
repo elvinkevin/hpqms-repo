@@ -1,0 +1,402 @@
+/* ==========================================================================
+   HPQMS Public Patient Display Board
+   css/animations.css — Motion & Visual Transitions
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. ANNOUNCEMENT TICKER
+   ========================================================================== */
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.announcement-ticker--scrolling .announcement-text {
+  animation: ticker-scroll 25s linear infinite;
+}
+
+
+/* ==========================================================================
+   2. ALERT MODE
+   ========================================================================== */
+
+/*
+ * Alert overlay entrance.
+ * The overlay itself should appear immediately while the card
+ * provides the primary visual movement.
+ */
+
+@keyframes alert-card-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.alert-layer:not([hidden]) .alert-card {
+  animation: alert-card-enter var(--transition-normal) ease-out both;
+}
+
+
+/*
+ * Called token emphasis.
+ *
+ * This is intentionally subtle. The alert should attract attention
+ * without making the token difficult to read.
+ */
+
+@keyframes alert-token-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+.alert-card[data-alert-type="CALLED"] .alert-token {
+  animation: alert-token-pulse 1.2s ease-in-out infinite;
+}
+
+
+/*
+ * Critical / emergency alert.
+ */
+
+@keyframes critical-alert-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.8),
+      0 0 20px rgba(239, 68, 68, 0.25);
+  }
+
+  50% {
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.8),
+      0 0 50px rgba(239, 68, 68, 0.65);
+  }
+}
+
+.alert-card[data-alert-type="CRITICAL"] {
+  animation:
+    alert-card-enter var(--transition-normal) ease-out both,
+    critical-alert-pulse 1s ease-in-out infinite;
+}
+
+
+/* ==========================================================================
+   3. CALLED / NOW-SERVING BOARD EMPHASIS
+   ========================================================================== */
+
+/*
+ * IMPORTANT:
+ * CALLED tokens remain static on the board after the alert overlay
+ * disappears. We do NOT continuously flash the entire row.
+ *
+ * A short entrance animation provides visual continuity from
+ * Alert Mode -> Board Mode.
+ */
+
+@keyframes called-highlight-enter {
+  0% {
+    opacity: 0.65;
+    transform: translateY(-4px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.queue-card[data-state="CALLED"] {
+  animation: called-highlight-enter var(--transition-normal) ease-out both;
+}
+
+
+/* ==========================================================================
+   4. BOARD / PAGE ROTATION
+   ========================================================================== */
+
+/*
+ * Normal automatic page transition.
+ */
+
+@keyframes board-page-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.primary-viewport.page-enter {
+  animation: board-page-enter var(--transition-slow) ease-out both;
+}
+
+
+/*
+ * Smart page jump.
+ *
+ * Used when a department receives a TOKEN_CALLED event and the
+ * rotation manager jumps directly to that department's page.
+ */
+
+@keyframes smart-page-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.primary-viewport.smart-page-enter {
+  animation: smart-page-enter var(--transition-normal) ease-out both;
+}
+
+
+/* ==========================================================================
+   5. RECENTLY COMPLETED TOKENS
+   ========================================================================== */
+
+/*
+ * Recently completed tokens should enter quietly rather than
+ * demanding the same attention as a new call.
+ */
+
+@keyframes recent-token-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  100% {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+}
+
+.queue-card[data-state="COMPLETED"] {
+  animation: recent-token-enter var(--transition-normal) ease-out both;
+}
+
+
+/*
+ * Used when a completed token is removed from the display.
+ */
+
+@keyframes token-fade-out {
+  0% {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.token-removing {
+  animation: token-fade-out 1.5s ease-in forwards;
+}
+
+
+/* ==========================================================================
+   6. NO-SHOW REMOVAL
+   ========================================================================== */
+
+@keyframes no-show-exit {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-15px);
+  }
+}
+
+.queue-card[data-state="NO_SHOW"] {
+  animation: no-show-exit 1.5s ease-in forwards;
+}
+
+
+/* ==========================================================================
+   7. STANDBY / IDLE MODE
+   ========================================================================== */
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.pulse-ring {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-brand-accent);
+  animation: pulse-ring 2.5s infinite ease-in-out;
+}
+
+
+/*
+ * Standby card entrance.
+ */
+
+@keyframes standby-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.standby-card:not([hidden]) {
+  animation: standby-enter 500ms ease-out both;
+}
+
+
+/* ==========================================================================
+   8. AMBIENT MODE
+   ========================================================================== */
+
+@keyframes ambient-enter {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.ambient-card:not([hidden]) {
+  animation: ambient-enter 800ms ease-out both;
+}
+
+
+/*
+ * Slow ambient movement prevents the screen from appearing frozen
+ * while avoiding distracting motion.
+ */
+
+@keyframes ambient-breathe {
+  0%,
+  100% {
+    opacity: 0.92;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.ambient-content {
+  animation: ambient-breathe 8s ease-in-out infinite;
+}
+
+
+/* ==========================================================================
+   9. CONNECTION STATUS
+   ========================================================================== */
+
+@keyframes connection-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.connection-indicator[data-status="DISCONNECTED"] .status-dot {
+  animation: connection-pulse 1.2s ease-in-out infinite;
+}
+
+
+/* ==========================================================================
+   10. GENERAL STATE TRANSITIONS
+   ========================================================================== */
+
+.queue-card {
+  transition:
+    transform var(--transition-normal),
+    opacity var(--transition-normal),
+    border-color var(--transition-normal),
+    background-color var(--transition-normal);
+}
+
+
+/* ==========================================================================
+   11. ACCESSIBILITY — REDUCED MOTION
+   ========================================================================== */
+
+/*
+ * Public displays may be viewed by patients who are sensitive to
+ * flashing or excessive motion.
+ *
+ * When the operating environment requests reduced motion,
+ * animations are effectively disabled while the information itself
+ * remains fully visible.
+ */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .announcement-ticker--scrolling .announcement-text {
+    animation: none;
+    transform: none;
+  }
+}

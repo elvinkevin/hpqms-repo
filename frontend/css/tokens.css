@@ -1,0 +1,411 @@
+/* ==========================================================================
+   HPQMS Public Patient Display Board
+   css/tokens.css — Design Tokens & Theming Baseline
+
+   Responsibilities:
+   - Global visual design tokens
+   - Semantic queue/status colors
+   - Typography scale
+   - Responsive display sizing primitives
+   - Spacing, radius and elevation
+   - Animation and layering tokens
+   - Accessibility defaults
+
+   NOTE:
+   This file contains no layout rules or component styling.
+   Those responsibilities belong to layout.css and components.css.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. COLOR PALETTE
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------------
+     Surface & Base Canvas
+     ------------------------------------------------------------------------ */
+
+  --color-bg-app:              #0a0e14;
+  --color-bg-surface:          #121820;
+  --color-bg-surface-elevated: #1a222d;
+  --color-bg-surface-muted:    #0d1218;
+
+  /* ------------------------------------------------------------------------
+     Borders & Dividers
+     ------------------------------------------------------------------------ */
+
+  --color-border-subtle:       #242f3d;
+  --color-border-strong:       #3b4c60;
+
+  /* ------------------------------------------------------------------------
+     Typography
+     ------------------------------------------------------------------------ */
+
+  --color-text-primary:        #f0f4f8;
+  --color-text-secondary:      #94a3b8;
+  --color-text-muted:          #64748b;
+  --color-text-inverse:        #0a0e14;
+
+  /* ------------------------------------------------------------------------
+     Brand / White-Label Defaults
+
+     These are HPQMS defaults.
+     Facility-specific branding may override them at runtime.
+     ------------------------------------------------------------------------ */
+
+  --color-brand-primary:       #0284c7;
+  --color-brand-accent:        #38bdf8;
+}
+
+
+/* ==========================================================================
+   2. SEMANTIC QUEUE / SYSTEM STATE COLORS
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CALLED
+   Patient has been called and requires immediate attention.
+   Visual animation belongs to Alert Mode, not persistent board state.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --color-state-called-bg:       #322200;
+  --color-state-called-border:   #f59e0b;
+  --color-state-called-text:     #fbbf24;
+
+  /* ------------------------------------------------------------------------
+     IN_PROGRESS
+     Patient is currently being served.
+     ------------------------------------------------------------------------ */
+
+  --color-state-serving-bg:      #062d1b;
+  --color-state-serving-border:  #10b981;
+  --color-state-serving-text:    #34d399;
+
+  /* ------------------------------------------------------------------------
+     WAITING
+     Patient is queued but has not yet been called.
+     ------------------------------------------------------------------------ */
+
+  --color-state-waiting-bg:      #121820;
+  --color-state-waiting-border:  #242f3d;
+  --color-state-waiting-text:    #f0f4f8;
+
+  /* ------------------------------------------------------------------------
+     COMPLETED / RECENT
+     Used only when Recently Completed is enabled.
+     ------------------------------------------------------------------------ */
+
+  --color-state-recent-bg:       #0f141c;
+  --color-state-recent-border:   #1e293b;
+  --color-state-recent-text:     #64748b;
+
+  /* ------------------------------------------------------------------------
+     NO_SHOW
+     Token is no longer being served because patient did not appear.
+     ------------------------------------------------------------------------ */
+
+  --color-state-noshow-bg:       #1c1917;
+  --color-state-noshow-border:   #78716c;
+  --color-state-noshow-text:     #a8a29e;
+
+  /* ------------------------------------------------------------------------
+     CANCELLED
+     Queue entry / service was cancelled.
+     ------------------------------------------------------------------------ */
+
+  --color-state-cancelled-bg:    #18181b;
+  --color-state-cancelled-border:#52525b;
+  --color-state-cancelled-text:  #a1a1aa;
+
+  /* ------------------------------------------------------------------------
+     CRITICAL / EMERGENCY
+     Emergency announcements and critical priority events.
+     ------------------------------------------------------------------------ */
+
+  --color-state-critical-bg:     #3f0d12;
+  --color-state-critical-border: #ef4444;
+  --color-state-critical-text:   #fca5a5;
+}
+
+
+/* ==========================================================================
+   3. NETWORK / CONNECTION STATUS
+   ========================================================================== */
+
+:root {
+  --color-net-online:            #10b981;
+  --color-net-degraded:          #f59e0b;
+  --color-net-offline:           #ef4444;
+}
+
+
+/* ==========================================================================
+   4. TYPOGRAPHY
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------------
+     Font Families
+     ------------------------------------------------------------------------ */
+
+  --font-family-display:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  --font-family-mono:
+    "SF Mono",
+    "Consolas",
+    "Liberation Mono",
+    monospace;
+
+  /* ------------------------------------------------------------------------
+     Base Type Scale
+
+     Root font-size remains stable.
+     Fluid scaling is applied to individual display tokens instead of
+     globally scaling every rem-based spacing dimension.
+     ------------------------------------------------------------------------ */
+
+  --font-size-xs:               0.75rem;
+  --font-size-sm:               0.875rem;
+  --font-size-base:             1rem;
+  --font-size-lg:               1.25rem;
+  --font-size-xl:               1.75rem;
+  --font-size-2xl:              2.5rem;
+  --font-size-3xl:              4rem;
+  --font-size-hero:             7.5rem;
+
+  /* ------------------------------------------------------------------------
+     Font Weights
+     ------------------------------------------------------------------------ */
+
+  --font-weight-regular:        400;
+  --font-weight-medium:         600;
+  --font-weight-bold:           800;
+}
+
+
+/* ==========================================================================
+   5. SPACING
+   ========================================================================== */
+
+:root {
+  --space-xs:                   0.25rem;
+  --space-sm:                   0.5rem;
+  --space-md:                   1rem;
+  --space-lg:                   1.5rem;
+  --space-xl:                   2.5rem;
+  --space-2xl:                  4rem;
+}
+
+
+/* ==========================================================================
+   6. DISPLAY-SPECIFIC FLUID TOKENS
+   ==========================================================================
+
+   These values are intentionally fluid.
+
+   They allow the same frontend to operate on:
+   - Door tablets
+   - 24–32" displays
+   - 40–55" waiting-room TVs
+   - 65"+ atrium displays
+
+   Layout-specific overrides will be introduced in layout.css.
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------------
+     Main Display Dimensions
+     ------------------------------------------------------------------------ */
+
+  --display-content-padding:
+    clamp(0.75rem, 2vw, 2.5rem);
+
+  --display-header-height:
+    clamp(3.5rem, 7vh, 6rem);
+
+  --display-footer-height:
+    clamp(2.5rem, 5vh, 4rem);
+
+  /* ------------------------------------------------------------------------
+     Queue Board Typography
+     ------------------------------------------------------------------------ */
+
+  --display-department-size:
+    clamp(1rem, 1.5vw, 2rem);
+
+  --display-token-size:
+    clamp(2rem, 5vw, 7rem);
+
+  --display-service-point-size:
+    clamp(0.875rem, 1.2vw, 1.5rem);
+
+  --display-status-size:
+    clamp(0.7rem, 0.9vw, 1.1rem);
+
+  /* ------------------------------------------------------------------------
+     Board Spacing
+     ------------------------------------------------------------------------ */
+
+  --display-board-gap:
+    clamp(0.5rem, 1vw, 1.5rem);
+
+  --display-row-padding:
+    clamp(0.5rem, 1vh, 1.25rem);
+
+  /* ------------------------------------------------------------------------
+     Alert / Hero Token
+
+     Used by the Alert Mode component.
+     ------------------------------------------------------------------------ */
+
+  --display-alert-token-size:
+    clamp(4rem, 12vw, 10rem);
+}
+
+
+/* ==========================================================================
+   7. COMPONENT DIMENSIONS
+   ========================================================================== */
+
+:root {
+  /* Queue Board */
+
+  --board-row-min-height:
+    clamp(3.5rem, 8vh, 7rem);
+
+  /* Alert */
+
+  --alert-max-width:
+    min(90vw, 900px);
+
+  --alert-padding:
+    clamp(1.5rem, 4vw, 4rem);
+
+  /* Announcement ticker */
+
+  --ticker-height:
+    clamp(2rem, 4vh, 3.5rem);
+}
+
+
+/* ==========================================================================
+   8. BORDER RADIUS
+   ========================================================================== */
+
+:root {
+  --radius-sm:                  4px;
+  --radius-md:                  8px;
+  --radius-lg:                  16px;
+  --radius-full:                9999px;
+}
+
+
+/* ==========================================================================
+   9. ELEVATION / SHADOWS
+   ========================================================================== */
+
+:root {
+  --shadow-card:
+    0 4px 12px rgba(0, 0, 0, 0.4);
+
+  --shadow-alert:
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 0 40px rgba(245, 158, 11, 0.2);
+
+  --shadow-critical:
+    0 20px 60px rgba(0, 0, 0, 0.85),
+    0 0 50px rgba(239, 68, 68, 0.25);
+}
+
+
+/* ==========================================================================
+   10. ANIMATION & TRANSITION TOKENS
+   ========================================================================== */
+
+:root {
+  --transition-fast:
+    150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --transition-normal:
+    300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --transition-slow:
+    500ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Alert / board animation durations are controlled by JS configuration.
+     These are visual transition durations only. */
+}
+
+
+/* ==========================================================================
+   11. Z-INDEX LAYERS
+   ========================================================================== */
+
+:root {
+  --z-shell:                    10;
+  --z-idle:                     20;
+  --z-alert:                    30;
+  --z-critical:                 40;
+  --z-system:                   50;
+}
+
+
+/* ==========================================================================
+   12. ACCESSIBILITY
+   ========================================================================== */
+
+:root {
+  --focus-ring:
+    0 0 0 3px rgba(56, 189, 248, 0.45);
+}
+
+
+/* ==========================================================================
+   13. GLOBAL BASELINE
+   ========================================================================== */
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-display);
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+}
+
+
+/* ==========================================================================
+   14. REDUCED MOTION
+   ==========================================================================
+
+   The display must remain understandable without relying on animation.
+   Alert information is always communicated through text/content as well.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-normal: 0ms;
+    --transition-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

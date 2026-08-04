@@ -3,7 +3,7 @@ import pytest
 import pytest_asyncio
 
 from app.core.security import hash_password
-from app.domain.models.models import Department, DeptType, Staff, StaffRole
+from app.domain.models.models import Department, DeptType, Patient, Staff, StaffRole
 from app.domain.services.patient_service import PatientService
 from app.domain.services.queue_service import QueueService
 from app.domain.services.routing_service import RoutingService
@@ -114,3 +114,24 @@ async def reception_context(
         "emergency": routing_departments["emergency"],
         "staff": receptionist,
     }
+
+
+import pytest_asyncio
+
+@pytest_asyncio.fixture
+async def patient_factory(db, faker):
+    async def _create_patient(**kwargs):
+        defaults = {
+            "first_name": faker.first_name(),
+            "last_name": faker.last_name(),
+            "gender": "MALE",
+            "date_of_birth": faker.date_of_birth(),
+            "phone": faker.phone_number(),
+        }
+        defaults.update(kwargs)
+        patient = Patient(**defaults)
+        db.add(patient)
+        await db.flush()
+        return patient
+
+    return _create_patient

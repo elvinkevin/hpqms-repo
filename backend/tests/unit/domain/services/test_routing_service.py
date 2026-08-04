@@ -305,10 +305,10 @@ async def test_get_current_location_active_queue(routing_service, walkin_visit, 
     loc = await routing_service.get_current_location(walkin_visit.visit_id)
 
     assert loc["visit_id"] == walkin_visit.visit_id
-    assert loc["department"] == "Reception"
-    assert loc["department_id"] == reception.dept_id
-    assert loc["queue_status"] == "WAITING"
-    assert loc["position"] == 1
+    assert loc["current_department_name"] == "Reception"
+    assert loc["current_department_id"] == reception.dept_id
+    assert loc["status"] == "WAITING"               # Maps to status.value
+    assert loc["position_in_line"] == 1             # Maps to position_in_line
 
 
 @pytest.mark.asyncio
@@ -317,10 +317,11 @@ async def test_get_current_location_no_active_queue(routing_service, walkin_visi
     loc = await routing_service.get_current_location(walkin_visit.visit_id)
 
     assert loc["visit_id"] == walkin_visit.visit_id
-    assert loc["department"] is None
-    assert loc["queue_status"] is None
-    assert loc["position"] == 0
-    assert loc["estimated_wait"] == 0
+    assert loc["current_department_name"] is None
+    assert loc["status"] is None                    # Maps to status
+    assert loc["position_in_line"] == 0             # Maps to position_in_line
+    assert loc["estimated_wait_minutes"] == 0       # Maps to estimated_wait_minutes
+
 
 
 # ==============================================================================

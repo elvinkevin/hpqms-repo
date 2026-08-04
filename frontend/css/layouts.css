@@ -1,0 +1,554 @@
+/* ==========================================================================
+   HPQMS Public Patient Display Board
+   css/layout.css — Screen Geometry & Viewport Layout Engine
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. GLOBAL RESET & VIEWPORT LOCKDOWN
+   -------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+
+  overflow: hidden;
+
+  background: var(--color-bg-app);
+  color: var(--color-text-primary);
+
+  font-family: var(--font-family-display);
+
+  user-select: none;
+  -webkit-user-select: none;
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 240px;
+  min-height: 240px;
+}
+
+
+/* --------------------------------------------------------------------------
+   2. ROOT DISPLAY SHELL
+   -------------------------------------------------------------------------- */
+
+.display-shell {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  background: var(--color-bg-app);
+
+  isolation: isolate;
+
+  z-index: var(--z-shell);
+}
+
+
+/* --------------------------------------------------------------------------
+   3. HEADER
+   -------------------------------------------------------------------------- */
+
+.display-header {
+  flex: 0 0 auto;
+
+  min-width: 0;
+
+  height: clamp(64px, 9vh, 100px);
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: var(--space-lg);
+
+  padding:
+    var(--space-sm)
+    clamp(var(--space-md), 2vw, var(--space-xl));
+
+  background: var(--color-bg-surface);
+
+  border-bottom:
+    2px solid
+    var(--color-border-subtle);
+}
+
+.facility-branding {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: var(--space-md);
+
+  overflow: hidden;
+}
+
+.display-meta {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+
+  gap: clamp(
+    var(--space-md),
+    2vw,
+    var(--space-xl)
+  );
+}
+
+
+/* --------------------------------------------------------------------------
+   4. MAIN DISPLAY VIEWPORT
+   -------------------------------------------------------------------------- */
+
+.display-main {
+  position: relative;
+
+  flex: 1 1 auto;
+
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  padding:
+    clamp(var(--space-sm), 1.5vw, var(--space-lg));
+}
+
+.primary-viewport {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+}
+
+
+/* --------------------------------------------------------------------------
+   5. FOOTER
+   -------------------------------------------------------------------------- */
+
+.display-footer {
+  flex: 0 0 auto;
+
+  min-width: 0;
+
+  min-height: 48px;
+
+  height: clamp(48px, 8vh, 80px);
+
+  display: flex;
+  align-items: center;
+
+  gap: var(--space-lg);
+
+  padding:
+    var(--space-sm)
+    clamp(var(--space-md), 2vw, var(--space-xl));
+
+  background: var(--color-bg-surface);
+
+  border-top:
+    2px solid
+    var(--color-border-subtle);
+}
+
+.announcement-wrapper {
+  flex: 1 1 auto;
+
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: var(--space-md);
+
+  overflow: hidden;
+}
+
+.pagination-indicator {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+
+  gap: var(--space-sm);
+}
+
+
+/* --------------------------------------------------------------------------
+   6. COMMON VIEWPORT CONTAINER
+   -------------------------------------------------------------------------- */
+
+.viewport-view {
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+}
+
+
+/* --------------------------------------------------------------------------
+   7. ROOM LAYOUT
+   --------------------------------------------------------------------------
+   Intended for:
+   - Consultation room door
+   - Examination room
+   - Single service point
+   - Small tablet display
+   -------------------------------------------------------------------------- */
+
+[data-layout="ROOM"] .primary-viewport {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+}
+
+[data-layout="ROOM"] .viewport-view {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-lg);
+}
+
+
+/* --------------------------------------------------------------------------
+   8. SINGLE DEPARTMENT LAYOUT
+   --------------------------------------------------------------------------
+   Intended for:
+   - Pharmacy
+   - Laboratory
+   - Triage
+   - Reception
+   - Other department-specific waiting areas
+   -------------------------------------------------------------------------- */
+
+[data-layout="SINGLE_DEPARTMENT"] .primary-viewport {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 2fr)
+    minmax(240px, 1fr);
+
+  gap: clamp(
+    var(--space-md),
+    2vw,
+    var(--space-xl)
+  );
+}
+
+[data-layout="SINGLE_DEPARTMENT"] .viewport-view {
+  min-width: 0;
+  min-height: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   9. ROTATING BOARD
+   --------------------------------------------------------------------------
+   IMPORTANT:
+   The JavaScript rotation manager determines WHICH departments appear.
+   CSS determines HOW the currently visible departments are arranged.
+   -------------------------------------------------------------------------- */
+
+[data-layout="ROTATING_BOARD"] .primary-viewport {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      var(--board-cols, 2),
+      minmax(0, 1fr)
+    );
+
+  grid-template-rows:
+    repeat(
+      var(--board-rows, 2),
+      minmax(0, 1fr)
+    );
+
+  gap: clamp(
+    var(--space-sm),
+    1.5vw,
+    var(--space-lg)
+  );
+}
+
+[data-layout="ROTATING_BOARD"] .viewport-view {
+  min-width: 0;
+  min-height: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   10. ATRIUM LAYOUT
+   --------------------------------------------------------------------------
+   Intended for:
+   - 65"+ lobby displays
+   - Large digital signage
+   - Hospital atriums
+   - Video-wall style installations
+   -------------------------------------------------------------------------- */
+
+[data-layout="ATRIUM"] .primary-viewport {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 3fr)
+    minmax(280px, 1fr);
+
+  grid-template-rows:
+    minmax(0, 1fr)
+    auto;
+
+  gap: clamp(
+    var(--space-lg),
+    2vw,
+    var(--space-2xl)
+  );
+}
+
+
+/* --------------------------------------------------------------------------
+   11. BOARD DENSITY
+   --------------------------------------------------------------------------
+   These values are layout defaults.
+   DISPLAY_CONFIG can override them through CSS variables.
+   -------------------------------------------------------------------------- */
+
+/* Small / compact displays */
+@media (max-width: 767px) {
+
+  :root {
+    --board-cols: 1;
+    --board-rows: 3;
+  }
+
+  .display-header {
+    height: 72px;
+
+    padding:
+      var(--space-sm)
+      var(--space-md);
+  }
+
+  .display-meta {
+    gap: var(--space-sm);
+  }
+
+  .display-main {
+    padding: var(--space-sm);
+  }
+
+  .display-footer {
+    height: 52px;
+
+    padding:
+      var(--space-sm)
+      var(--space-md);
+  }
+
+  [data-layout="SINGLE_DEPARTMENT"] .primary-viewport {
+    grid-template-columns: 1fr;
+
+    grid-template-rows:
+      minmax(0, 1fr)
+      auto;
+  }
+
+  [data-layout="ATRIUM"] .primary-viewport {
+    grid-template-columns: 1fr;
+
+    grid-template-rows:
+      minmax(0, 1fr)
+      auto;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   12. STANDARD 1080p / 32–55" DISPLAYS
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 768px) and (max-width: 1919px) {
+
+  :root {
+    --board-cols: 2;
+    --board-rows: 2;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   13. LARGE 1080p / 1440p DISPLAYS
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 1200px) {
+
+  :root {
+    --board-cols: 2;
+    --board-rows: 2;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   14. LARGE 4K / ATRIUM DISPLAYS
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 2000px) {
+
+  :root {
+    --board-cols: 3;
+    --board-rows: 2;
+  }
+
+  .display-main {
+    padding: var(--space-xl);
+  }
+
+  .display-header {
+    padding:
+      var(--space-md)
+      var(--space-2xl);
+  }
+
+  .display-footer {
+    padding:
+      var(--space-md)
+      var(--space-2xl);
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   15. PORTRAIT ORIENTATION
+   -------------------------------------------------------------------------- */
+
+@media (orientation: portrait) {
+
+  .display-header {
+    height: 8vh;
+  }
+
+  [data-layout="SINGLE_DEPARTMENT"] .primary-viewport,
+  [data-layout="ATRIUM"] .primary-viewport {
+    grid-template-columns: 1fr;
+
+    grid-template-rows:
+      minmax(0, 2fr)
+      minmax(0, 1fr);
+  }
+
+  [data-layout="ROTATING_BOARD"] .primary-viewport {
+    grid-template-columns: 1fr;
+
+    grid-template-rows:
+      repeat(
+        var(--board-rows, 4),
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   16. VERY SHORT SCREENS
+   --------------------------------------------------------------------------
+   Important for landscape TVs with limited vertical resolution.
+   -------------------------------------------------------------------------- */
+
+@media (max-height: 600px) {
+
+  .display-header {
+    height: 56px;
+  }
+
+  .display-footer {
+    height: 44px;
+  }
+
+  .display-main {
+    padding: var(--space-sm);
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   17. ULTRA-WIDE DISPLAYS
+   -------------------------------------------------------------------------- */
+
+@media (min-aspect-ratio: 21/9) {
+
+  [data-layout="ROTATING_BOARD"] .primary-viewport {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+
+    grid-template-rows:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   18. ACCESSIBILITY / REDUCED MOTION
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="HPQMS Public Patient Display Board" />
+    <meta name="theme-color" content="#0a0e14" />
+
+    <title>Patient Information Display</title>
+
+    <!-- ================================================================
+         PHASE 3 CSS ENTRY POINTS
+         Load order matters: Tokens -> Layout -> Components -> Animations
+         ================================================================ -->
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/layouts.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/animations.css" />
+</head>
+
+<body id="display-app">
+
+    <!-- ================================================================
+         LAYER 1: PRIMARY DISPLAY SHELL
+         ================================================================ -->
+
+    <div id="display-shell" class="display-shell">
+
+        <!-- ============================================================
+             HEADER
+             ============================================================ -->
+
+        <header id="display-header" class="display-header" role="banner">
+
+            <!-- Facility branding -->
+            <div id="facility-branding" class="facility-branding">
+
+                <img id="facility-logo" class="facility-logo" src="" alt="Hospital Logo" hidden />
+
+                <h1 id="facility-name" class="facility-name">
+                    Loading Facility...
+                </h1>
+
+            </div>
+
+
+            <!-- Display metadata -->
+            <div id="display-meta" class="display-meta">
+
+                <!-- Connection status -->
+                <div id="connection-indicator" class="connection-indicator" role="status"
+                    aria-label="Server Connection Status" data-status="CONNECTING">
+
+                    <span class="status-dot" aria-hidden="true"></span>
+
+                    <span id="connection-text" class="status-text">
+                        CONNECTING
+                    </span>
+
+                </div>
+
+
+                <!-- Current time -->
+                <time id="clock" class="clock" datetime="" aria-label="Current Time">
+                    00:00:00
+                </time>
+
+            </div>
+
+        </header>
+
+
+        <!-- ============================================================
+             MAIN DISPLAY VIEWPORT
+             ============================================================ -->
+
+        <main id="display-main" class="display-main" role="main" aria-live="polite" aria-atomic="false">
+
+            <!--
+                Renderer mount point.
+
+                The active renderer will dynamically populate this
+                container according to DISPLAY_CONFIG.layout.
+
+                Supported strategies:
+
+                ROOM
+                SINGLE_DEPARTMENT
+                ROTATING_BOARD
+                ATRIUM
+            -->
+
+            <div id="primary-viewport" class="primary-viewport">
+
+                <!-- Initial loading state -->
+                <div id="viewport-loader" class="viewport-loader">
+
+                    <p>
+                        Initializing Display Engine...
+                    </p>
+
+                </div>
+
+            </div>
+
+        </main>
+
+
+        <!-- ============================================================
+             FOOTER
+             ============================================================ -->
+
+        <footer id="display-footer" class="display-footer" role="contentinfo">
+
+            <!-- ========================================================
+                 ANNOUNCEMENT TICKER
+                 ======================================================== -->
+
+            <div id="announcement-wrapper" class="announcement-wrapper" aria-label="Hospital Announcements">
+
+                <span id="announcement-label" class="ticker-label">
+                    ANNOUNCEMENT
+                </span>
+
+                <div id="announcement-ticker" class="announcement-ticker">
+
+                    <p id="announcement-text" class="announcement-text">
+                        Welcome. Please have your token ready.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- ========================================================
+                 PAGINATION INDICATOR
+                 ======================================================== -->
+
+            <div id="pagination-indicator" class="pagination-indicator" aria-label="Board Page Status" hidden>
+
+                <span id="pagination-text" class="pagination-text">
+                    PAGE 1 OF 1
+                </span>
+
+                <div id="pagination-dots" class="pagination-dots" aria-hidden="true"></div>
+
+            </div>
+
+        </footer>
+
+    </div>
+
+
+    <!-- ================================================================
+         LAYER 2: IDLE / AMBIENT DISPLAY
+         ================================================================ -->
+
+    <div id="idle-layer" class="idle-layer" aria-hidden="true" hidden>
+
+        <!-- ============================================================
+             STANDBY MODE
+             ============================================================ -->
+
+        <section id="standby-view" class="idle-card standby-card" aria-labelledby="standby-title" hidden>
+
+            <div class="standby-content">
+
+                <h2 id="standby-title">
+                    All Services Are Available
+                </h2>
+
+                <p id="standby-subtitle">
+                    Please take a token and wait for your number to be called.
+                </p>
+
+                <div class="standby-brand-prompt">
+
+                    <span class="pulse-ring" aria-hidden="true"></span>
+
+                    <p>
+                        Your token will be displayed here when it is called.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================================================
+             AMBIENT / SCREEN SAVER MODE
+             ============================================================ -->
+
+        <section id="ambient-view" class="idle-card ambient-card" aria-labelledby="ambient-title" hidden>
+
+            <div class="ambient-content">
+
+                <div class="ambient-clock-hero">
+
+                    <time id="ambient-clock" aria-label="Current Time">
+                        00:00
+                    </time>
+
+                    <span id="ambient-date">
+                        Monday, 1 January
+                    </span>
+
+                </div>
+
+
+                <div id="ambient-announcement-card" class="ambient-announcement-card">
+
+                    <h3 id="ambient-title">
+                        Health &amp; Safety Notice
+                    </h3>
+
+                    <p id="ambient-health-text">
+                        Please sanitize your hands at the stations
+                        provided across the waiting area.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+    <!-- ================================================================
+         LAYER 3: TOKEN / PRIORITY ALERT
+         ================================================================ -->
+
+    <aside id="alert-layer" class="alert-layer" role="alert" aria-live="assertive" aria-atomic="true" hidden>
+
+        <!-- Background layer -->
+        <div id="alert-backdrop" class="alert-backdrop" aria-hidden="true"></div>
+
+
+        <!-- Alert card -->
+        <section id="alert-card" class="alert-card" data-alert-type="CALLED" aria-labelledby="alert-token">
+
+            <!-- ========================================================
+                 ALERT HEADER
+                 ======================================================== -->
+
+            <header class="alert-header">
+
+                <span id="alert-badge" class="alert-badge">
+                    NOW SERVING
+                </span>
+
+                <span id="alert-department" class="alert-department">
+                    PHARMACY
+                </span>
+
+            </header>
+
+
+            <!-- ========================================================
+                 ALERT BODY
+                 ======================================================== -->
+
+            <div class="alert-body">
+
+                <!-- Token number -->
+                <div id="alert-token" class="alert-token">
+                    P-014
+                </div>
+
+
+                <!-- Destination -->
+                <div class="alert-destination-group">
+
+                    <span class="destination-label">
+                        PLEASE PROCEED TO
+                    </span>
+
+                    <div id="alert-service-point" class="alert-service-point">
+                        COUNTER 2
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ========================================================
+                 ALERT FOOTER
+                 ======================================================== -->
+
+            <footer class="alert-footer">
+
+                <span id="alert-instruction" class="alert-instruction">
+                    Please proceed to the assigned service point.
+                </span>
+
+            </footer>
+
+        </section>
+
+    </aside>
+
+
+    <!-- ================================================================
+         LAYER 4: CONNECTION / SYSTEM STATUS
+         ================================================================ -->
+
+    <div id="system-status-layer" class="system-status-layer" role="status" aria-live="polite" hidden>
+
+        <section id="system-status-card" class="system-status-card">
+
+            <div class="system-status-icon" aria-hidden="true">
+                !
+            </div>
+
+            <h2 id="system-status-title">
+                Reconnecting...
+            </h2>
+
+            <p id="system-status-message">
+                Reconnecting to the hospital queue system.
+            </p>
+
+            <span id="system-status-state" class="system-status-state">
+                CONNECTION LOST
+            </span>
+
+        </section>
+
+    </div>
+
+
+    <!-- ================================================================
+         JAVASCRIPT APPLICATION ENTRY POINT
+         ================================================================ -->
+
+    <script type="module" src="js/app.js"></script>
+
+</body>
+
+</html>

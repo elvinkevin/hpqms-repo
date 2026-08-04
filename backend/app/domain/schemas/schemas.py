@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field
@@ -7,7 +7,8 @@ from app.domain.models.models import (
     StaffRole, DeptType, EntryType, VisitStage, 
     QueueEntryStatus, QueuePriority, RegistrationStatus
 )
-
+from enum import Enum
+from uuid import UUID, uuid4
 # ── Base Configuration Mixin ──────────────────────────────────────────────
 
 class ORMBase(BaseModel):
@@ -458,3 +459,306 @@ class RouteDecision(BaseModel):
     visit_completed: bool = False
     message: str
     model_config = ConfigDict(from_attributes=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DISPLAY ENUMS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AnnouncementPriority(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    EMERGENCY = "EMERGENCY"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DISPLAY STATE SCHEMAS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ActiveTokenDisplay(BaseModel):
+    """Token currently being processed or called at a service point."""
+
+    token_number: str
+    service_point: str | None = None
+    status: QueueEntryStatus
+    called_at: datetime | None = None
+
+
+class NextTokenDisplay(BaseModel):
+    """Token scheduled next in line within the department queue."""
+
+    token_number: str
+
+
+class RecentTokenDisplay(BaseModel):
+    """Token recently processed or completed in the department."""
+
+    token_number: str
+
+
+class DepartmentDisplay(BaseModel):
+    """Aggregated display view for a single department queue state."""
+
+    department_id: UUID
+    department_name: str
+
+    active_tokens: list[ActiveTokenDisplay] = Field(
+        default_factory=list,
+        description="Tokens currently CALLED or IN_PROGRESS",
+    )
+
+    next_tokens: list[NextTokenDisplay] = Field(
+        default_factory=list,
+        description=(
+            "Upcoming tokens in WAITING status ordered by "
+            "priority and sequence"
+        ),
+    )
+
+    recent_tokens: list[RecentTokenDisplay] = Field(
+        default_factory=list,
+        description="Recently serviced or completed tokens",
+    )
+
+    waiting_count: int = Field(
+        default=0,
+        ge=0,
+        description="Total number of patients currently waiting in this department",
+    )
+
+    estimated_wait_minutes: int | None = Field(
+        default=None,
+        ge=0,
+        description="Estimated wait time in minutes for the next patient in line",
+    )
+
+
+class DisplayAnnouncement(BaseModel):
+    """Broadcast announcement or emergency alert payload."""
+
+    announcement_id: UUID
+
+    priority: AnnouncementPriority
+
+    message: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+    starts_at: datetime | None = None
+
+    expires_at: datetime | None = None
+
+
+class DisplaySnapshot(BaseModel):
+    """
+    Top-level display payload emitted to public digital signage monitors.
+
+    This represents the authoritative current state of the display.
+    """
+
+    facility_name: str | None = None
+
+    server_timestamp: datetime
+
+    departments: list[DepartmentDisplay] = Field(
+        default_factory=list,
+        description="Current queue state for monitored departments",
+    )
+
+    announcements: list[DisplayAnnouncement] = Field(
+        default_factory=list,
+        description="Currently active facility announcements",
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTIFICATION EVENT ENUMS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class NotificationEventType(str, Enum):
+    """
+    Represents a meaningful event that occurred within the
+    queue or notification domain.
+    """
+
+    TOKEN_CALLED = "TOKEN_CALLED"
+    TOKEN_SERVICE_STARTED = "TOKEN_SERVICE_STARTED"
+    TOKEN_COMPLETED = "TOKEN_COMPLETED"
+    TOKEN_NO_SHOW = "TOKEN_NO_SHOW"
+
+    PATIENT_ROUTED = "PATIENT_ROUTED"
+
+    QUEUE_UPDATED = "QUEUE_UPDATED"
+
+    ANNOUNCEMENT_CREATED = "ANNOUNCEMENT_CREATED"
+    ANNOUNCEMENT_EXPIRED = "ANNOUNCEMENT_EXPIRED"
+
+
+class NotificationPriority(str, Enum):
+    """
+    Determines how urgently a consumer should react to an event.
+    """
+
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class NotificationTarget(str, Enum):
+    """
+    Identifies consumers interested in a notification event.
+    """
+
+    PUBLIC_DISPLAY = "PUBLIC_DISPLAY"
+    STAFF_DASHBOARD = "STAFF_DASHBOARD"
+    AUDIO_SYSTEM = "AUDIO_SYSTEM"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTIFICATION EVENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+class NotificationEvent(BaseModel):
+    """
+    Presentation-agnostic event describing something that happened
+    within the HPQMS queue or notification domain.
+
+    The event contains enough contextual information for consumers
+    to react without having to infer missing information.
+    """
+
+    event_id: UUID = Field(
+        default_factory=uuid4,
+        description="Unique identifier for this notification event",
+    )
+
+    event_type: NotificationEventType
+
+    priority: NotificationPriority = Field(
+        default=NotificationPriority.NORMAL,
+        description="Urgency with which consumers should react",
+    )
+
+    occurred_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="UTC timestamp when the event occurred",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # TOKEN / VISIT CONTEXT
+    # ─────────────────────────────────────────────────────────────────────
+
+    token_number: str | None = Field(
+        default=None,
+        max_length=20,
+        description="Public queue token associated with the event",
+    )
+
+    visit_id: UUID | None = Field(
+        default=None,
+        description="Visit associated with the event",
+    )
+
+    queue_entry_id: UUID | None = Field(
+        default=None,
+        description="Queue entry associated with the event",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # GENERAL DEPARTMENT CONTEXT
+    # ─────────────────────────────────────────────────────────────────────
+
+    department_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Primary department associated with the event. "
+            "Used for events involving a single department."
+        ),
+    )
+
+    department_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Display name of the primary department",
+    )
+
+    service_point: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Service point associated with the event",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # ROUTING CONTEXT
+    # ─────────────────────────────────────────────────────────────────────
+
+    source_department_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Department from which the patient/token is being routed."
+        ),
+    )
+
+    source_department_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Display name of the source department",
+    )
+
+    target_department_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Department to which the patient/token is being routed."
+        ),
+    )
+
+    target_department_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Display name of the target department",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # ANNOUNCEMENT CONTEXT
+    # ─────────────────────────────────────────────────────────────────────
+
+    announcement_id: UUID | None = Field(
+        default=None,
+        description="Announcement associated with the event",
+    )
+
+    announcement_priority: AnnouncementPriority | None = Field(
+        default=None,
+        description="Priority of the announcement",
+    )
+
+    starts_at: datetime | None = Field(
+        default=None,
+        description="Time at which the announcement becomes active",
+    )
+
+    expires_at: datetime | None = Field(
+        default=None,
+        description="Time at which the announcement expires",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # HUMAN-READABLE MESSAGE
+    # ─────────────────────────────────────────────────────────────────────
+
+    message: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Optional human-readable event or announcement message",
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # EVENT CONSUMERS
+    # ─────────────────────────────────────────────────────────────────────
+
+    targets: list[NotificationTarget] = Field(
+        default_factory=list,
+        description="Consumers that should react to this event",
+    )
