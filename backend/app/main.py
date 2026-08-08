@@ -36,6 +36,7 @@
 from fastapi import FastAPI
 
 from app.api.router import api_router
+from app.api.routes.display import websocket_router
 
 app = FastAPI(
     title="Hospital Queue Management API",
@@ -43,6 +44,7 @@ app = FastAPI(
 )
 
 app.include_router(api_router)
+app.include_router(websocket_router)
 
 
 @app.get("/")

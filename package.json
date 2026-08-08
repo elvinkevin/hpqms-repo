@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "happy-dom": "^20.11.1",
     "vitest": "^3.0.0"
   }

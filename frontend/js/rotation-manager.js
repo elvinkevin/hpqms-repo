@@ -34,6 +34,7 @@
 const DEFAULT_OPTIONS = Object.freeze({
     rotationIntervalMs: 15000,
     priorityFocusDurationMs: 10000,
+    onDepartmentChange: null,
 });
 
 
@@ -58,6 +59,8 @@ let rotationActive = false;
 let priorityFocusActive = false;
 
 let priorityFocusTimer = null;
+
+let onDepartmentChange = null;
 
 
 /* ==========================================================================
@@ -178,6 +181,16 @@ function clearPriorityFocusTimer() {
 }
 
 
+function notifyDepartmentChange(reason) {
+    if (typeof onDepartmentChange === "function") {
+        onDepartmentChange(
+            getCurrentDepartment(),
+            reason
+        );
+    }
+}
+
+
 /**
  * Move to the next department.
  */
@@ -195,7 +208,12 @@ function advanceRotation() {
         (currentIndex + 1) %
         departments.length;
 
-    return getCurrentDepartment();
+    const currentDepartment =
+        getCurrentDepartment();
+
+    notifyDepartmentChange("ROTATION_ADVANCED");
+
+    return currentDepartment;
 }
 
 
@@ -243,7 +261,19 @@ function initialize(customOptions = {}) {
         );
     }
 
+    if (
+        mergedOptions.onDepartmentChange !== null &&
+        typeof mergedOptions.onDepartmentChange !== "function"
+    ) {
+        throw new TypeError(
+            "onDepartmentChange must be a function or null"
+        );
+    }
+
     options = mergedOptions;
+
+    onDepartmentChange =
+        mergedOptions.onDepartmentChange;
 
     initialized = true;
 
@@ -290,6 +320,8 @@ function setDepartments(newDepartments) {
             currentIndex =
                 preservedIndex;
 
+            notifyDepartmentChange("DEPARTMENTS_UPDATED");
+
             return true;
         }
     }
@@ -301,6 +333,8 @@ function setDepartments(newDepartments) {
         departments.length > 0
             ? 0
             : -1;
+
+    notifyDepartmentChange("DEPARTMENTS_UPDATED");
 
     return true;
 }
@@ -363,6 +397,8 @@ function selectDepartment(departmentId) {
 
     currentIndex = index;
 
+    notifyDepartmentChange("DEPARTMENT_SELECTED");
+
     return true;
 }
 
@@ -382,14 +418,24 @@ function nextDepartment() {
     if (departments.length === 1) {
         currentIndex = 0;
 
-        return getCurrentDepartment();
+        const currentDepartment =
+            getCurrentDepartment();
+
+        notifyDepartmentChange("DEPARTMENT_SELECTED");
+
+        return currentDepartment;
     }
 
     currentIndex =
         (currentIndex + 1) %
         departments.length;
 
-    return getCurrentDepartment();
+    const currentDepartment =
+        getCurrentDepartment();
+
+    notifyDepartmentChange("DEPARTMENT_SELECTED");
+
+    return currentDepartment;
 }
 
 
@@ -408,7 +454,12 @@ function previousDepartment() {
     if (departments.length === 1) {
         currentIndex = 0;
 
-        return getCurrentDepartment();
+        const currentDepartment =
+            getCurrentDepartment();
+
+        notifyDepartmentChange("DEPARTMENT_SELECTED");
+
+        return currentDepartment;
     }
 
     currentIndex =
@@ -416,7 +467,12 @@ function previousDepartment() {
             departments.length) %
         departments.length;
 
-    return getCurrentDepartment();
+    const currentDepartment =
+        getCurrentDepartment();
+
+    notifyDepartmentChange("DEPARTMENT_SELECTED");
+
+    return currentDepartment;
 }
 
 
@@ -527,6 +583,8 @@ function focusDepartment(
      */
     currentIndex = index;
 
+    notifyDepartmentChange("PRIORITY_FOCUS_STARTED");
+
     /*
      * Temporarily suspend normal rotation.
      */
@@ -543,6 +601,8 @@ function focusDepartment(
         if (rotationActive) {
             armRotationTimer();
         }
+
+        notifyDepartmentChange("PRIORITY_FOCUS_ENDED");
 }, durationMs);
 
     return true;
@@ -560,6 +620,8 @@ function clearPriorityFocus() {
     if (rotationActive) {
         armRotationTimer();
     }
+
+    notifyDepartmentChange("PRIORITY_FOCUS_CLEARED");
 
     return true;
 }
@@ -627,6 +689,8 @@ function reset() {
     rotationActive = false;
 
     priorityFocusActive = false;
+
+    onDepartmentChange = null;
 }
 
 

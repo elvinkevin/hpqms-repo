@@ -21,6 +21,38 @@ import {
 } from "./api.js";
 
 import {
+    initializeRenderer,
+    renderSnapshot,
+    renderDepartments,
+    renderConnectionStatus,
+    clearRenderer,
+    showLoader,
+} from "./renderer.js";
+
+import {
+    initialize as initializeRotation,
+    setDepartments,
+    getCurrentDepartment,
+    startRotation,
+    stopRotation,
+    focusDepartment,
+    reset as resetRotation,
+} from "./rotation-manager.js";
+
+import {
+    initializeIdleManager,
+    resetIdleTimer,
+    destroyIdleManager,
+} from "./idle-manager.js";
+
+import {
+    initialize as initializeAlerts,
+    setCallbacks as setAlertCallbacks,
+    handleEvent as handleAlertEvent,
+    reset as resetAlerts,
+} from "./alert-manager.js";
+
+import {
     getState,
     setSnapshot,
     applyEvent,
@@ -42,6 +74,270 @@ let syncing = false;
 let unsubscribeDisplayState = null;
 
 const websocketSubscriptions = [];
+
+let managersInitialized = false;
+
+let latestNotificationEvent = null;
+
+
+/* ==========================================================================
+   DOM Helpers
+   ========================================================================== */
+
+function getElementById(id) {
+    const element = document.getElementById(id);
+
+    if (!element) {
+        throw new Error(
+            `Required display element #${id} was not found.`
+        );
+    }
+
+    return element;
+}
+
+
+function setText(id, value) {
+    getElementById(id).textContent =
+        value ?? "";
+}
+
+
+function normalizeConnectionStatus(status) {
+    switch (status) {
+        case "CONNECTED":
+        case "CONNECTING":
+        case "DISCONNECTED":
+            return status;
+
+        case "RECONNECTING":
+            return "CONNECTING";
+
+        case "ERROR":
+            return "DISCONNECTED";
+
+        default:
+            return "DISCONNECTED";
+    }
+}
+
+
+function getRenderableDepartments(snapshot) {
+    const departments =
+        Array.isArray(snapshot?.departments)
+            ? snapshot.departments
+            : [];
+
+    const config = getConfig();
+
+    if (
+        config.rotation.enabled &&
+        departments.length > 1
+    ) {
+        const currentDepartment =
+            getCurrentDepartment();
+
+        return currentDepartment
+            ? [currentDepartment]
+            : departments.slice(0, 1);
+    }
+
+    return departments;
+}
+
+
+function renderDisplayState(state = getState()) {
+    const snapshot =
+        state.snapshot ?? {};
+
+    const departments =
+        Array.isArray(snapshot.departments)
+            ? snapshot.departments
+            : [];
+
+    setDepartments(departments);
+
+    const config = getConfig();
+
+    if (
+        config.rotation.enabled &&
+        departments.length > 1
+    ) {
+        startRotation();
+    } else {
+        stopRotation();
+    }
+
+    renderSnapshot({
+        ...snapshot,
+        departments:
+            getRenderableDepartments(snapshot),
+    });
+
+    renderConnectionStatus(
+        normalizeConnectionStatus(
+            state.connection?.status
+        )
+    );
+
+    resetIdleTimer();
+}
+
+
+function renderCurrentDepartment() {
+    const state = getState();
+
+    renderDepartments(
+        getRenderableDepartments(state.snapshot)
+    );
+}
+
+
+function showAlert(alert) {
+    const layer =
+        getElementById("alert-layer");
+
+    const card =
+        getElementById("alert-card");
+
+    const alertType =
+        alert.priority === "CRITICAL"
+            ? "CRITICAL"
+            : "CALLED";
+
+    card.dataset.alertType =
+        alertType;
+
+    setText(
+        "alert-badge",
+        alertType === "CRITICAL"
+            ? "PRIORITY ALERT"
+            : "NOW SERVING"
+    );
+
+    setText(
+        "alert-department",
+        alert.department_name ?? ""
+    );
+
+    setText(
+        "alert-token",
+        alert.token_number ?? "TOKEN"
+    );
+
+    setText(
+        "alert-service-point",
+        alert.service_point ?? "SERVICE DESK"
+    );
+
+    setText(
+        "alert-instruction",
+        alert.message ??
+            "Please proceed to the assigned service point."
+    );
+
+    layer.hidden = false;
+    layer.setAttribute("aria-hidden", "false");
+}
+
+
+function dismissAlert() {
+    const layer =
+        document.getElementById("alert-layer");
+
+    if (!layer) {
+        return;
+    }
+
+    layer.hidden = true;
+    layer.setAttribute("aria-hidden", "true");
+}
+
+
+function playAlertSound() {
+    /*
+     * Audio output is intentionally left as a soft hook.
+     * Browser autoplay policies require a user gesture in many environments.
+     */
+}
+
+
+function maybeFocusDepartment(event) {
+    if (!event?.department_id) {
+        return;
+    }
+
+    if (
+        event.event_type === "TOKEN_CALLED" ||
+        event.priority === "HIGH" ||
+        event.priority === "CRITICAL"
+    ) {
+        const focused =
+            focusDepartment(event.department_id);
+
+        if (focused) {
+            renderCurrentDepartment();
+        }
+    }
+}
+
+
+function initializeRuntimeManagers() {
+    if (managersInitialized) {
+        return;
+    }
+
+    const config = getConfig();
+
+    initializeRenderer();
+    showLoader();
+
+    initializeRotation({
+        rotationIntervalMs:
+            config.rotation.intervalMs,
+        onDepartmentChange:
+            renderCurrentDepartment,
+    });
+
+    if (config.idle.enabled) {
+        initializeIdleManager({
+            idleTimeoutMs:
+                config.idle.timeoutMs,
+        });
+    }
+
+    initializeAlerts({
+        defaultDurationMs:
+            config.alerts.defaultDurationMs,
+    });
+
+    setAlertCallbacks({
+        show: showAlert,
+        dismiss: dismissAlert,
+        playSound:
+            config.alerts.audioEnabled &&
+            config.features.audio
+                ? playAlertSound
+                : null,
+    });
+
+    managersInitialized = true;
+}
+
+
+function resetRuntimeManagers() {
+    if (!managersInitialized) {
+        return;
+    }
+
+    destroyIdleManager();
+    resetRotation();
+    resetAlerts();
+    clearRenderer();
+    dismissAlert();
+
+    managersInitialized = false;
+}
 
 
 /* ==========================================================================
@@ -152,9 +448,21 @@ function handleMessage(rawMessage) {
     }
 
     try {
+        latestNotificationEvent = event;
+
+        handleAlertEvent(event);
+
+        maybeFocusDepartment(event);
+
         applyEvent(event);
+
+        if (event.event_type === "QUEUE_UPDATED") {
+            syncSnapshot().catch(handleError);
+        }
     } catch (error) {
         handleError(error);
+    } finally {
+        latestNotificationEvent = null;
     }
 }
 
@@ -274,14 +582,12 @@ function unregisterWebSocketListeners() {
  */
 function registerDisplayStateSubscription() {
     unsubscribeDisplayState =
-        subscribeDisplayState(() => {
-            /*
-             * Intentionally empty for now.
-             *
-             * Future application managers/renderers can
-             * subscribe directly to display-state.js or
-             * be orchestrated here.
-             */
+        subscribeDisplayState((state) => {
+            try {
+                renderDisplayState(state);
+            } catch (error) {
+                handleError(error);
+            }
         });
 }
 
@@ -328,6 +634,8 @@ async function start() {
          * initialized before dependent modules operate.
          */
         getConfig();
+
+        initializeRuntimeManagers();
 
         registerWebSocketListeners();
 
@@ -378,6 +686,8 @@ function stop() {
     unregisterWebSocketListeners();
 
     unregisterDisplayStateSubscription();
+
+    resetRuntimeManagers();
 
     started = false;
 

@@ -45,7 +45,7 @@ function buildUrl(path) {
 
     const config = getConfig();
 
-    const baseUrl = config.backend.apiUrl;
+    const baseUrl = config.backend.apiBaseUrl ?? config.backend.apiUrl;
 
     if (
         typeof baseUrl !== "string" ||

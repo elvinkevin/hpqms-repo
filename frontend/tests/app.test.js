@@ -31,6 +31,10 @@ const {
     mockWebSocket,
     mockDisplayState,
     mockApi,
+    mockRenderer,
+    mockRotation,
+    mockIdle,
+    mockAlerts,
 } = vi.hoisted(() => {
     const websocketHandlers = new Map();
 
@@ -40,6 +44,24 @@ const {
             websocketUrl:
                 "ws://localhost:8000/ws/display",
             connectionTimeoutMs: 5000,
+        },
+        rotation: {
+            enabled: true,
+            intervalMs: 15000,
+        },
+        idle: {
+            enabled: true,
+            timeoutMs: 120000,
+        },
+        alerts: {
+            audioEnabled: true,
+            defaultDurationMs: 5000,
+            emergencyDurationMs: 15000,
+        },
+        features: {
+            audio: true,
+            announcements: true,
+            multiDepartment: true,
         },
     };
 
@@ -97,12 +119,48 @@ const {
         getDisplaySnapshot: vi.fn(),
     };
 
+    const mockRenderer = {
+        initializeRenderer: vi.fn(),
+        renderSnapshot: vi.fn(),
+        renderDepartments: vi.fn(),
+        renderConnectionStatus: vi.fn(),
+        clearRenderer: vi.fn(),
+        showLoader: vi.fn(),
+    };
+
+    const mockRotation = {
+        initialize: vi.fn(),
+        setDepartments: vi.fn(),
+        getCurrentDepartment: vi.fn(() => null),
+        startRotation: vi.fn(),
+        stopRotation: vi.fn(),
+        focusDepartment: vi.fn(() => false),
+        reset: vi.fn(),
+    };
+
+    const mockIdle = {
+        initializeIdleManager: vi.fn(),
+        resetIdleTimer: vi.fn(),
+        destroyIdleManager: vi.fn(),
+    };
+
+    const mockAlerts = {
+        initialize: vi.fn(),
+        setCallbacks: vi.fn(),
+        handleEvent: vi.fn(),
+        reset: vi.fn(),
+    };
+
     return {
         mockConfig,
         websocketHandlers,
         mockWebSocket,
         mockDisplayState,
         mockApi,
+        mockRenderer,
+        mockRotation,
+        mockIdle,
+        mockAlerts,
     };
 });
 
@@ -146,6 +204,62 @@ vi.mock("../js/display-state.js", () => ({
 
     subscribe:
         mockDisplayState.subscribe,
+}));
+
+
+vi.mock("../js/renderer.js", () => ({
+    initializeRenderer:
+        mockRenderer.initializeRenderer,
+    renderSnapshot:
+        mockRenderer.renderSnapshot,
+    renderDepartments:
+        mockRenderer.renderDepartments,
+    renderConnectionStatus:
+        mockRenderer.renderConnectionStatus,
+    clearRenderer:
+        mockRenderer.clearRenderer,
+    showLoader:
+        mockRenderer.showLoader,
+}));
+
+
+vi.mock("../js/rotation-manager.js", () => ({
+    initialize:
+        mockRotation.initialize,
+    setDepartments:
+        mockRotation.setDepartments,
+    getCurrentDepartment:
+        mockRotation.getCurrentDepartment,
+    startRotation:
+        mockRotation.startRotation,
+    stopRotation:
+        mockRotation.stopRotation,
+    focusDepartment:
+        mockRotation.focusDepartment,
+    reset:
+        mockRotation.reset,
+}));
+
+
+vi.mock("../js/idle-manager.js", () => ({
+    initializeIdleManager:
+        mockIdle.initializeIdleManager,
+    resetIdleTimer:
+        mockIdle.resetIdleTimer,
+    destroyIdleManager:
+        mockIdle.destroyIdleManager,
+}));
+
+
+vi.mock("../js/alert-manager.js", () => ({
+    initialize:
+        mockAlerts.initialize,
+    setCallbacks:
+        mockAlerts.setCallbacks,
+    handleEvent:
+        mockAlerts.handleEvent,
+    reset:
+        mockAlerts.reset,
 }));
 
 

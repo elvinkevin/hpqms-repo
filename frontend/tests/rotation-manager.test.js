@@ -203,6 +203,7 @@ describe("initialize()", () => {
             .toEqual({
                 rotationIntervalMs: 15000,
                 priorityFocusDurationMs: 10000,
+                onDepartmentChange: null,
             });
     });
 });

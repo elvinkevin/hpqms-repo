@@ -25,7 +25,7 @@ const DEFAULT_CONFIG = {
     },
 
     backend: {
-        apiBaseUrl: "http://localhost:8000",
+        apiBaseUrl: "http://localhost:8000/api",
         websocketUrl: "ws://localhost:8000/ws/display",
         connectionTimeoutMs: 10000,
     },

@@ -61,6 +61,7 @@ const EVENT_TYPE = Object.freeze({
     TOKEN_CALLED: "TOKEN_CALLED",
     TOKEN_SERVICE_STARTED: "TOKEN_SERVICE_STARTED",
     TOKEN_COMPLETED: "TOKEN_COMPLETED",
+    TOKEN_CANCELLED: "TOKEN_CANCELLED",
     TOKEN_NO_SHOW: "TOKEN_NO_SHOW",
     PATIENT_ROUTED: "PATIENT_ROUTED",
     QUEUE_UPDATED: "QUEUE_UPDATED",
@@ -392,6 +393,22 @@ function handleTokenCompleted(event) {
 
 
 /**
+ * Handle TOKEN_CANCELLED.
+ */
+function handleTokenCancelled(event) {
+    const department = findDepartment(event.department_id);
+
+    if (!department) {
+        return;
+    }
+
+    removeActiveToken(
+        department,
+        event.token_number
+    );
+}
+
+/**
  * Handle TOKEN_NO_SHOW.
  */
 function handleTokenNoShow(event) {
@@ -550,6 +567,10 @@ function applyEvent(event) {
 
         case EVENT_TYPE.TOKEN_COMPLETED:
             handleTokenCompleted(event);
+            break;
+
+        case EVENT_TYPE.TOKEN_CANCELLED:
+            handleTokenCancelled(event);
             break;
 
         case EVENT_TYPE.TOKEN_NO_SHOW:

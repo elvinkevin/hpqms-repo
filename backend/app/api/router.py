@@ -8,7 +8,8 @@ from app.api.routes import (
     routing,
     departments,
     staff,
-    token, 
+    token,
+    display,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -21,3 +22,4 @@ api_router.include_router(routing.router)
 api_router.include_router(departments.router)
 api_router.include_router(staff.router)
 api_router.include_router(token.router)
+api_router.include_router(display.router)
