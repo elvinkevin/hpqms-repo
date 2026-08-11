@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -330,15 +331,23 @@
             </span>
 
         </section>
-
     </div>
 
 
     <!-- ================================================================
-         JAVASCRIPT APPLICATION ENTRY POINT
-         ================================================================ -->
+     JAVASCRIPT APPLICATION ENTRY POINT
+     ================================================================ -->
 
-    <script type="module" src="js/app.js"></script>
+    <script type="module">
+        import { start } from "./js/app.js";
+
+        start().catch((error) => {
+            console.error(
+                "Failed to start HPQMS public display:",
+                error
+            );
+        });
+    </script>
 
 </body>
 

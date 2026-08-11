@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HPQMS Staff Dashboard</title>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/layouts.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            background: #f5f7fb;
+            color: #111827;
+        }
+
+        .dashboard-shell {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            min-height: 100vh;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .dashboard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .dashboard-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .status-pill {
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            color: #0f172a;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1.6fr 1fr;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 1.1rem;
+        }
+
+        .queue-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .queue-table th,
+        .queue-table td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .queue-table th {
+            font-size: 0.95rem;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .queue-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .queue-row {
+            cursor: pointer;
+        }
+
+        .queue-row.selected {
+            background: #e2e8f0;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .button-row button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 150ms ease, transform 150ms ease;
+        }
+
+        .button-row button:hover {
+            transform: translateY(-1px);
+        }
+
+        .button-primary {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .button-secondary {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
+
+        .button-danger {
+            background: #dc2626;
+            color: #ffffff;
+        }
+
+        .button-disabled {
+            background: #94a3b8;
+            color: #f8fafc;
+            cursor: not-allowed;
+        }
+
+        .login-panel {
+            display: grid;
+            gap: 12px;
+        }
+
+        .login-panel label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+
+        .login-panel input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 1rem;
+        }
+
+        .error-text {
+            color: #b91c1c;
+            font-size: 0.95rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .empty-state {
+            color: #475569;
+            padding: 16px;
+            border-radius: 12px;
+            background: #f1f5f9;
+        }
+
+        .queue-section {
+            display: block;
+        }
+
+        .queue-state {
+            color: #475569;
+            padding: 16px;
+            border-radius: 12px;
+            background: #f1f5f9;
+            margin-bottom: 16px;
+        }
+
+        .queue-table td button {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #ffffff;
+            background: #2563eb;
+            transition: background 150ms ease, transform 150ms ease;
+        }
+
+        .queue-table td button:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .requeue-button {
+            min-width: 110px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-shell">
+        <header class="dashboard-header">
+            <div>
+                <h1>HPQMS Staff Dashboard</h1>
+                <div id="dashboard-subtitle" class="status-pill">Please sign in to manage the queue</div>
+            </div>
+            <div>
+                <button id="logout-button" class="button-secondary hidden">Logout</button>
+            </div>
+        </header>
+
+        <main class="content-grid">
+            <section class="panel" id="login-panel">
+                <h2>Staff Login</h2>
+                <form id="login-form" class="login-panel">
+                    <div>
+                        <label for="employee-id">Employee ID</label>
+                        <input id="employee-id" name="employee_id" type="text" autocomplete="username" required />
+                    </div>
+                    <div>
+                        <label for="password">Password</label>
+                        <input id="password" name="password" type="password" autocomplete="current-password" required />
+                    </div>
+                    <button type="submit" class="button-primary">Sign in</button>
+                    <p id="login-error" class="error-text hidden"></p>
+                </form>
+            </section>
+
+            <section class="panel hidden" id="current-patient-panel">
+                <h2>Current Patient</h2>
+                <div id="current-patient-content">
+                    <p><strong>Token:</strong> <span id="current-token">—</span></p>
+                    <p><strong>Status:</strong> <span id="current-status">—</span></p>
+                    <p><strong>Patient:</strong> <span id="current-patient">—</span></p>
+                    <p><strong>Priority:</strong> <span id="current-priority">—</span></p>
+                    <div class="button-row">
+                        <button id="call-button" class="button-primary">CALL</button>
+                        <button id="start-button" class="button-secondary">START SERVICE</button>
+                        <button id="noshow-button" class="button-danger">MARK NO-SHOW</button>
+                        <button id="complete-button" class="button-danger">COMPLETE</button>
+                    </div>
+                    <p id="action-error" class="error-text hidden"></p>
+                </div>
+            </section>
+
+            <section class="panel hidden" id="queue-panel">
+                <h2>Reception Queue</h2>
+                <div id="queue-state" class="empty-state">Log in to view department queue entries.</div>
+                <table class="queue-table hidden" id="queue-table">
+                    <thead>
+                        <tr>
+                            <th>Token</th>
+                            <th>Patient</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queue-body"></tbody>
+                </table>
+            </section>
+
+            <section class="panel hidden" id="no-show-panel">
+                <h2>Missed / No-Show Patients</h2>
+                <div id="no-show-state" class="queue-state">
+                    No patients are currently marked as no-show.
+                </div>
+                <table id="no-show-table" class="queue-table hidden">
+                    <thead>
+                        <tr>
+                            <th>TOKEN</th>
+                            <th>PATIENT</th>
+                            <th>PRIORITY</th>
+                            <th>STATUS</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="no-show-body"></tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="js/staff.js"></script>
+</body>
+
+</html>
