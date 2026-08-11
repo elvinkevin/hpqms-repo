@@ -172,6 +172,8 @@ function setSnapshot(snapshot) {
  * Update backend connection state.
  */
 function setConnectionStatus(status, metadata = {}) {
+    metadata = metadata ?? {};
+
     if (!Object.values(CONNECTION_STATUS).includes(status)) {
         throw new Error(
             `[DisplayState] Invalid connection status: ${status}`
@@ -231,29 +233,39 @@ function findDepartment(departmentId) {
 
 
 /**
+ * Safely extract a token string whether the token is an object 
+ * ({ token_number: "W-108" }) or a primitive string ("W-108").
+ */
+function getTokenNumber(token) {
+    if (!token) return null;
+    return typeof token === "string" ? token : (token.token_number ?? null);
+}
+
+/**
  * Find an active token within a department.
  */
 function findActiveToken(department, tokenNumber) {
-    if (!department || !tokenNumber) {
+    if (!department || !tokenNumber || !Array.isArray(department.active_tokens)) {
         return null;
     }
 
-    return department.active_tokens.find(
-        token => token.token_number === tokenNumber
-    ) ?? null;
+    return (
+        department.active_tokens.find(
+            token => getTokenNumber(token) === tokenNumber
+        ) ?? null
+    );
 }
-
 
 /**
  * Remove a token from active_tokens.
  */
 function removeActiveToken(department, tokenNumber) {
-    if (!department || !Array.isArray(department.active_tokens)) {
+    if (!department || !Array.isArray(department.active_tokens) || !tokenNumber) {
         return null;
     }
 
     const index = department.active_tokens.findIndex(
-        token => token.token_number === tokenNumber
+        token => getTokenNumber(token) === tokenNumber
     );
 
     if (index === -1) {
@@ -262,7 +274,6 @@ function removeActiveToken(department, tokenNumber) {
 
     return department.active_tokens.splice(index, 1)[0];
 }
-
 
 /**
  * Add a token to recent_tokens without creating duplicates.
@@ -277,7 +288,7 @@ function addRecentToken(department, tokenNumber) {
     }
 
     department.recent_tokens = department.recent_tokens.filter(
-        token => token.token_number !== tokenNumber
+        token => getTokenNumber(token) !== tokenNumber
     );
 
     department.recent_tokens.unshift({
@@ -285,44 +296,77 @@ function addRecentToken(department, tokenNumber) {
     });
 }
 
-
 /**
- * Handle TOKEN_CALLED.
+ * Remove a token from next_tokens safely.
  */
-function handleTokenCalled(event) {
-    const department = findDepartment(event.department_id);
-
-    if (!department) {
-        return;
+function removeNextToken(department, tokenNumber) {
+    if (!department || !Array.isArray(department.next_tokens) || !tokenNumber) {
+        return false;
     }
+
+    const originalLength = department.next_tokens.length;
+
+    department.next_tokens = department.next_tokens.filter(
+        token => {
+            const num = getTokenNumber(token);
+            return num !== null && num !== tokenNumber;
+        }
+    );
+
+    return department.next_tokens.length !== originalLength;
+}
+
+function handleTokenCalled(state, event) {
+    console.warn(
+        "[TOKEN_CALLED RECEIVED]",
+        event.token_number,
+        event
+    );
+
+    const department = findDepartment(
+        event.department_id
+    );
+
+    console.warn(
+        "[TOKEN_CALLED] Department lookup:",
+        {
+            department_id: event.department_id,
+            found: !!department,
+            department
+        }
+    );
 
     if (!Array.isArray(department.active_tokens)) {
         department.active_tokens = [];
     }
 
-    let token = findActiveToken(
-        department,
-        event.token_number
-    );
+    // 1. Declare wasWaiting HERE before using it below
+    const wasWaiting = removeNextToken(department, event.token_number);
+
+    // 2. Use it AFTER declaration
+    console.warn("Removed from next list:", wasWaiting);
+    console.warn("Remaining next tokens:", department.next_tokens);
+
+    if (wasWaiting && typeof department.waiting_count === "number") {
+        department.waiting_count = Math.max(0, department.waiting_count - 1);
+    }
+
+    let token = findActiveToken(department, event.token_number);
 
     if (!token) {
         token = {
             token_number: event.token_number,
             service_point: event.service_point ?? null,
-            status: QUEUE_STATUS.CALLED,
-            called_at: event.occurred_at ?? null,
+            status: "CALLED",
+            called_at: event.occurred_at ?? new Date().toISOString(),
         };
-
         department.active_tokens.unshift(token);
     } else {
-        token.status = QUEUE_STATUS.CALLED;
-        token.service_point =
-            event.service_point ?? token.service_point ?? null;
-        token.called_at =
-            event.occurred_at ?? token.called_at ?? null;
+        token.status = "CALLED";
+        token.service_point = event.service_point ?? token.service_point ?? null;
+        token.called_at = event.occurred_at ?? token.called_at ?? new Date().toISOString();
     }
 }
-
 
 /**
  * Handle TOKEN_SERVICE_STARTED.
@@ -557,8 +601,9 @@ function applyEvent(event) {
     }
 
     switch (event.event_type) {
+
         case EVENT_TYPE.TOKEN_CALLED:
-            handleTokenCalled(event);
+            handleTokenCalled(state, event);
             break;
 
         case EVENT_TYPE.TOKEN_SERVICE_STARTED:
@@ -582,10 +627,6 @@ function applyEvent(event) {
             break;
 
         case EVENT_TYPE.QUEUE_UPDATED:
-            /*
-             * Do not attempt to reconstruct queue state.
-             * The snapshot is now considered stale.
-             */
             state.metadata.stale = true;
             break;
 

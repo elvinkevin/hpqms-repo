@@ -426,6 +426,7 @@ async function handleConnected() {
  * and passing the resulting event into the state layer.
  */
 function handleMessage(rawMessage) {
+    console.warn("[WS MESSAGE RECEIVED]", rawMessage);
     let event;
 
     try {
@@ -434,6 +435,9 @@ function handleMessage(rawMessage) {
         } else {
             event = rawMessage;
         }
+        
+        // Log the parsed event type clearly
+        console.warn("[WS EVENT PARSED]", event?.event_type, event);
     } catch (error) {
         handleError(
             new Error(
@@ -456,7 +460,28 @@ function handleMessage(rawMessage) {
 
         applyEvent(event);
 
-        if (event.event_type === "QUEUE_UPDATED") {
+        // Synchronize snapshot for all state-mutating queue lifecycle events
+        const SNAPSHOT_SYNC_EVENTS = typeof EVENT_TYPE !== "undefined"
+            ? new Set([
+                EVENT_TYPE.TOKEN_CALLED,
+                EVENT_TYPE.TOKEN_SERVICE_STARTED,
+                EVENT_TYPE.TOKEN_COMPLETED,
+                EVENT_TYPE.TOKEN_CANCELLED,
+                EVENT_TYPE.TOKEN_NO_SHOW,
+                EVENT_TYPE.PATIENT_ROUTED,
+                EVENT_TYPE.QUEUE_UPDATED,
+            ])
+            : new Set([
+                "TOKEN_CALLED",
+                "TOKEN_SERVICE_STARTED",
+                "TOKEN_COMPLETED",
+                "TOKEN_CANCELLED",
+                "TOKEN_NO_SHOW",
+                "PATIENT_ROUTED",
+                "QUEUE_UPDATED",
+            ]);
+
+        if (event?.event_type && SNAPSHOT_SYNC_EVENTS.has(event.event_type)) {
             syncSnapshot().catch(handleError);
         }
     } catch (error) {
@@ -465,7 +490,6 @@ function handleMessage(rawMessage) {
         latestNotificationEvent = null;
     }
 }
-
 
 /**
  * Handle WebSocket disconnection.
@@ -486,8 +510,7 @@ function handleDisconnected(details) {
  */
 function handleReconnecting(details) {
     setConnectionStatus(
-        "RECONNECTING",
-        null
+        "RECONNECTING"
     );
 
     return details;

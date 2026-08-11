@@ -17,6 +17,26 @@
    js/config.js — Runtime Configuration
    ========================================================================== */
 
+/* ==========================================================================
+   Dynamic Host Resolution
+   ========================================================================== */
+
+function resolveDynamicUrls() {
+    const isBrowser = typeof window !== "undefined" && window.location;
+    
+    // Fall back to localhost if not executing in a browser environment
+    const protocol = isBrowser ? window.location.protocol : "http:";
+    const host = isBrowser ? window.location.host : "localhost:8000";
+    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+
+    return {
+        apiBaseUrl: `${protocol}//${host}/api`,
+        websocketUrl: `${wsProtocol}//${host}/ws/display`,
+    };
+}
+
+const dynamicBackendDefaults = resolveDynamicUrls();
+
 const DEFAULT_CONFIG = {
     display: {
         id: "DISPLAY-001",
@@ -25,8 +45,8 @@ const DEFAULT_CONFIG = {
     },
 
     backend: {
-        apiBaseUrl: "http://localhost:8000/api",
-        websocketUrl: "ws://localhost:8000/ws/display",
+        apiBaseUrl: dynamicBackendDefaults.apiBaseUrl,
+        websocketUrl: dynamicBackendDefaults.websocketUrl,
         connectionTimeoutMs: 10000,
     },
 
@@ -91,6 +111,8 @@ function deepClone(value) {
 
     return structuredClone(value);
 }
+
+
 
 
 /**
@@ -170,39 +192,19 @@ function assertBoolean(value, fieldName) {
 
 
 function assertHttpUrl(value, fieldName) {
-    try {
-        const url = new URL(value);
-
-        if (
-            url.protocol !== "http:" &&
-            url.protocol !== "https:"
-        ) {
-            throw new Error();
-        }
-    } catch {
-        throw new Error(
-            `${fieldName} must be a valid HTTP/HTTPS URL`
-        );
+    const httpRegex = /^https?:\/\/[^\s$.?#].[^\s]*$/i;
+    if (typeof value !== "string" || !httpRegex.test(value)) {
+        throw new Error(`${fieldName} must be a valid HTTP/HTTPS URL`);
     }
 }
-
 
 function assertWebSocketUrl(value, fieldName) {
-    try {
-        const url = new URL(value);
-
-        if (
-            url.protocol !== "ws:" &&
-            url.protocol !== "wss:"
-        ) {
-            throw new Error();
-        }
-    } catch {
-        throw new Error(
-            `${fieldName} must be a valid WebSocket URL`
-        );
+    const wsRegex = /^wss?:\/\/[^\s$.?#].[^\s]*$/i;
+    if (typeof value !== "string" || !wsRegex.test(value)) {
+        throw new Error(`${fieldName} must be a valid WebSocket URL`);
     }
 }
+
 
 
 /**
@@ -270,7 +272,7 @@ function validateConfig(config) {
         );
     }
 
-    if (
+           if (
         config.reconnect.maxAttempts !== Infinity &&
         (
             typeof config.reconnect.maxAttempts !== "number" ||
@@ -282,6 +284,9 @@ function validateConfig(config) {
             "reconnect.maxAttempts must be a positive integer or Infinity"
         );
     }
+
+
+    
 
 
     /* Rotation */

@@ -36,29 +36,36 @@ const HTTP_METHOD = Object.freeze({
  *
  * This helper prevents accidental double slashes.
  */
+/**
+ * Build an API URL from the configured backend base URL.
+ * Automatically resolves localhost/127.0.0.1 to the active LAN host origin.
+ */
 function buildUrl(path) {
     if (typeof path !== "string" || path.trim() === "") {
-        throw new TypeError(
-            "API path must be a non-empty string"
-        );
+        throw new TypeError("API path must be a non-empty string");
     }
 
     const config = getConfig();
+    let baseUrl = config?.backend?.apiBaseUrl ?? config?.backend?.apiUrl;
 
-    const baseUrl = config.backend.apiBaseUrl ?? config.backend.apiUrl;
+    // Fallback if config is missing or invalid
+    if (typeof baseUrl !== "string" || baseUrl.trim() === "") {
+        baseUrl = window.location.origin;
+    }
 
-    if (
-        typeof baseUrl !== "string" ||
-        baseUrl.trim() === ""
-    ) {
-        throw new Error(
-            "API base URL is not configured"
-        );
+    // Dynamic LAN Auto-Detection:
+    // If running from an IP like 192.168.1.70, replace hardcoded localhost/127.0.0.1
+    // with current window origin so TV and other devices route properly.
+    if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
+        const currentHost = window.location.hostname;
+        if (currentHost !== "localhost" && currentHost !== "127.0.0.1") {
+            const port = window.location.port ? `:${window.location.port}` : "";
+            baseUrl = `${window.location.protocol}//${currentHost}${port}`;
+        }
     }
 
     return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
-
 
 /**
  * Parse a response body.
