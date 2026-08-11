@@ -138,11 +138,13 @@ class VisitRead(ORMBase):
     token_number: str
     entry_type: EntryType
     visit_reason: Optional[str]
-    stage: VisitStage 
+    stage: VisitStage
     current_queue_entry_id: Optional[UUID]
     created_at: datetime
     updated_at: Optional[datetime]
     completed_at: Optional[datetime]
+
+    patient: Optional[PatientRead] = None
 
 class VisitUpdate(BaseModel):
     visit_reason: Optional[str] = Field(default=None, max_length=255)

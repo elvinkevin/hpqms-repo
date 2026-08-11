@@ -1,39 +1,7 @@
-# from fastapi import FastAPI
-# from fastapi.middleware.cors import CORSMiddleware
-# from app.api.v1.router import api_router
-# from app.api.v1.endpoints import websocket
-# from app.core.config import settings
-
-# app = FastAPI(
-#     title="Hospital Patient Queue Management System",
-#     description="HPQMS API — Phase 1",
-#     version="1.0.0",
-#     docs_url="/docs",
-#     redoc_url="/redoc",
-# )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:5173"],  # Vite dev server
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# app.include_router(api_router)
-# app.include_router(websocket.router)
-
-# # Add this endpoint
-# @app.get("/")
-# def read_root():
-#     return {"message": "Welcome to the HQMS Clinic Queue API Engine"}
-
-# @app.get("/health")
-# async def health():
-#     return {"status": "ok", "environment": settings.ENVIRONMENT}
-
-
+from pathlib import Path
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.api.routes.display import websocket_router
@@ -41,6 +9,22 @@ from app.api.routes.display import websocket_router
 app = FastAPI(
     title="Hospital Queue Management API",
     version="1.0.0",
+)
+
+# Configure CORS for local dev and LAN access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+app.mount(
+    "/static",
+    StaticFiles(directory=str(frontend_dir), html=True),
+    name="frontend",
 )
 
 app.include_router(api_router)
