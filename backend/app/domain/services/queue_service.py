@@ -245,11 +245,14 @@ class QueueService:
         and flushes the database state. WebSocket events must be emitted
         after the transaction commits in the route/caller handler.
         """
+
         entry = await self.db.get(
             QueueEntry,
             queue_entry_id,
             options=[
-                selectinload(QueueEntry.visit),
+                selectinload(QueueEntry.visit).options(
+                    selectinload(Visit.patient)
+                ),
                 selectinload(QueueEntry.department),
             ],
         )
@@ -285,14 +288,18 @@ class QueueService:
 
         await self.db.flush()
 
+        
         stmt = (
             select(QueueEntry)
             .options(
-                selectinload(QueueEntry.visit),
+                selectinload(QueueEntry.visit).options(
+                    selectinload(Visit.patient)
+                ),
                 selectinload(QueueEntry.department),
             )
             .where(QueueEntry.queue_entry_id == entry.queue_entry_id)
         )
+
         refreshed = await self.db.execute(stmt)
         return refreshed.scalar_one()
 
@@ -316,22 +323,30 @@ class QueueService:
         new_status: QueueEntryStatus,
     ) -> None:
         """Sets lifecycle timestamps based on target state."""
+
         now = datetime.now(timezone.utc)
 
         if new_status == QueueEntryStatus.CALLED:
             entry.called_at = now
+
         elif new_status == QueueEntryStatus.IN_PROGRESS:
             if not getattr(entry, "called_at", None):
                 entry.called_at = now
+
             if hasattr(entry, "started_at"):
                 entry.started_at = now
-        elif new_status in {
-            QueueEntryStatus.COMPLETED,
-            QueueEntryStatus.CANCELLED,
-            QueueEntryStatus.NO_SHOW,
-        }:
+
+        elif new_status == QueueEntryStatus.COMPLETED:
             if hasattr(entry, "completed_at"):
                 entry.completed_at = now
+
+        elif new_status == QueueEntryStatus.CANCELLED:
+            if hasattr(entry, "completed_at"):
+                entry.completed_at = now
+
+        elif new_status == QueueEntryStatus.NO_SHOW:
+            if hasattr(entry, "no_show_at"):
+                entry.no_show_at = now
 
     # ------------------------------------------------------------------
     # DISPLAY BROADCAST (PUBLIC SEPARATE METHOD)
@@ -507,3 +522,30 @@ class QueueService:
         """Returns estimated wait time in minutes."""
         position_ahead = await self.get_patient_position(queue_entry_id) - 1
         return max(position_ahead * AVG_CONSULT_MINUTES, 0)
+
+    async def get_department_no_show_queue(
+        self,
+        department_id: UUID,
+    ) -> List[QueueEntry]:
+        """Returns NO_SHOW entries for a department."""
+        stmt = (
+            select(QueueEntry)
+            .options(
+                selectinload(QueueEntry.visit).selectinload(Visit.patient),
+                selectinload(QueueEntry.department),
+            )
+            .where(
+                and_(
+                    QueueEntry.department_id == department_id,
+                    QueueEntry.status == QueueEntryStatus.NO_SHOW,
+                )
+            )
+            .order_by(
+                QueueEntry.completed_at.desc(),
+                QueueEntry.sequence_number.asc(),
+            )
+        )
+
+        result = await self.db.execute(stmt)
+
+        return list(result.scalars().all())

@@ -236,12 +236,13 @@ class QueueEntry(Base):
     sequence_number = Column(Integer, nullable=False)
     priority = Column(Enum(QueuePriority), nullable=False, server_default=QueuePriority.NORMAL.value)
     status = Column(Enum(QueueEntryStatus), nullable=False, server_default=QueueEntryStatus.WAITING.value)
-    
     notes = Column(Text)
+    
     entered_at = Column(DateTime(timezone=True), server_default=func.now())
     called_at = Column(DateTime(timezone=True), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_at = Column(DateTime(timezone=True), nullable=True)
 
     visit = relationship("Visit", back_populates="queue_entries", foreign_keys=[visit_id])
     department = relationship("Department", back_populates="queue_entries")

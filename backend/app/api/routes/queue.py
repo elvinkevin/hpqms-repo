@@ -29,6 +29,22 @@ async def get_department_queue(
     service = QueueService(db)
     return await service.get_department_queue(department_id)
 
+@router.get(
+    "/department/{department_id}/no-show",
+    response_model=list[QueueEntryRead],
+    dependencies=[Depends(get_current_user)],
+)
+async def get_department_no_show_queue(
+    department_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns NO_SHOW entries for a department."""
+    service = QueueService(db)
+
+    return await service.get_department_no_show_queue(
+        department_id
+    )
+
 
 @router.get(
     "/entry/{queue_entry_id}",
@@ -168,9 +184,7 @@ async def mark_no_show(
     )
 
     await db.commit()
-
     await service.emit_display_event(entry)
-
     return entry
 
 
@@ -214,4 +228,25 @@ async def get_next_patient(
     Returns null if the queue is empty.
     """
     service = QueueService(db)
-    return await service.get_next_patient(department_id)
+    return await service.get_next_patient(department_id) 
+
+@router.patch(
+    "/{queue_entry_id}/requeue",
+    response_model=QueueEntryRead,
+    dependencies=[Depends(get_current_user)],
+)
+async def requeue_queue_entry(
+    queue_entry_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    service = QueueService(db)
+
+    entry = await service.transition_entry_status(
+        queue_entry_id,
+        QueueEntryStatus.WAITING,
+    )
+
+    await db.commit()
+    await service.emit_display_event(entry)
+
+    return entry
