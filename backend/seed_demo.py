@@ -1,7 +1,21 @@
+"""
+HPQMS seed demo — config-driven version.
+
+Instead of hardcoding one department / two staff / four patients in the
+body of the script, everything is declared in DEMO_CONFIG below. To add a
+department, a receptionist, or a patient, just add an entry to the
+relevant list — no other code needs to change.
+
+Usage:
+    python seed_demo.py                # uses DEMO_CONFIG as-is
+"""
+
 import asyncio
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from fastapi import HTTPException
 
@@ -29,84 +43,125 @@ from app.domain.services.visit_service import VisitService
 
 # ==========================================================================
 # DEMO CONFIGURATION
+#
+# Edit this section to add/remove departments, staff, or patients.
+# Nothing else in the script needs to change.
 # ==========================================================================
 
-DEMO_DEPARTMENT_CODE = "REC"
-DEMO_DEPARTMENT_NAME = "Reception"
-
-DEMO_EMPLOYEE_ID = "REC001"
-DEMO_PASSWORD = "demo12345"
-
-
-# --------------------------------------------------------------------------
-# IMPORTANT:
-#
-# The patients are intentionally created in this order:
-#
-#   NORMAL
-#   SEMI_URGENT
-#   URGENT
-#   CRITICAL
-#
-# This allows us to verify that queue priority overrides creation order.
-# --------------------------------------------------------------------------
-
-DEMO_PATIENTS = [
-    ("John", "Demo", QueuePriority.NORMAL),
-    ("Jane", "Demo", QueuePriority.SEMI_URGENT),
-    ("Mary", "Demo", QueuePriority.URGENT),
-    ("Peter", "Demo", QueuePriority.CRITICAL),
-]
+@dataclass
+class DepartmentSeed:
+    code: str
+    name: str
+    type: DeptType = DeptType.OPD
+    max_capacity: int = 20
 
 
-DEMO_VISIT_REASON = "Queue priority matrix test"
+@dataclass
+class StaffSeed:
+    employee_id: str
+    department_code: str
+    first_name: str
+    last_name: str
+    password: str
+    role: StaffRole = StaffRole.RECEPTIONIST
+    specialization: str = "Front Desk"
+
+
+@dataclass
+class PatientSeed:
+    first_name: str
+    last_name: str
+    priority: QueuePriority
+    department_code: str
+    blood_type: str = "O+"
+    visit_reason: str = "Queue priority matrix test"
+
+
+DEMO_CONFIG = {
+    "departments": [
+        DepartmentSeed(code="REC", name="Reception"),
+    ],
+    "staff": [
+        StaffSeed(
+            employee_id="REC001",
+            department_code="REC",
+            first_name="Demo",
+            last_name="Receptionist",
+            password="password12345",
+        ),
+        StaffSeed(
+            employee_id="REC002",
+            department_code="REC",
+            first_name="Second",
+            last_name="Receptionist",
+            password="demo12345",
+        ),
+    ],
+    # IMPORTANT: patients are intentionally listed NORMAL -> CRITICAL so the
+    # demo can verify that queue priority overrides creation order. The
+    # expected queue order is the exact reverse of this list (per department).
+    "patients": [
+        PatientSeed("John", "Demo", QueuePriority.SEMI_URGENT, department_code="REC"),
+        PatientSeed("Jane", "Demo", QueuePriority.NORMAL, department_code="REC"),
+        PatientSeed("Mary", "Demo", QueuePriority.SEMI_URGENT, department_code="REC"),
+        PatientSeed("Peter", "Demo", QueuePriority.NORMAL, department_code="REC"),
+    ],
+}
+
+# Login shown at the end of the run — defaults to the first staff entry.
+PRIMARY_STAFF_EMPLOYEE_ID = DEMO_CONFIG["staff"][0].employee_id
 
 
 # ==========================================================================
 # DEPARTMENT
 # ==========================================================================
 
-async def get_or_create_department(db):
+async def get_or_create_department(db, seed: DepartmentSeed):
     service = DepartmentService(db)
 
     try:
-        return await service.get_by_code(DEMO_DEPARTMENT_CODE)
-
+        return await service.get_by_code(seed.code)
     except HTTPException as exc:
         if exc.status_code != 404:
             raise
 
         return await service.create_department(
             DepartmentCreate(
-                name=DEMO_DEPARTMENT_NAME,
-                department_code=DEMO_DEPARTMENT_CODE,
-                type=DeptType.OPD,
-                max_capacity=20,
+                name=seed.name,
+                department_code=seed.code,
+                type=seed.type,
+                max_capacity=seed.max_capacity,
             )
         )
+
+
+async def seed_departments(db, seeds: list[DepartmentSeed]) -> dict[str, object]:
+    """Returns a dict mapping department_code -> department object."""
+    departments = {}
+    for seed in seeds:
+        departments[seed.code] = await get_or_create_department(db, seed)
+    return departments
 
 
 # ==========================================================================
 # STAFF
 # ==========================================================================
 
-async def get_or_create_staff(db, department):
+async def get_or_create_staff(db, department, seed: StaffSeed):
     service = StaffService(db)
 
-    staff = await service.get_by_employee_id(
-        DEMO_EMPLOYEE_ID
-    )
+    staff = await service.get_by_employee_id(seed.employee_id)
 
     if not staff:
         staff = await service.create_staff(
             StaffCreate(
-                employee_id=DEMO_EMPLOYEE_ID,
+                employee_id=seed.employee_id,
                 dept_id=department.dept_id,
-                first_name="Demo",
-                last_name="Receptionist",
-                role=StaffRole.RECEPTIONIST,
-                specialization="Front Desk",
-                password=DEMO_PASSWORD,
+                first_name=seed.first_name,
+                last_name=seed.last_name,
+                role=seed.role,
+                specialization=seed.specialization,
+                password=seed.password,
             )
         )
 
@@ -119,8 +174,26 @@ async def get_or_create_staff(db, department):
     return staff
 
 
+async def seed_staff(
+    db, seeds: list[StaffSeed], departments: dict[str, object]
+) -> dict[str, object]:
+    """Returns a dict mapping employee_id -> staff object."""
+    staff_by_id = {}
+    for seed in seeds:
+        department = departments.get(seed.department_code)
+        if department is None:
+            raise ValueError(
+                f"Staff '{seed.employee_id}' references unknown department "
+                f"code '{seed.department_code}'. Add it to DEMO_CONFIG['departments']."
+            )
+        staff_by_id[seed.employee_id] = await get_or_create_staff(
+            db, department, seed
+        )
+    return staff_by_id
+
+
 # ==========================================================================
-# CREATE FRESH DEMO PATIENT
+# PATIENT / VISIT / QUEUE ENTRY
 # ==========================================================================
 
 async def create_fresh_demo_patient(
@@ -129,94 +202,111 @@ async def create_fresh_demo_patient(
     visit_service,
     queue_service,
     department,
-    first_name,
-    last_name,
-    priority,
-    demo_run_id,
-    patient_number,
+    seed: PatientSeed,
+    demo_run_id: str,
+    patient_number: int,
 ):
     """
-    Creates one completely fresh patient → visit → queue entry.
-
-    The patient is always created with WAITING status.
-
-    Priority is explicitly supplied so this script can be used
-    as a controlled queue-priority test fixture.
+    Creates one completely fresh patient -> visit -> queue entry, always
+    starting in WAITING status. Priority is taken from the seed so this
+    script doubles as a queue-priority test fixture.
     """
 
-    # Unique identifiers ensure every execution creates
-    # a completely new patient.
-    national_id = (
-        f"DEMO{demo_run_id}{patient_number}"
-    )
-
-    phone = (
-        f"+254700{demo_run_id[-6:]}{patient_number}"
-    )
-
-    # ------------------------------------------------------------------
-    # Patient
-    # ------------------------------------------------------------------
+    national_id = f"DEMO{demo_run_id}{patient_number}"
+    phone = f"+254700{demo_run_id[-6:]}{patient_number}"
 
     patient = await patient_service.register_standard_patient(
         PatientCreate(
             national_id=national_id,
-            first_name=first_name,
-            last_name=last_name,
+            first_name=seed.first_name,
+            last_name=seed.last_name,
             phone=phone,
-            blood_type="O+",
+            blood_type=seed.blood_type,
         )
     )
-
-    # ------------------------------------------------------------------
-    # Visit
-    # ------------------------------------------------------------------
 
     visit = await visit_service.start_visit(
         VisitCreate(
             patient_id=patient.patient_id,
             entry_type=EntryType.WALK_IN,
-            visit_reason=DEMO_VISIT_REASON,
+            visit_reason=seed.visit_reason,
         )
     )
-
-    # ------------------------------------------------------------------
-    # Queue entry
-    # ------------------------------------------------------------------
 
     queue_entry = await queue_service.create_queue_entry(
         visit_id=visit.visit_id,
         department_id=department.dept_id,
-        priority=priority,
-        notes=(
-            "Created for queue priority matrix test"
-        ),
+        priority=seed.priority,
+        notes="Created for queue priority matrix test",
     )
 
     return patient, visit, queue_entry
 
 
+async def seed_patients(
+    db,
+    patient_service,
+    visit_service,
+    queue_service,
+    seeds: list[PatientSeed],
+    departments: dict[str, object],
+    demo_run_id: str,
+) -> list[dict]:
+    records = []
+
+    for number, seed in enumerate(seeds, start=1):
+        department = departments.get(seed.department_code)
+        if department is None:
+            raise ValueError(
+                f"Patient '{seed.first_name} {seed.last_name}' references "
+                f"unknown department code '{seed.department_code}'. Add it "
+                f"to DEMO_CONFIG['departments']."
+            )
+
+        patient, visit, queue_entry = await create_fresh_demo_patient(
+            db,
+            patient_service,
+            visit_service,
+            queue_service,
+            department,
+            seed,
+            demo_run_id,
+            number,
+        )
+
+        records.append(
+            {
+                "department_code": seed.department_code,
+                "patient": patient,
+                "visit": visit,
+                "queue_entry": queue_entry,
+            }
+        )
+
+    return records
+
+
 # ==========================================================================
-# SEED PRIORITY TEST DATA
+# SEED PIPELINE
 # ==========================================================================
 
-async def seed_priority_demo():
+async def seed_priority_demo(config: dict = DEMO_CONFIG):
 
     async with AsyncSessionLocal() as db:
         from sqlalchemy import text
-        # Truncate tables to remove old demo visits and queues preventing collisions
-        await db.execute(text("TRUNCATE TABLE queue_entries, visits, patients CASCADE;"))
-        await db.commit()
-        # ------------------------------------------------------------------
-        # Department + staff
-        # ------------------------------------------------------------------
 
-        department = await get_or_create_department(db)
-
-        staff = await get_or_create_staff(
-            db,
-            department,
+        # Truncate tables to remove old demo visits/queues and avoid collisions.
+        await db.execute(
+            text("TRUNCATE TABLE queue_entries, visits, patients CASCADE;")
         )
+        await db.commit()
+
+        # ------------------------------------------------------------------
+        # Departments + staff (fully driven by config)
+        # ------------------------------------------------------------------
+
+        departments = await seed_departments(db, config["departments"])
+        staff_by_id = await seed_staff(db, config["staff"], departments)
 
         # ------------------------------------------------------------------
         # Services
@@ -226,345 +316,225 @@ async def seed_priority_demo():
         visit_service = VisitService(db)
         queue_service = QueueService(db)
 
-        # ------------------------------------------------------------------
-        # Unique run identifier
-        # ------------------------------------------------------------------
+        demo_run_id = datetime.now().strftime("%m%d%H%M%S")
 
-        demo_run_id = datetime.now().strftime(
-            "%m%d%H%M%S"
+        records = await seed_patients(
+            db,
+            patient_service,
+            visit_service,
+            queue_service,
+            config["patients"],
+            departments,
+            demo_run_id,
         )
-
-        records = []
-
-        # ------------------------------------------------------------------
-        # Create patients
-        #
-        # IMPORTANT:
-        #
-        # They are created in this order:
-        #
-        #   NORMAL
-        #   SEMI_URGENT
-        #   URGENT
-        #   CRITICAL
-        #
-        # The expected queue order should therefore be the exact opposite.
-        # ------------------------------------------------------------------
-
-        for number, (
-            first_name,
-            last_name,
-            priority,
-        ) in enumerate(
-            DEMO_PATIENTS,
-            start=1,
-        ):
-
-            patient, visit, queue_entry = (
-                await create_fresh_demo_patient(
-                    db,
-                    patient_service,
-                    visit_service,
-                    queue_service,
-                    department,
-                    first_name,
-                    last_name,
-                    priority,
-                    demo_run_id,
-                    number,
-                )
-            )
-
-            records.append(
-                {
-                    "patient": patient,
-                    "visit": visit,
-                    "queue_entry": queue_entry,
-                }
-            )
-
-        # ------------------------------------------------------------------
-        # Commit all test data
-        # ------------------------------------------------------------------
 
         await db.commit()
 
         # ------------------------------------------------------------------
-        # Re-query the queue using the actual QueueService ordering.
-        #
-        # This is important:
-        #
-        # We don't manually calculate the order here.
-        #
-        # We ask the real queue engine what the order is.
+        # Re-query each department's queue using the real QueueService,
+        # rather than assuming what the order should be.
         # ------------------------------------------------------------------
 
-        ordered_queue = (
-            await queue_service.get_department_queue(
+        ordered_queues = {}
+        next_patients = {}
+
+        for code, department in departments.items():
+            ordered_queues[code] = await queue_service.get_department_queue(
                 department.dept_id
             )
-        )
-
-        # ------------------------------------------------------------------
-        # Ask the queue engine who should be called next.
-        # ------------------------------------------------------------------
-
-        next_patient = (
-            await queue_service.get_next_patient(
+            next_patients[code] = await queue_service.get_next_patient(
                 department.dept_id
             )
-        )
 
         return (
-            department,
-            staff,
+            departments,
+            staff_by_id,
             records,
-            ordered_queue,
-            next_patient,
+            ordered_queues,
+            next_patients,
             demo_run_id,
         )
+
+
+# ==========================================================================
+# REPORTING
+# ==========================================================================
+
+def print_header(config):
+    print()
+    print("=" * 75)
+    print("HPQMS QUEUE PRIORITY MATRIX TEST")
+    print("=" * 75)
+    print(f"Departments : {', '.join(d.code for d in config['departments'])}")
+    print(f"Staff       : {', '.join(s.employee_id for s in config['staff'])}")
+    print(f"Patients    : {len(config['patients'])}")
+
+
+def print_creation_order(records):
+    print()
+    print("CREATION ORDER")
+    print("-" * 75)
+
+    for index, record in enumerate(records, start=1):
+        patient = record["patient"]
+        visit = record["visit"]
+        queue_entry = record["queue_entry"]
+
+        print(
+            f"{index}. [{record['department_code']}] "
+            f"{visit.token_number} | "
+            f"{patient.first_name} {patient.last_name} | "
+            f"{queue_entry.priority.value} | "
+            f"Queue #{queue_entry.sequence_number} | "
+            f"{queue_entry.status.value}"
+        )
+
+
+def print_expected_order():
+    print()
+    print("EXPECTED QUEUE ORDER (per department)")
+    print("-" * 75)
+    print("1. CRITICAL")
+    print("2. URGENT")
+    print("3. SEMI_URGENT")
+    print("4. NORMAL")
+
+
+def print_actual_order(ordered_queues):
+    print()
+    print("ACTUAL QUEUE ORDER FROM QueueService")
+    print("-" * 75)
+
+    for code, queue in ordered_queues.items():
+        print(f"-- Department: {code} --")
+        for index, queue_entry in enumerate(queue, start=1):
+            patient = queue_entry.visit.patient
+            print(
+                f"{index}. "
+                f"{queue_entry.visit.token_number} | "
+                f"{patient.first_name} {patient.last_name} | "
+                f"{queue_entry.priority.value} | "
+                f"Queue #{queue_entry.sequence_number} | "
+                f"{queue_entry.status.value}"
+            )
+
+
+def print_next_patients(next_patients):
+    print()
+    print("NEXT PATIENT SELECTED BY QueueService")
+    print("-" * 75)
+
+    for code, next_patient in next_patients.items():
+        print(f"-- Department: {code} --")
+        if next_patient:
+            patient = next_patient.visit.patient
+            print(f"Token    : {next_patient.visit.token_number}")
+            print(f"Patient  : {patient.first_name} {patient.last_name}")
+            print(f"Priority : {next_patient.priority.value}")
+            print(f"Sequence : {next_patient.sequence_number}")
+            print(f"Status   : {next_patient.status.value}")
+        else:
+            print("No waiting patient found.")
+
+
+def print_test_result(ordered_queues, next_patients):
+    print()
+    print("PRIORITY TEST RESULT")
+    print("-" * 75)
+
+    all_passed = True
+
+    for code in ordered_queues:
+        queue = ordered_queues[code]
+        next_patient = next_patients[code]
+
+        passed = bool(
+            queue
+            and next_patient
+            and next_patient.queue_entry_id == queue[0].queue_entry_id
+        )
+        all_passed = all_passed and passed
+
+        status = "PASS" if passed else "FAIL"
+        print(f"[{code}] {status}: get_next_patient() "
+              f"{'matches' if passed else 'does NOT match'} "
+              f"the first entry from get_department_queue().")
+
+    print()
+    print("OVERALL:", "PASS" if all_passed else "FAIL")
+
+
+def print_footer(staff_by_id, config, run_id):
+    print()
+    print("=" * 75)
+    print("ALL PATIENTS SHOULD CURRENTLY BE WAITING")
+    print("=" * 75)
+    print()
+    print("No queue entry has been called, started, or completed.")
+
+    primary_staff = staff_by_id.get(PRIMARY_STAFF_EMPLOYEE_ID)
+    primary_password = next(
+        (s.password for s in config["staff"] if s.employee_id == PRIMARY_STAFF_EMPLOYEE_ID),
+        None,
+    )
+
+    print()
+    print("STAFF DASHBOARD")
+    print("http://localhost:8000/static/staff.html")
+    if primary_staff:
+        print(f"Login as {primary_staff.employee_id} / password: {primary_password}")
+
+    print()
+    print("PUBLIC DISPLAY")
+    print("http://localhost:8000/static/index.html")
+
+    print()
+    print(f"Demo run ID: {run_id}")
+
+    print()
+    print("NEXT MANUAL TEST")
+    print("-" * 75)
+    steps = [
+        f"Login as {PRIMARY_STAFF_EMPLOYEE_ID}",
+        "Open the public display",
+        "Verify the queue order",
+        "CALL the CRITICAL patient",
+        "Verify TOKEN_CALLED on the display",
+        "START SERVICE",
+        "Verify IN_PROGRESS",
+        "COMPLETE the patient",
+        "Verify the next patient is URGENT",
+        "Continue through the priority order",
+    ]
+    for i, step in enumerate(steps, start=1):
+        print(f"{i}. {step}")
+
+    print()
 
 
 # ==========================================================================
 # MAIN
 # ==========================================================================
 
-async def main():
+async def main(config: dict = DEMO_CONFIG):
 
     (
-        department,
-        staff,
+        departments,
+        staff_by_id,
         records,
-        ordered_queue,
-        next_patient,
+        ordered_queues,
+        next_patients,
         run_id,
-    ) = await seed_priority_demo()
+    ) = await seed_priority_demo(config)
 
-    print()
-    print("=" * 75)
-    print("HPQMS QUEUE PRIORITY MATRIX TEST")
-    print("=" * 75)
+    print_header(config)
+    print_creation_order(records)
+    print_expected_order()
+    print_actual_order(ordered_queues)
+    print_next_patients(next_patients)
+    print_test_result(ordered_queues, next_patients)
+    print_footer(staff_by_id, config, run_id)
 
-    print(
-        f"Department : "
-        f"{department.name} "
-        f"({department.department_code})"
-    )
-
-    print(
-        f"Staff      : "
-        f"{staff.employee_id}"
-    )
-
-    print(
-        f"Password   : "
-        f"{DEMO_PASSWORD}"
-    )
-
-    print(
-        f"Demo run   : "
-        f"{run_id}"
-    )
-
-    # ======================================================================
-    # CREATION ORDER
-    # ======================================================================
-
-    print()
-    print("CREATION ORDER")
-    print("-" * 75)
-
-    for index, record in enumerate(
-        records,
-        start=1,
-    ):
-
-        patient = record["patient"]
-        visit = record["visit"]
-        queue_entry = record["queue_entry"]
-
-        print(
-            f"{index}. "
-            f"{visit.token_number} | "
-            f"{patient.first_name} "
-            f"{patient.last_name} | "
-            f"{queue_entry.priority.value} | "
-            f"Queue #{queue_entry.sequence_number} | "
-            f"{queue_entry.status.value}"
-        )
-
-    # ======================================================================
-    # EXPECTED PRIORITY ORDER
-    # ======================================================================
-
-    print()
-    print("EXPECTED QUEUE ORDER")
-    print("-" * 75)
-
-    print("1. CRITICAL")
-    print("2. URGENT")
-    print("3. SEMI_URGENT")
-    print("4. NORMAL")
-
-    # ======================================================================
-    # ACTUAL QUEUE ORDER
-    # ======================================================================
-
-    print()
-    print("ACTUAL QUEUE ORDER FROM QueueService")
-    print("-" * 75)
-
-    for index, queue_entry in enumerate(
-        ordered_queue,
-        start=1,
-    ):
-
-        patient = queue_entry.visit.patient
-
-        print(
-            f"{index}. "
-            f"{queue_entry.visit.token_number} | "
-            f"{patient.first_name} "
-            f"{patient.last_name} | "
-            f"{queue_entry.priority.value} | "
-            f"Queue #{queue_entry.sequence_number} | "
-            f"{queue_entry.status.value}"
-        )
-
-    # ======================================================================
-    # NEXT PATIENT
-    # ======================================================================
-
-    print()
-    print("NEXT PATIENT SELECTED BY QueueService")
-    print("-" * 75)
-
-    if next_patient:
-
-        patient = next_patient.visit.patient
-
-        print(
-            f"Token    : "
-            f"{next_patient.visit.token_number}"
-        )
-
-        print(
-            f"Patient  : "
-            f"{patient.first_name} "
-            f"{patient.last_name}"
-        )
-
-        print(
-            f"Priority : "
-            f"{next_patient.priority.value}"
-        )
-
-        print(
-            f"Sequence : "
-            f"{next_patient.sequence_number}"
-        )
-
-        print(
-            f"Status   : "
-            f"{next_patient.status.value}"
-        )
-
-    else:
-        print("No waiting patient found.")
-
-    # ======================================================================
-    # TEST RESULT
-    # ======================================================================
-
-    print()
-    print("PRIORITY TEST RESULT")
-    print("-" * 75)
-
-    if (
-        ordered_queue
-        and next_patient
-        and next_patient.queue_entry_id
-        == ordered_queue[0].queue_entry_id
-    ):
-
-        print(
-            "PASS: QueueService selected the first "
-            "patient according to its priority ordering."
-        )
-
-    else:
-
-        print(
-            "FAIL: get_next_patient() does not match "
-            "the first entry returned by get_department_queue()."
-        )
-
-    # ======================================================================
-    # IMPORTANT
-    # ======================================================================
-
-    print()
-    print("=" * 75)
-    print("ALL FOUR PATIENTS SHOULD CURRENTLY BE WAITING")
-    print("=" * 75)
-
-    print()
-    print("No queue entry has been called.")
-    print("No queue entry has been started.")
-    print("No queue entry has been completed.")
-
-    print()
-    print("STAFF DASHBOARD")
-    print(
-        "http://localhost:8000/static/staff.html"
-    )
-
-    print()
-    print("PUBLIC DISPLAY")
-    print(
-        "http://localhost:8000/static/index.html"
-    )
-
-    print()
-    print("NEXT MANUAL TEST")
-    print("-" * 75)
-    print(
-        "1. Login as REC001"
-    )
-    print(
-        "2. Open the public display"
-    )
-    print(
-        "3. Verify the queue order"
-    )
-    print(
-        "4. CALL the CRITICAL patient"
-    )
-    print(
-        "5. Verify TOKEN_CALLED on the display"
-    )
-    print(
-        "6. START SERVICE"
-    )
-    print(
-        "7. Verify IN_PROGRESS"
-    )
-    print(
-        "8. COMPLETE the patient"
-    )
-    print(
-        "9. Verify the next patient is URGENT"
-    )
-    print(
-        "10. Continue through the priority order"
-    )
-
-    print()
-
-
-# ==========================================================================
-# ENTRY POINT
-# ==========================================================================
 
 if __name__ == "__main__":
     asyncio.run(main())

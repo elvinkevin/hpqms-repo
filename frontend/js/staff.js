@@ -15,6 +15,7 @@ import {
     markNoShowQueueEntry,
     requeueQueueEntry,
     getNextPatient,
+    getCurrentUser,
 } from "./staff-api.js";
 
 const elements = {
@@ -34,6 +35,7 @@ const elements = {
     currentStatus: document.getElementById("current-status"),
     currentPatient: document.getElementById("current-patient"),
     currentPriority: document.getElementById("current-priority"),
+    currentOwner: document.getElementById("current-owner"),
     callButton: document.getElementById("call-button"),
     startButton: document.getElementById("start-button"),
     noShowButton: document.getElementById("noshow-button"),
@@ -49,6 +51,7 @@ let selectedDepartmentId = null;
 let queueEntries = [];
 let noShowEntries = [];
 let selectedQueueEntry = null;
+let currentUser = null;
 
 function showElement(element) {
     element.classList.remove("hidden");
@@ -152,12 +155,36 @@ function renderQueueTable() {
     }
 }
 
-function getActionStates(status) {
+function getActionStates(entry) {
+    if (!entry) {
+        return {
+            call: false,
+            start: false,
+            noShow: false,
+            complete: false,
+        };
+    }
+
+    const isOwner =
+        currentUser &&
+        String(entry.assigned_staff_id) === String(currentUser.staff_id);
+
     return {
-        call: status === "WAITING",
-        start: status === "CALLED",
-        noShow: status === "CALLED",
-        complete: status === "IN_PROGRESS",
+        call:
+            entry.status === "WAITING" &&
+            !entry.assigned_staff_id,
+
+        start:
+            entry.status === "CALLED" &&
+            isOwner,
+
+        noShow:
+            entry.status === "CALLED" &&
+            isOwner,
+
+        complete:
+            entry.status === "IN_PROGRESS" &&
+            isOwner,
     };
 }
 
@@ -173,7 +200,10 @@ function updateCurrentPatientPanel() {
     setText(elements.currentPriority, selectedQueueEntry.priority);
     showElement(elements.currentPatientPanel);
 
-    const states = getActionStates(selectedQueueEntry.status);
+    // Update ownership display for the selected entry
+    updateOwnershipDisplay(selectedQueueEntry);
+
+    const states = getActionStates(selectedQueueEntry);
 
     elements.callButton.disabled = !states.call;
     elements.startButton.disabled = !states.start;
@@ -184,6 +214,24 @@ function updateCurrentPatientPanel() {
     elements.startButton.className = states.start ? "button-secondary" : "button-disabled";
     elements.noShowButton.className = states.noShow ? "button-danger" : "button-disabled";
     elements.completeButton.className = states.complete ? "button-danger" : "button-disabled";
+}
+
+function updateOwnershipDisplay(entry) {
+    if (!elements.currentOwner) return;
+
+    if (!entry || !entry.assigned_staff_id) {
+        elements.currentOwner.textContent = "Owner: Unassigned";
+        elements.currentOwner.className = "current-owner unassigned";
+        return;
+    }
+
+    if (currentUser && String(entry.assigned_staff_id) === String(currentUser.staff_id)) {
+        elements.currentOwner.textContent = `Owner: You (${currentUser.first_name || currentUser.staff_id})`;
+        elements.currentOwner.className = "current-owner owner";
+    } else {
+        elements.currentOwner.textContent = `Owner: Staff ${entry.assigned_staff_id}`;
+        elements.currentOwner.className = "current-owner other-owner";
+    }
 }
 
 function selectQueueEntry(queueEntryId) {
@@ -341,10 +389,9 @@ async function requeueNoShowEntry(queueEntryId) {
         await refreshQueue();
 
         setStatus(
-            `Ready — ${
-                selectedQueueEntry
-                    ? getQueueTokenLabel(selectedQueueEntry)
-                    : "no current patient"
+            `Ready — ${selectedQueueEntry
+                ? getQueueTokenLabel(selectedQueueEntry)
+                : "no current patient"
             }`
         );
 
@@ -424,36 +471,83 @@ async function performTransition(action) {
         await refreshQueue();
 
         setStatus(
-            `Ready — ${
-                selectedQueueEntry
-                    ? getQueueTokenLabel(selectedQueueEntry)
-                    : "no current patient"
+            `Ready — ${selectedQueueEntry
+                ? getQueueTokenLabel(selectedQueueEntry)
+                : "no current patient"
             }`
         );
 
     } catch (error) {
         console.error(error);
+
+        // Handle common authorization/conflict responses with clear UX
+        if (error && error.status === 403) {
+            showError("This patient is assigned to another staff member.");
+            try {
+                await refreshQueue();
+            } catch (e) {
+                console.error("refresh after 403 failed", e);
+            }
+            return;
+        }
+
+        if (error && error.status === 409) {
+            showError(error.message || "You already have an active patient.");
+            try {
+                await refreshQueue();
+            } catch (e) {
+                console.error("refresh after 409 failed", e);
+            }
+            return;
+        }
+
         showError(error.message || "Action failed. Please try again.");
+
+        try {
+            await refreshQueue();
+        } catch (e) {
+            console.error("refresh after failure failed", e);
+        }
     }
 }
+
 
 async function identifyDepartment() {
     try {
-        setStatus("Loading department queue...");
-        const departments = await getDepartments();
-        selectedDepartmentId = departments[0]?.dept_id ?? null;
+        setStatus("Loading staff profile...");
 
-        if (!selectedDepartmentId) {
-            throw new Error("No active departments available.");
+        currentUser = await getCurrentUser();
+
+        if (!currentUser?.dept_id) {
+            throw new Error(
+                "Your staff account is not assigned to a department."
+            );
         }
 
+        selectedDepartmentId = currentUser.dept_id;
+
         await refreshQueue();
-        setStatus("Ready");
+
+        setStatus(
+            `Ready — ${currentUser.first_name} ${currentUser.last_name}`
+        );
     } catch (error) {
         console.error(error);
-        showError(error.message || "Unable to load department.");
+
+        if (error.status === 403) {
+            showError(
+                "You are not authorized to access this department."
+            );
+        } else {
+            showError(
+                error.message || "Unable to load department."
+            );
+        }
+
+        setStatus("Unable to load department");
     }
 }
+
 
 async function handleLogin(event) {
     event.preventDefault();
@@ -485,19 +579,26 @@ async function handleLogin(event) {
 
 function handleLogout() {
     logout();
+
+    currentUser = null;
     queueEntries = [];
-    noShowEntries = [];
     selectedQueueEntry = null;
     selectedDepartmentId = null;
+
     hideElement(elements.logoutButton);
     hideElement(elements.currentPatientPanel);
-    hideElement(elements.queuePanel);
-    hideElement(elements.noShowPanel);
+    hideElement(elements.queueTable);
+
     showElement(elements.loginPanel);
+
     setStatus("Please sign in to manage the queue");
+
     elements.queueBody.innerHTML = "";
-    elements.queueState.textContent = "Log in to view department queue entries.";
+    elements.queueState.textContent =
+        "Log in to view department queue entries.";
+
     showElement(elements.queueState);
+
     clearError();
 }
 

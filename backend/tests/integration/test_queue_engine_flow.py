@@ -1169,3 +1169,4 @@ class TestQueueAnalyticsFinal:
         assert await service.get_patient_position(
             triage_entry.queue_entry_id
         ) == 1
+

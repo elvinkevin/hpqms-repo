@@ -208,6 +208,24 @@
         .requeue-button {
             min-width: 110px;
         }
+
+        .current-owner {
+            margin-top: 8px;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .current-owner.owner {
+            color: #10b981;
+        }
+
+        .current-owner.other-owner {
+            color: #f59e0b;
+        }
+
+        .current-owner.unassigned {
+            color: #64748b;
+        }
     </style>
 </head>
 
@@ -247,6 +265,7 @@
                     <p><strong>Status:</strong> <span id="current-status">—</span></p>
                     <p><strong>Patient:</strong> <span id="current-patient">—</span></p>
                     <p><strong>Priority:</strong> <span id="current-priority">—</span></p>
+                    <div id="current-owner" class="current-owner unassigned">Owner: Unassigned</div>
                     <div class="button-row">
                         <button id="call-button" class="button-primary">CALL</button>
                         <button id="start-button" class="button-secondary">START SERVICE</button>

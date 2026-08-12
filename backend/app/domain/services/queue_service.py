@@ -146,20 +146,35 @@ class QueueService:
     # READ OPERATIONS
     # ------------------------------------------------------------------
 
-    async def get_department_queue(self, department_id: UUID) -> List[QueueEntry]:
-        """Retrieves active records for a department."""
+    async def get_department_queue(
+        self,
+        department_id: UUID,
+    ) -> List[QueueEntry]:
+        """Retrieves active queue records for a department for today."""
+
+        today_local = datetime.now(CLINIC_TZ).date()
+
         stmt = (
             select(QueueEntry)
-            .options(selectinload(QueueEntry.visit).selectinload(Visit.patient))
+            .options(
+                selectinload(QueueEntry.visit)
+                .selectinload(Visit.patient)
+            )
             .where(
                 and_(
                     QueueEntry.department_id == department_id,
                     QueueEntry.status.in_(ACTIVE_STATUSES),
+                    func.cast(QueueEntry.entered_at, Date) == today_local,
                 )
             )
-            .order_by(PRIORITY_DB_ORDER, QueueEntry.sequence_number.asc())
+            .order_by(
+                PRIORITY_DB_ORDER,
+                QueueEntry.sequence_number.asc(),
+            )
         )
+
         result = await self.db.execute(stmt)
+
         return list(result.scalars().all())
 
     async def get_active_queue_entry(self, visit_id: UUID) -> QueueEntry | None:
@@ -205,17 +220,18 @@ class QueueService:
         self,
         department_id: UUID,
     ) -> QueueEntry | None:
-        """Returns the next patient waiting to be called in a department."""
-        today_local = datetime.now(CLINIC_TZ).date()
+        """Returns the highest-priority waiting patient in a department."""
 
         stmt = (
             select(QueueEntry)
-            .options(selectinload(QueueEntry.visit).selectinload(Visit.patient))
+            .options(
+                selectinload(QueueEntry.visit)
+                .selectinload(Visit.patient)
+            )
             .where(
                 and_(
                     QueueEntry.department_id == department_id,
                     QueueEntry.status == QueueEntryStatus.WAITING,
-                    func.cast(QueueEntry.entered_at, Date) == today_local,
                 )
             )
             .order_by(
@@ -226,6 +242,7 @@ class QueueService:
         )
 
         result = await self.db.execute(stmt)
+
         return result.scalar_one_or_none()
 
     # ------------------------------------------------------------------
@@ -274,6 +291,105 @@ class QueueService:
                 ),
             )
 
+        # ---------------------------------------------------------
+        # STAFF OWNERSHIP / CLAIM VALIDATION
+        # ---------------------------------------------------------
+
+        # --- CALLED TRANSITION ---
+        if new_status == QueueEntryStatus.CALLED:
+            if staff_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A staff member is required to call a patient.",
+                )
+
+            if entry.assigned_staff_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This queue entry is already assigned to a staff member."
+
+                )
+
+            # A staff member may only have one active patient.
+            active_staff_stmt = (
+                select(QueueEntry.queue_entry_id)
+                .where(
+                    QueueEntry.assigned_staff_id == staff_id,
+                    QueueEntry.status.in_(
+                        {
+                            QueueEntryStatus.CALLED,
+                            QueueEntryStatus.IN_PROGRESS,
+                        }
+                    ),
+                )
+                .limit(1)
+            )
+
+            active_staff_result = await self.db.execute(active_staff_stmt)
+            active_entry_id = active_staff_result.scalar_one_or_none()
+
+            if active_entry_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "You already have an active patient. "
+                        "Complete or release the current patient before "
+                        "calling another patient."
+                    ),
+                )
+
+        # --- IN PROGRESS TRANSITION ---
+        elif new_status == QueueEntryStatus.IN_PROGRESS:
+            if staff_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A staff member is required to start a patient.",
+                )
+
+            if entry.assigned_staff_id != staff_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "You cannot start this patient because "
+                        "the patient is assigned to another staff member."
+                    ),
+                )
+
+        # --- COMPLETED TRANSITION ---
+        elif new_status == QueueEntryStatus.COMPLETED:
+            if staff_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A staff member is required to complete a patient.",
+                )
+
+            if entry.assigned_staff_id != staff_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "You cannot complete this patient because "
+                        "the patient is assigned to another staff member."
+                    ),
+                )
+        # --- NO SHOW TRANSITION ---
+        elif new_status == QueueEntryStatus.NO_SHOW:
+            if staff_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A staff member is required to mark a patient as no-show.",
+                )
+
+            if entry.assigned_staff_id is not None and entry.assigned_staff_id != staff_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "You cannot mark this patient as no-show because "
+                        "the patient is assigned to another staff member."
+                    ),
+                )
+        # ---------------------------------------------------------
+        # APPLY CHANGES & REFLECT STATE
+        # ---------------------------------------------------------
         self._apply_status_updates(
             entry,
             new_status,
@@ -287,8 +403,8 @@ class QueueService:
         )
 
         await self.db.flush()
-
         
+        # Re-fetch row with a row lock to guarantee absolute write-integrity
         stmt = (
             select(QueueEntry)
             .options(
@@ -297,11 +413,14 @@ class QueueService:
                 ),
                 selectinload(QueueEntry.department),
             )
-            .where(QueueEntry.queue_entry_id == entry.queue_entry_id)
+            .where(QueueEntry.queue_entry_id == queue_entry_id)
+            .with_for_update()
         )
 
-        refreshed = await self.db.execute(stmt)
-        return refreshed.scalar_one()
+        result = await self.db.execute(stmt)
+        entry = result.scalar_one()
+        
+        return entry
 
     def _apply_status_updates(
         self,
@@ -310,12 +429,21 @@ class QueueService:
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
     ) -> None:
-        """Mutates status, assigned staff, and notes on the entry instance."""
+        """Apply already-validated queue state changes."""
+
         entry.status = new_status
-        if staff_id is not None and hasattr(entry, "assigned_staff_id"):
-            entry.assigned_staff_id = staff_id
+
         if notes is not None:
             entry.notes = notes
+
+        # WAITING -> CALLED
+        # The current staff member claims the patient.
+        if new_status == QueueEntryStatus.CALLED:
+            entry.assigned_staff_id = staff_id
+
+        # Returning an entry to WAITING releases the staff claim.
+        elif new_status == QueueEntryStatus.WAITING:
+            entry.assigned_staff_id = None
 
     def _apply_lifecycle_timestamps(
         self,
@@ -442,11 +570,14 @@ class QueueService:
     async def complete_queue_entry(
         self,
         queue_entry_id: UUID,
+        staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
     ) -> QueueEntry:
-        """Transitions IN_PROGRESS -> COMPLETED."""
         return await self.transition_entry_status(
-            queue_entry_id, QueueEntryStatus.COMPLETED, notes=notes
+            queue_entry_id=queue_entry_id,
+            new_status=QueueEntryStatus.COMPLETED,
+            staff_id=staff_id,
+            notes=notes,
         )
 
     async def mark_no_show(

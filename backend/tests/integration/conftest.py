@@ -2,13 +2,15 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 from app.domain.models.models import Department, DeptType, Patient, Staff, StaffRole
 from app.domain.services.patient_service import PatientService
 from app.domain.services.queue_service import QueueService
 from app.domain.services.routing_service import RoutingService
 from app.domain.services.visit_service import VisitService
-
+from app.domain.schemas.schemas import PatientCreate
+from app.domain.models.models import EntryType, QueueEntry, QueueEntryStatus, QueuePriority
+from app.domain.schemas.schemas import VisitCreate
 
 # ---------------------------------------------------------------------------
 # 1. Hospital Departments Suite (OPD, Triage, Emergency)
@@ -47,7 +49,6 @@ async def routing_departments(db):
         "emergency": departments[2],
     }
 
-
 # ---------------------------------------------------------------------------
 # 2. Workflow Staff (Assigned to exact routing departments)
 # ---------------------------------------------------------------------------
@@ -73,6 +74,14 @@ async def receptionist(db, routing_departments):
     await db.commit()
     await db.refresh(staff)
 
+    # Attach generated JWT access token for integration tests
+    staff.access_token = create_access_token({
+        "sub": str(staff.staff_id),
+        "employee_id": staff.employee_id,
+        "role": staff.role.value if hasattr(staff.role, "value") else staff.role,
+        "dept_id": str(staff.dept_id),
+    })
+
     return staff
 
 
@@ -95,17 +104,13 @@ def services(db):
 # ---------------------------------------------------------------------------
 # 4. Reception Workflow Context
 # ---------------------------------------------------------------------------
-@pytest.fixture
+@pytest_asyncio.fixture
 async def reception_context(
     db,
     routing_departments,
     receptionist,
     services,
 ):
-    """
-    Bundles together all infrastructure and actors required to execute 
-    and assert full reception/check-in integration tests.
-    """
     return {
         "db": db,
         "services": services,
@@ -114,7 +119,6 @@ async def reception_context(
         "emergency": routing_departments["emergency"],
         "staff": receptionist,
     }
-
 
 import pytest_asyncio
 
@@ -135,3 +139,94 @@ async def patient_factory(db, faker):
         return patient
 
     return _create_patient
+
+
+
+@pytest_asyncio.fixture
+async def reception_queue_entry(db, reception_context, patient_factory):
+    services = reception_context["services"]
+    reception_dept = reception_context["reception"]
+
+    patient = await patient_factory()
+
+    visit = await services["visit"].start_visit(
+        VisitCreate(
+            patient_id=patient.patient_id,
+            entry_type=EntryType.WALK_IN,
+            visit_reason="Reception Check-in",
+        )
+    )
+
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        department_id=reception_dept.dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
+    )
+
+    db.add(entry)
+    await db.flush()  # <-- Changed from commit() to flush()
+    return entry
+
+
+# ---------------------------------------------------------------------------
+# 6. Generic Queue Entry Factory Fixture (For dynamic contexts)
+# ---------------------------------------------------------------------------
+@pytest_asyncio.fixture
+def create_queue_entry(db):
+    """
+    Factory fixture allowing tests to manually generate queue entries 
+    for any given department and visit context.
+    """
+    async def _create(visit_id, department_id, priority=QueuePriority.NORMAL):
+        entry = QueueEntry(
+            visit_id=visit_id,
+            department_id=department_id,
+            sequence_number=1,
+            priority=priority,
+            status=QueueEntryStatus.WAITING,
+        )
+        db.add(entry)
+        await db.commit()
+        await db.refresh(entry)
+        return entry
+
+    return _create
+
+
+@pytest_asyncio.fixture
+async def triage_queue_entry(db, reception_context, patient_factory):
+    """
+    Creates an active Visit and a WAITING QueueEntry specifically
+    assigned to the TRIAGE department.
+    """
+    services = reception_context["services"]
+    triage_dept = reception_context["triage"]
+
+    # 1. Create a patient
+    patient = await patient_factory()
+
+    # 2. Start a visit
+    visit = await services["visit"].start_visit(
+        VisitCreate(
+            patient_id=patient.patient_id,
+            entry_type=EntryType.WALK_IN,
+            visit_reason="Triage Check-in",
+        )
+    )
+
+    # 3. Create Queue Entry in Triage Department
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        department_id=triage_dept.dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
+    )
+
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+
+    return entry

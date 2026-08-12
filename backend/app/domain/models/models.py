@@ -227,6 +227,15 @@ class QueueEntry(Base):
             unique=True,
             postgresql_where=text("status IN ('WAITING','CALLED','IN_PROGRESS')"),
         ),
+        Index(
+            "uq_active_entry_per_staff",
+            "assigned_staff_id",
+            unique=True,
+            postgresql_where=text(
+                "assigned_staff_id IS NOT NULL "
+                "AND status IN ('CALLED','IN_PROGRESS')"
+            ),
+        ),
     )
 
     queue_entry_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

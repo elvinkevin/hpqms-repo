@@ -1,4 +1,5 @@
 from uuid import uuid4
+import uuid
 
 import pytest
 from fastapi import HTTPException, status
@@ -13,7 +14,7 @@ from app.domain.models.models import (
     Visit,
     VisitStage,
 )
-from app.domain.schemas.schemas import PatientCreate, VisitCreate
+from app.domain.schemas.schemas import EmergencyPatientCreate, PatientCreate, VisitCreate
 from app.domain.services.patient_service import PatientService
 from app.domain.services.routing_service import RoutingService
 from app.domain.services.visit_service import VisitService
@@ -45,15 +46,13 @@ async def test_walk_in_patient_registration_workflow(
     visit_service = VisitService(db)
     routing_service = RoutingService(db)
 
-    # 1. Initial patient check-in / skeleton registration
-    patient = await patient_service.register(
-        PatientCreate(
+    # 1. Initial kiosk check-in / skeleton registration (creates INCOMPLETE record)
+    # Uses EmergencyPatientCreate or register_emergency_patient to mark status INCOMPLETE
+    patient = await patient_service.register_emergency_patient(
+        EmergencyPatientCreate(
             first_name="John",
             last_name="Doe",
-            national_id="12345678",
-            phone="+254700111222",
             gender="MALE",
-            date_of_birth="1995-05-20",
         )
     )
 
@@ -88,7 +87,6 @@ async def test_walk_in_patient_registration_workflow(
     # Relational Database State Verification
     await db.refresh(visit)
     assert visit.current_queue_entry_id == queue_entry.queue_entry_id
-
 
 @pytest.mark.asyncio
 async def test_existing_patient_walk_in_workflow(
@@ -1322,7 +1320,7 @@ async def test_already_called_patient_cannot_be_called_again(reception_context):
 
     patient = await services["patient"].register_standard_patient(
         PatientCreate(
-            national_id=f"TEST-{uuid4()}",
+            national_id = f"NAT-{uuid.uuid4().hex[:12]}",
             first_name="Double",
             last_name="Call",
             phone=f"+2547{uuid4().int % 10**8:08d}",
@@ -1356,7 +1354,7 @@ async def test_completed_patient_cannot_be_completed_again(reception_context):
 
     patient = await services["patient"].register_standard_patient(
         PatientCreate(
-            national_id=f"TEST-{uuid4()}",
+            national_id = f"NAT-{uuid.uuid4().hex[:12]}",
             first_name="Already",
             last_name="Completed",
             phone=f"+2547{uuid4().int % 10**8:08d}",
@@ -1392,7 +1390,7 @@ async def test_completed_patient_cannot_be_requeued(reception_context):
 
     patient = await services["patient"].register_standard_patient(
         PatientCreate(
-            national_id=f"TEST-{uuid4()}",
+            national_id = f"NAT-{uuid.uuid4().hex[:12]}",
             first_name="Completed",
             last_name="Requeue",
             phone=f"+2547{uuid4().int % 10**8:08d}",

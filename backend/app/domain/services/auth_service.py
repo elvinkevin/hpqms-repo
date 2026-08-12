@@ -255,3 +255,18 @@ def require_role(*roles: StaffRole):
         return current_user
 
     return _guard
+
+def ensure_department_access(
+    current_user: CurrentUser,
+    department_id: UUID,
+) -> None:
+    """
+    Ensures that the authenticated staff member belongs
+    to the requested department.
+    """
+
+    if current_user.dept_id != department_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to access this department.",
+        )

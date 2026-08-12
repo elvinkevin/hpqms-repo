@@ -7,6 +7,7 @@ import { request, HTTP_METHOD } from "./api.js";
 
 const authState = {
     accessToken: null,
+    currentUser: null,
 };
 
 function buildAuthHeaders() {
@@ -30,9 +31,23 @@ async function login(credentials) {
     return response;
 }
 
+
+async function getCurrentUser() {
+    const response = await request("/auth/me", {
+        method: HTTP_METHOD.GET,
+        headers: buildAuthHeaders(),
+    });
+
+    authState.currentUser = response;
+
+    return response;
+}
+
 function logout() {
     authState.accessToken = null;
+    authState.currentUser = null;
 }
+
 
 async function getDepartments() {
     return request("/departments/active", {
@@ -98,6 +113,8 @@ async function getNextPatient(departmentId) {
 }
 
 
+
+
 export {
     login,
     logout,
@@ -110,4 +127,6 @@ export {
     markNoShowQueueEntry,
     requeueQueueEntry,
     getNextPatient,
+    getCurrentUser,
+
 };
