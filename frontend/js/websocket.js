@@ -354,8 +354,23 @@ function connectInternal() {
        ---------------------------------------------------------------------- */
 
     socket.onmessage = (event) => {
-        emit("message", event.data);
-    };
+    let payload;
+
+    try {
+        payload = JSON.parse(event.data);
+    } catch (error) {
+        console.error(
+            "Failed to parse WebSocket message:",
+            error
+        );
+
+        emit("error", error);
+
+        return;
+    }
+
+    emit("message", payload);
+};
 
 
     /* ----------------------------------------------------------------------

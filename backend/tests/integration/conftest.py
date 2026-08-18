@@ -230,3 +230,78 @@ async def triage_queue_entry(db, reception_context, patient_factory):
     await db.refresh(entry)
 
     return entry
+
+@pytest_asyncio.fixture
+async def receptionist_two(db, routing_departments):
+    """
+    Second receptionist assigned to the same Reception department.
+
+    Used to test staff ownership and isolation.
+    """
+    reception = routing_departments["reception"]
+
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id="REC002",
+        first_name="Bob",
+        last_name="Receptionist",
+        role=StaffRole.RECEPTIONIST,
+        dept_id=reception.dept_id,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
+    )
+
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+
+    staff.access_token = create_access_token({
+        "sub": str(staff.staff_id),
+        "employee_id": staff.employee_id,
+        "role": staff.role.value if hasattr(staff.role, "value") else staff.role,
+        "dept_id": str(staff.dept_id),
+    })
+
+    return staff
+
+
+@pytest_asyncio.fixture
+async def create_no_show_entry(
+    db,
+    reception_context,
+    patient_factory,
+):
+    async def _create(
+        assigned_staff_id,
+        status=QueueEntryStatus.NO_SHOW,
+        priority=QueuePriority.NORMAL,
+    ):
+        services = reception_context["services"]
+        reception_dept = reception_context["reception"]
+
+        patient = await patient_factory()
+
+        visit = await services["visit"].start_visit(
+            VisitCreate(
+                patient_id=patient.patient_id,
+                entry_type=EntryType.WALK_IN,
+                visit_reason="No-show authorization test",
+            )
+        )
+
+        entry = QueueEntry(
+            visit_id=visit.visit_id,
+            department_id=reception_dept.dept_id,
+            assigned_staff_id=assigned_staff_id,
+            sequence_number=1,
+            priority=priority,
+            status=status,
+        )
+
+        db.add(entry)
+        await db.commit()
+        await db.refresh(entry)
+
+        return entry
+
+    return _create

@@ -6,6 +6,7 @@ from app.domain.models.models import (
     Department,
     DeptType,
     EntryType,
+    QueueEntry,
     QueueEntryStatus,
     Staff,
     StaffRole,
@@ -523,12 +524,14 @@ async def test_other_staff_cannot_mark_owned_patient_no_show(
         is_active=True,
     )
     db.add(staff_b)
-    await db.commit()
-    await db.refresh(staff_b)
+    await db.flush()  # Use flush instead of commit to keep fixture transaction open
 
-    # 2. Build token headers for both staff members
-    headers_a = {"Authorization": f"Bearer {create_access_token({'sub': str(staff_a.staff_id)})}"}
-    headers_b = {"Authorization": f"Bearer {create_access_token({'sub': str(staff_b.staff_id)})}"}
+    headers_a = {
+        "Authorization": f"Bearer {create_access_token({'sub': str(staff_a.staff_id)})}"
+    }
+    headers_b = {
+        "Authorization": f"Bearer {create_access_token({'sub': str(staff_b.staff_id)})}"
+    }
 
     patient = await patient_factory()
     visit = await services["visit"].start_visit(
@@ -544,6 +547,9 @@ async def test_other_staff_cannot_mark_owned_patient_no_show(
         department_id=reception.dept_id,
     )
 
+    # Commit/flush so the API HTTP client can see the entry in the DB session
+    await db.commit()
+
     # Staff A claims the patient
     response = await client.patch(
         f"/api/queue/{entry.queue_entry_id}/call",
@@ -557,7 +563,8 @@ async def test_other_staff_cannot_mark_owned_patient_no_show(
         headers=headers_b,
     )
 
-    assert response.status_code == 403
+    # Print body if it fails to see the actual error message
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.json()}"
 
 
 @pytest.mark.asyncio
@@ -609,3 +616,129 @@ async def test_owner_can_complete_patient(
 
     assert response.status_code == 200, response.json()
     assert response.json()["status"] == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_staff_sees_only_own_no_show_entries(
+    client,
+    db,
+    receptionist,
+    receptionist_two,
+    create_no_show_entry,
+):
+    entry_one = await create_no_show_entry(
+        assigned_staff_id=receptionist.staff_id,
+    )
+
+    entry_two = await create_no_show_entry(
+        assigned_staff_id=receptionist_two.staff_id,
+    )
+
+    response = await client.get(
+        f"/api/queue/department/{entry_one.department_id}/no-show",
+        headers={
+            "Authorization": f"Bearer {receptionist.access_token}"
+        },
+    )
+
+    assert response.status_code == 200
+
+    entries = response.json()
+
+    ids = {
+        entry["queue_entry_id"]
+        for entry in entries
+    }
+
+    assert str(entry_one.queue_entry_id) in ids
+    assert str(entry_two.queue_entry_id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_second_staff_sees_only_their_own_no_show(
+    client,
+    receptionist,
+    receptionist_two,
+    create_no_show_entry,
+):
+    entry_one = await create_no_show_entry(
+        assigned_staff_id=receptionist.staff_id,
+    )
+
+    entry_two = await create_no_show_entry(
+        assigned_staff_id=receptionist_two.staff_id,
+    )
+
+    response = await client.get(
+        f"/api/queue/department/{entry_one.department_id}/no-show",
+        headers={
+            "Authorization": f"Bearer {receptionist_two.access_token}"
+        },
+    )
+
+    assert response.status_code == 200
+
+    entries = response.json()
+
+    ids = {
+        entry["queue_entry_id"]
+        for entry in entries
+    }
+
+    assert str(entry_two.queue_entry_id) in ids
+    assert str(entry_one.queue_entry_id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_staff_can_requeue_own_no_show(
+    client,
+    db,
+    receptionist,
+    create_no_show_entry,
+):
+    entry = await create_no_show_entry(
+        assigned_staff_id=receptionist.staff_id,
+    )
+
+    response = await client.patch(
+        f"/api/queue/{entry.queue_entry_id}/requeue",
+        headers={"Authorization": f"Bearer {receptionist.access_token}"},
+    )
+
+    assert response.status_code == 200, response.json()
+
+    data = response.json()
+    assert data["status"] == "WAITING"
+    assert data["assigned_staff_id"] is None
+
+    # Fetch updated state directly to avoid fixture session detachment issues
+    updated_entry = await db.get(QueueEntry, entry.queue_entry_id)
+
+    assert updated_entry.status == QueueEntryStatus.WAITING
+    assert updated_entry.assigned_staff_id is None
+
+@pytest.mark.asyncio
+async def test_other_staff_cannot_requeue_no_show(
+    client,
+    db,
+    receptionist,
+    receptionist_two,
+    create_no_show_entry,
+):
+    entry = await create_no_show_entry(
+        assigned_staff_id=receptionist.staff_id,
+    )
+
+    response = await client.patch(
+        f"/api/queue/{entry.queue_entry_id}/requeue",
+        headers={
+            "Authorization": f"Bearer {receptionist_two.access_token}"
+        },
+    )
+
+    assert response.status_code == 403
+
+    await db.refresh(entry)
+
+    assert entry.status == QueueEntryStatus.NO_SHOW
+    assert entry.assigned_staff_id == receptionist.staff_id

@@ -411,19 +411,16 @@ class TestQueueStateTransitions:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
-        """
-        WAITING -> CALLED
-
-        A waiting patient can be called by queue staff.
-        """
-
+        """WAITING -> CALLED"""
         service = QueueService(db)
 
         assert queue_entry.status == QueueEntryStatus.WAITING
 
         updated = await service.call_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
         )
 
         assert updated.status == QueueEntryStatus.CALLED
@@ -434,25 +431,23 @@ class TestQueueStateTransitions:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
-        """
-        WAITING -> CALLED -> IN_PROGRESS
-
-        Once the patient has been called,
-        staff can begin processing the patient.
-        """
-
+        """WAITING -> CALLED -> IN_PROGRESS"""
         service = QueueService(db)
 
         await service.call_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
         )
 
         updated = await service.start_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
         )
 
         assert updated.status == QueueEntryStatus.IN_PROGRESS
+
 
 
     @pytest.mark.asyncio
@@ -460,26 +455,17 @@ class TestQueueStateTransitions:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
-        """
-        WAITING -> CALLED -> IN_PROGRESS -> COMPLETED
-
-        A patient currently being served can have
-        their queue entry completed.
-        """
-
+        """WAITING -> CALLED -> IN_PROGRESS -> COMPLETED"""
         service = QueueService(db)
 
-        await service.call_queue_entry(
-            queue_entry.queue_entry_id
-        )
-
-        await service.start_queue_entry(
-            queue_entry.queue_entry_id
-        )
+        await service.call_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
+        await service.start_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
 
         updated = await service.complete_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
         )
 
         assert updated.status == QueueEntryStatus.COMPLETED
@@ -490,22 +476,16 @@ class TestQueueStateTransitions:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
-        """
-        WAITING -> CALLED -> NO_SHOW
-
-        A patient who was called but failed to appear
-        can be marked as a no-show.
-        """
-
+        """WAITING -> CALLED -> NO_SHOW"""
         service = QueueService(db)
 
-        await service.call_queue_entry(
-            queue_entry.queue_entry_id
-        )
+        await service.call_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
 
         updated = await service.mark_no_show(
-            queue_entry.queue_entry_id,
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
             notes="Patient did not respond when called.",
         )
 
@@ -583,33 +563,23 @@ class TestQueueStateTransitions:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
-        """
-        COMPLETED is terminal.
-
-        A completed queue entry cannot return to CALLED.
-        """
-
+        """COMPLETED is terminal."""
         service = QueueService(db)
 
-        await service.call_queue_entry(
-            queue_entry.queue_entry_id
-        )
-
-        await service.start_queue_entry(
-            queue_entry.queue_entry_id
-        )
-
-        await service.complete_queue_entry(
-            queue_entry.queue_entry_id
-        )
+        await service.call_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
+        await service.start_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
+        await service.complete_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
 
         with pytest.raises(HTTPException) as exc_info:
             await service.call_queue_entry(
-                queue_entry.queue_entry_id
+                queue_entry_id=queue_entry.queue_entry_id,
+                staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
             )
 
         assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
 
 
     @pytest.mark.asyncio
@@ -617,27 +587,18 @@ class TestQueueStateTransitions:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
-        """
-        NO_SHOW is terminal.
-
-        A no-show patient cannot subsequently enter treatment
-        through the same queue entry.
-        """
-
+        """NO_SHOW is terminal."""
         service = QueueService(db)
 
-        await service.call_queue_entry(
-            queue_entry.queue_entry_id
-        )
-
-        await service.mark_no_show(
-            queue_entry.queue_entry_id
-        )
+        await service.call_queue_entry(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
+        await service.mark_no_show(queue_entry.queue_entry_id, staff_id=receptionist.staff_id)
 
         with pytest.raises(HTTPException) as exc_info:
             await service.start_queue_entry(
-                queue_entry.queue_entry_id
+                queue_entry_id=queue_entry.queue_entry_id,
+                staff_id=receptionist.staff_id,  # <-- Pass the valid staff_id
             )
 
         assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -836,6 +797,7 @@ class TestQueueAnalytics:
         db,
         routing_departments,
         existing_patient,
+        receptionist,  # <-- Inject the receptionist fixture
     ):
         """
         When the patient ahead completes their queue entry,
@@ -889,13 +851,11 @@ class TestQueueAnalytics:
             second_entry.queue_entry_id
         ) == 2
 
-        await service.call_queue_entry(first_entry.queue_entry_id)
-        await service.start_queue_entry(first_entry.queue_entry_id)
-        await service.complete_queue_entry(first_entry.queue_entry_id)
+        await service.call_queue_entry(first_entry.queue_entry_id, staff_id=receptionist.staff_id)
+        await service.start_queue_entry(first_entry.queue_entry_id, staff_id=receptionist.staff_id)
+        await service.complete_queue_entry(first_entry.queue_entry_id, staff_id=receptionist.staff_id)
 
-        assert await service.get_patient_position(
-            second_entry.queue_entry_id
-        ) == 1
+        assert await service.get_patient_position(second_entry.queue_entry_id) == 1
 
 # ============================================================
 # BATCH 3 — FINAL QUEUE ANALYTICS TESTS
@@ -1003,6 +963,7 @@ class TestQueueAnalyticsFinal:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- 1. Inject the valid staff fixture
     ):
         """
         Completed queue entries are no longer active and therefore
@@ -1011,16 +972,20 @@ class TestQueueAnalyticsFinal:
 
         service = QueueService(db)
 
+        # 2. Pass staff_id into every mutating workflow call
         await service.call_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         await service.start_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         await service.complete_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         position = await service.get_patient_position(
@@ -1040,6 +1005,7 @@ class TestQueueAnalyticsFinal:
         self,
         db,
         queue_entry,
+        receptionist,  # <-- 1. Inject the valid staff fixture
     ):
         """
         A NO_SHOW queue entry is no longer active.
@@ -1047,12 +1013,15 @@ class TestQueueAnalyticsFinal:
 
         service = QueueService(db)
 
+        # 2. Pass staff_id into every mutating workflow call
         await service.call_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         await service.mark_no_show(
-            queue_entry.queue_entry_id
+            queue_entry_id=queue_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         position = await service.get_patient_position(

@@ -63,6 +63,7 @@ const EVENT_TYPE = Object.freeze({
     TOKEN_COMPLETED: "TOKEN_COMPLETED",
     TOKEN_CANCELLED: "TOKEN_CANCELLED",
     TOKEN_NO_SHOW: "TOKEN_NO_SHOW",
+    TOKEN_REQUEUED: "TOKEN_REQUEUED",
     PATIENT_ROUTED: "PATIENT_ROUTED",
     QUEUE_UPDATED: "QUEUE_UPDATED",
     ANNOUNCEMENT_CREATED: "ANNOUNCEMENT_CREATED",
@@ -336,6 +337,10 @@ function handleTokenCalled(state, event) {
         }
     );
 
+    if (!department) {
+        return;
+    }
+
     if (!Array.isArray(department.active_tokens)) {
         department.active_tokens = [];
     }
@@ -466,6 +471,17 @@ function handleTokenNoShow(event) {
         department,
         event.token_number
     );
+}
+
+
+/**
+ * Handle TOKEN_REQUEUED.
+ *
+ * A requeue changes the ordered waiting-token projection. The complete
+ * projection is reconciled from the authoritative snapshot by app.js.
+ */
+function handleTokenRequeued() {
+    state.metadata.stale = true;
 }
 
 
@@ -620,6 +636,10 @@ function applyEvent(event) {
 
         case EVENT_TYPE.TOKEN_NO_SHOW:
             handleTokenNoShow(event);
+            break;
+
+        case EVENT_TYPE.TOKEN_REQUEUED:
+            handleTokenRequeued(event);
             break;
 
         case EVENT_TYPE.PATIENT_ROUTED:

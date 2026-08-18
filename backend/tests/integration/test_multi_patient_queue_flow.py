@@ -118,13 +118,12 @@ class TestQueueFIFO:
         assert queue[2].visit_id == queue_entries[2].visit_id
         assert queue[3].visit_id == queue_entries[3].visit_id
 
-        
     @pytest.mark.asyncio
-
     async def test_queue_position_updates_after_call(
         self,
         db,
         routing_departments,
+        receptionist,  # <-- Inject the valid staff fixture
     ):
         """
         Four walk-in patients arrive.
@@ -189,7 +188,8 @@ class TestQueueFIFO:
         # ---------------------------------------------------------
 
         called = await routing_service.call_queue_entry(
-            queue_entries[0].queue_entry_id
+            queue_entry_id=queue_entries[0].queue_entry_id,
+            staff_id=receptionist.staff_id  # <-- Pass the mandatory staff_id
         )
 
         assert called.status == QueueEntryStatus.CALLED
@@ -241,6 +241,9 @@ class TestQueueFIFO:
 
         assert len(called_entries) == 1
         assert called_entries[0].queue_entry_id == queue_entries[0].queue_entry_id
+
+
+    
 
 class TestEmergencyPriority:
 
@@ -324,11 +327,12 @@ class TestEmergencyPriority:
 
 class TestDepartmentTransfers:
 
-    @pytest.mark.asyncio
-    async def test_patient_transfer_reception_to_triage(
+       @pytest.mark.asyncio
+       async def test_patient_transfer_reception_to_triage(
         self,
         db,
         routing_departments,
+        receptionist,  # <-- Inject the valid staff fixture
     ):
         """
         Walk-in patient completes Reception and is transferred to Triage.
@@ -385,16 +389,20 @@ class TestDepartmentTransfers:
             visit.visit_id
         )
 
+        # Pass staff_id into every mutation call
         await routing_service.call_queue_entry(
-            reception_entry.queue_entry_id
+            queue_entry_id=reception_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         await routing_service.start_queue_entry(
-            reception_entry.queue_entry_id
+            queue_entry_id=reception_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         await routing_service.complete_queue_entry(
-            reception_entry.queue_entry_id
+            queue_entry_id=reception_entry.queue_entry_id,
+            staff_id=receptionist.staff_id
         )
 
         # --------------------------------------------------------
@@ -406,6 +414,7 @@ class TestDepartmentTransfers:
             target_department_id=routing_departments["triage"].dept_id,
             priority=QueuePriority.NORMAL,
             notes="Reception complete",
+            staff_id=receptionist.staff_id,  # <-- Pass the staff_id for the transfer action
         )
 
         # --------------------------------------------------------
@@ -817,11 +826,12 @@ class TestQueueCompletionConsistency:
 
 class TestCompletedQueueProtection:
 
-    @pytest.mark.asyncio
-    async def test_completed_queue_entry_cannot_transfer(
+     @pytest.mark.asyncio
+     async def test_completed_queue_entry_cannot_transfer(
         self,
         db,
         routing_departments,
+        receptionist,  # <-- Inject the valid staff fixture
     ):
         """
         Completed queue entries cannot be reused
@@ -855,12 +865,16 @@ class TestCompletedQueueProtection:
             visit.visit_id
         )
 
-        await routing_service.call_queue_entry(queue.queue_entry_id)
-        await routing_service.start_queue_entry(queue.queue_entry_id)
-        await routing_service.complete_queue_entry(queue.queue_entry_id)
+        # Pass staff_id into every mutation call
+        await routing_service.call_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
+        await routing_service.start_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
+        await routing_service.complete_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
 
         with pytest.raises(HTTPException):
-            await routing_service.start_queue_entry(queue.queue_entry_id)
+            await routing_service.start_queue_entry(
+                queue_entry_id=queue.queue_entry_id,
+                staff_id=receptionist.staff_id  # <-- Pass the staff_id here too
+            )
 
 class TestCompletedQueueState:
 

@@ -236,4 +236,36 @@ class WebSocketManager:
         return await self.broadcast_display(payload)
 
 
+    async def broadcast_department(
+        self,
+        payload: dict[str, Any],
+        department_id: Optional[str] = None,
+    ) -> int:
+        """
+        Broadcast an event to staff connections or display fallback connections
+        belonging to a given department.
+        """
+        delivered = 0
+        dead_staff: list[str] = []
+
+        # Send to active staff connections
+        for staff_id, websocket in list(self._staff_connections.items()):
+            try:
+                await websocket.send_json(payload)
+                delivered += 1
+            except Exception:
+                dead_staff.append(staff_id)
+
+        for staff_id in dead_staff:
+            self.disconnect_staff(staff_id)
+
+        # Also forward to display channels for public/department tracking
+        display_delivered = await self.broadcast_display(
+            payload,
+            department_id=department_id,
+        )
+
+        return delivered + display_delivered
+
+
 ws_manager = WebSocketManager()

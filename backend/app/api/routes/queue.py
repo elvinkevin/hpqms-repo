@@ -1,11 +1,12 @@
 from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.domain.models.models import QueueEntryStatus, StaffRole
+from app.domain.models.models import QueueEntry, QueueEntryStatus, StaffRole
 from app.domain.schemas.schemas import CurrentUser, QueueEntryRead
 from app.domain.services.auth_service import (
     ensure_department_access,
@@ -38,22 +39,6 @@ async def get_department_queue(
 
     service = QueueService(db)
     return await service.get_department_queue(department_id)
-
-
-@router.get(
-    "/department/{department_id}/no-show",
-    response_model=list[QueueEntryRead],
-)
-async def get_department_no_show_queue(
-    department_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Returns NO_SHOW entries for the staff member's department."""
-    ensure_department_access(current_user, department_id)
-
-    service = QueueService(db)
-    return await service.get_department_no_show_queue(department_id)
 
 
 @router.get(
@@ -242,60 +227,55 @@ async def cancel_queue_step(
     return entry
 
 
-@router.patch(
-    "/{queue_entry_id}/no-show",
-    response_model=QueueEntryRead,
-    dependencies=[
-        Depends(
-            require_role(
-                StaffRole.RECEPTIONIST,
-                StaffRole.NURSE,
-                StaffRole.DOCTOR,
-            )
-        )
-    ],
+@router.get(
+    "/department/{department_id}/no-show",
+    response_model=List[QueueEntryRead],
 )
-async def mark_no_show(
+async def get_department_no_show_queue(
+    department_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    service = QueueService(db)
+
+    return await service.get_department_no_show_queue(
+        department_id,
+        staff_id=current_user.staff_id,
+    )
+
+
+@router.patch(
+    "/{queue_entry_id}/requeue",
+    response_model=QueueEntryRead,
+)
+async def requeue_queue_entry(
     queue_entry_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     service = QueueService(db)
 
-    entry = await service.transition_entry_status(
+    entry = await service.requeue_queue_entry(
         queue_entry_id,
-        QueueEntryStatus.NO_SHOW,
         staff_id=current_user.staff_id,
     )
 
     await db.commit()
+    await db.refresh(entry)
 
-    await service.emit_display_event(entry)
-
-    return entry
-
-
-@router.patch(
-    "/{queue_entry_id}/requeue",
-    response_model=QueueEntryRead,
-    dependencies=[Depends(get_current_user)],
-)
-async def requeue_queue_entry(
-    queue_entry_id: UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    service = QueueService(db)
-
-    entry = await service.transition_entry_status(
-        queue_entry_id,
-        QueueEntryStatus.WAITING,
+    # Broadcast to display boards
+    await service.emit_display_event(
+        entry,
+        event_type="TOKEN_REQUEUED",
     )
 
-    await db.commit()
-    await service.emit_display_event(entry)
+    # Broadcast to staff dashboards
+    await service.emit_department_event(
+        entry,
+        event_type="TOKEN_REQUEUED",
+    )
 
     return entry
-
 # ==========================================
 # STATISTICAL METRICS (READ-ONLY)
 # ==========================================
@@ -344,3 +324,23 @@ async def get_wait_time(
     return await service.get_estimated_wait_time(queue_entry_id)
 
 
+@router.patch(
+        "/{queue_entry_id}/no-show", 
+        response_model=QueueEntryRead
+        )
+async def mark_no_show(
+    queue_entry_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    service = QueueService(db)
+
+    entry = await service.mark_no_show(
+        queue_entry_id=queue_entry_id,
+        staff_id=current_user.staff_id,
+    )
+
+    await db.commit()
+    await service.emit_display_event(entry)
+
+    return entry

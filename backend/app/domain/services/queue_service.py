@@ -1,7 +1,7 @@
 import zoneinfo
 from datetime import date, datetime, timezone
 from typing import Final, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from asyncpg.exceptions import UniqueViolationError
 from fastapi import HTTPException, status
@@ -20,6 +20,7 @@ from app.domain.models.models import (
     QueuePriority,
     Visit,
 )
+from app.domain.schemas.schemas import CurrentUser
 
 CLINIC_TZ: Final = zoneinfo.ZoneInfo("Africa/Nairobi")
 
@@ -256,23 +257,20 @@ class QueueService:
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
     ) -> QueueEntry:
-        """Validate and apply a queue state transition.
+        """Validate and apply a queue state transition."""
 
-        The transaction is owned by the caller. This method only mutates
-        and flushes the database state. WebSocket events must be emitted
-        after the transaction commits in the route/caller handler.
-        """
-
-        entry = await self.db.get(
-            QueueEntry,
-            queue_entry_id,
-            options=[
-                selectinload(QueueEntry.visit).options(
-                    selectinload(Visit.patient)
-                ),
+        # 1. Fetch entry with row lock & eager loads upfront
+        stmt = (
+            select(QueueEntry)
+            .options(
+                selectinload(QueueEntry.visit).selectinload(Visit.patient),
                 selectinload(QueueEntry.department),
-            ],
+            )
+            .where(QueueEntry.queue_entry_id == queue_entry_id)
+            .with_for_update()
         )
+        result = await self.db.execute(stmt)
+        entry = result.scalar_one_or_none()
 
         if not entry:
             raise HTTPException(
@@ -281,7 +279,6 @@ class QueueService:
             )
 
         allowed = VALID_TRANSITIONS.get(entry.status, set())
-
         if new_status not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -295,7 +292,6 @@ class QueueService:
         # STAFF OWNERSHIP / CLAIM VALIDATION
         # ---------------------------------------------------------
 
-        # --- CALLED TRANSITION ---
         if new_status == QueueEntryStatus.CALLED:
             if staff_id is None:
                 raise HTTPException(
@@ -306,11 +302,9 @@ class QueueService:
             if entry.assigned_staff_id is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="This queue entry is already assigned to a staff member."
-
+                    detail="This queue entry is already assigned to a staff member.",
                 )
 
-            # A staff member may only have one active patient.
             active_staff_stmt = (
                 select(QueueEntry.queue_entry_id)
                 .where(
@@ -324,11 +318,8 @@ class QueueService:
                 )
                 .limit(1)
             )
-
             active_staff_result = await self.db.execute(active_staff_stmt)
-            active_entry_id = active_staff_result.scalar_one_or_none()
-
-            if active_entry_id is not None:
+            if active_staff_result.scalar_one_or_none() is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=(
@@ -338,88 +329,49 @@ class QueueService:
                     ),
                 )
 
-        # --- IN PROGRESS TRANSITION ---
         elif new_status == QueueEntryStatus.IN_PROGRESS:
             if staff_id is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="A staff member is required to start a patient.",
                 )
-
             if entry.assigned_staff_id != staff_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=(
-                        "You cannot start this patient because "
-                        "the patient is assigned to another staff member."
-                    ),
+                    detail="You cannot start this patient because the patient is assigned to another staff member.",
                 )
 
-        # --- COMPLETED TRANSITION ---
         elif new_status == QueueEntryStatus.COMPLETED:
             if staff_id is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="A staff member is required to complete a patient.",
                 )
-
             if entry.assigned_staff_id != staff_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=(
-                        "You cannot complete this patient because "
-                        "the patient is assigned to another staff member."
-                    ),
+                    detail="You cannot complete this patient because the patient is assigned to another staff member.",
                 )
-        # --- NO SHOW TRANSITION ---
+
         elif new_status == QueueEntryStatus.NO_SHOW:
             if staff_id is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="A staff member is required to mark a patient as no-show.",
                 )
-
             if entry.assigned_staff_id is not None and entry.assigned_staff_id != staff_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=(
-                        "You cannot mark this patient as no-show because "
-                        "the patient is assigned to another staff member."
-                    ),
+                    detail="You cannot mark this patient as no-show because the patient is assigned to another staff member.",
                 )
+
         # ---------------------------------------------------------
         # APPLY CHANGES & REFLECT STATE
         # ---------------------------------------------------------
-        self._apply_status_updates(
-            entry,
-            new_status,
-            staff_id,
-            notes,
-        )
-
-        self._apply_lifecycle_timestamps(
-            entry,
-            new_status,
-        )
+        self._apply_status_updates(entry, new_status, staff_id, notes)
+        self._apply_lifecycle_timestamps(entry, new_status)
 
         await self.db.flush()
-        
-        # Re-fetch row with a row lock to guarantee absolute write-integrity
-        stmt = (
-            select(QueueEntry)
-            .options(
-                selectinload(QueueEntry.visit).options(
-                    selectinload(Visit.patient)
-                ),
-                selectinload(QueueEntry.department),
-            )
-            .where(QueueEntry.queue_entry_id == queue_entry_id)
-            .with_for_update()
-        )
-
-        result = await self.db.execute(stmt)
-        entry = result.scalar_one()
-        
         return entry
 
     def _apply_status_updates(
@@ -429,21 +381,17 @@ class QueueService:
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
     ) -> None:
-        """Apply already-validated queue state changes."""
 
         entry.status = new_status
 
-        if notes is not None:
-            entry.notes = notes
+        if new_status == QueueEntryStatus.WAITING:
+            entry.assigned_staff_id = None
 
-        # WAITING -> CALLED
-        # The current staff member claims the patient.
-        if new_status == QueueEntryStatus.CALLED:
+        elif staff_id is not None and hasattr(entry, "assigned_staff_id"):
             entry.assigned_staff_id = staff_id
 
-        # Returning an entry to WAITING releases the staff claim.
-        elif new_status == QueueEntryStatus.WAITING:
-            entry.assigned_staff_id = None
+        if notes is not None:
+            entry.notes = notes
 
     def _apply_lifecycle_timestamps(
         self,
@@ -477,15 +425,35 @@ class QueueService:
                 entry.no_show_at = now
 
     # ------------------------------------------------------------------
-    # DISPLAY BROADCAST (PUBLIC SEPARATE METHOD)
+    # DISPLAY BROADCAST
     # ------------------------------------------------------------------
 
     async def emit_display_event(
         self,
         entry: QueueEntry,
         new_status: Optional[QueueEntryStatus] = None,
+        event_type: Optional[str] = None,
     ) -> None:
-        """Publish the display event after the transaction has committed."""
+        """
+        Publish a canonical display event after the transaction has committed.
+
+        The route layer is responsible for committing the database transaction
+        before calling this method.
+
+        Args:
+            entry:
+                QueueEntry containing the final persisted state.
+
+            new_status:
+                Optional status override. Normally the current entry.status
+                is used.
+
+            event_type:
+                Optional explicit event type. This is primarily used for
+                operations such as requeue where the final status alone
+                cannot identify the action that occurred.
+        """
+
         if new_status is None:
             new_status = getattr(entry, "status", None)
 
@@ -493,55 +461,118 @@ class QueueService:
             return
 
         department_id = str(entry.department_id)
-        token_number = entry.visit.token_number if entry.visit else None
+
+        token_number = (
+            entry.visit.token_number
+            if entry.visit is not None
+            else None
+        )
 
         if not token_number:
             return
 
-        department_name = entry.department.name if entry.department else None
+        department_name = (
+            entry.department.name
+            if entry.department is not None
+            else None
+        )
+
+        queue_priority = (
+            entry.priority.value
+            if entry.priority is not None
+            else None
+        )
+
+        assigned_staff_id = (
+            str(entry.assigned_staff_id)
+            if entry.assigned_staff_id is not None
+            else None
+        )
+
+        # --------------------------------------------------------------
+        # DETERMINE EVENT TYPE
+        # --------------------------------------------------------------
+
+        if event_type is None:
+            event_type_map = {
+                QueueEntryStatus.CALLED: "TOKEN_CALLED",
+                QueueEntryStatus.IN_PROGRESS: "TOKEN_SERVICE_STARTED",
+                QueueEntryStatus.COMPLETED: "TOKEN_COMPLETED",
+                QueueEntryStatus.NO_SHOW: "TOKEN_NO_SHOW",
+                QueueEntryStatus.CANCELLED: "TOKEN_CANCELLED",
+            }
+
+            event_type = event_type_map.get(new_status)
+
+        # WAITING is intentionally not mapped automatically.
+        #
+        # A WAITING entry could simply already be waiting, whereas a
+        # NO_SHOW -> WAITING transition specifically represents a requeue.
+        if event_type is None:
+            return
+
+        # --------------------------------------------------------------
+        # DETERMINE DOMAIN OCCURRENCE TIME
+        # --------------------------------------------------------------
+
+        occurred_at = None
 
         if new_status == QueueEntryStatus.CALLED:
-            await ws_manager.broadcast_token_called(
-                department_id=department_id,
-                token_number=token_number,
-                service_point=None,
-                occurred_at=getattr(entry, "called_at", None),
-                department_name=department_name,
-                message=f"Token {token_number} called to service",
-                priority="HIGH",
-            )
+            occurred_at = getattr(entry, "called_at", None)
+
         elif new_status == QueueEntryStatus.IN_PROGRESS:
-            await ws_manager.broadcast_queue_updated(
-                department_id=department_id,
-                department_name=department_name,
-                message=f"Token {token_number} is now in service",
-                priority="NORMAL",
-            )
+            occurred_at = getattr(entry, "started_at", None)
+
         elif new_status == QueueEntryStatus.COMPLETED:
-            await ws_manager.broadcast_token_completed(
-                department_id=department_id,
-                token_number=token_number,
-                occurred_at=getattr(entry, "completed_at", None),
-                department_name=department_name,
-                message=f"Token {token_number} completed",
-                priority="NORMAL",
-            )
+            occurred_at = getattr(entry, "completed_at", None)
+
+        elif new_status == QueueEntryStatus.NO_SHOW:
+            occurred_at = getattr(entry, "no_show_at", None)
+
         elif new_status == QueueEntryStatus.CANCELLED:
-            await ws_manager.broadcast_token_cancelled(
-                department_id=department_id,
-                token_number=token_number,
-                occurred_at=getattr(entry, "completed_at", None),
-                department_name=department_name,
-                message=f"Token {token_number} cancelled",
-                priority="NORMAL",
-            )
-        elif new_status in {QueueEntryStatus.NO_SHOW, QueueEntryStatus.WAITING}:
-            await ws_manager.broadcast_queue_updated(
-                department_id=department_id,
-                department_name=department_name,
-                message=f"Queue updated for token {token_number}",
-                priority="NORMAL",
-            )
+            occurred_at = getattr(entry, "completed_at", None)
+
+        # Requeue does not currently have its own lifecycle timestamp.
+        if occurred_at is None:
+            occurred_at = datetime.now(timezone.utc)
+
+        # --------------------------------------------------------------
+        # EVENT PRIORITY
+        # --------------------------------------------------------------
+
+        event_priority = "NORMAL"
+
+        if event_type == "TOKEN_CALLED":
+            event_priority = "HIGH"
+
+        # --------------------------------------------------------------
+        # CANONICAL EVENT PAYLOAD
+        # --------------------------------------------------------------
+
+        payload = {
+            "event_id": str(uuid4()),
+            "event_type": event_type,
+            "priority": event_priority,
+
+            "queue_entry_id": str(entry.queue_entry_id),
+            "department_id": department_id,
+            "department_name": department_name,
+
+            "token_number": token_number,
+
+            "status": new_status.value,
+            "queue_priority": queue_priority,
+
+            "assigned_staff_id": assigned_staff_id,
+
+            "occurred_at": occurred_at.isoformat(),
+            "server_timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        await ws_manager.broadcast_display(
+            payload,
+            department_id=department_id,
+        )
 
     # --- Specific Transition Callables ---
 
@@ -583,11 +614,15 @@ class QueueService:
     async def mark_no_show(
         self,
         queue_entry_id: UUID,
+        staff_id: UUID,  # <-- Add staff_id
         notes: Optional[str] = None,
     ) -> QueueEntry:
-        """Transitions CALLED -> NO_SHOW."""
+        """Transitions CALLED -> NO_SHOW for staff-owned entries."""
         return await self.transition_entry_status(
-            queue_entry_id, QueueEntryStatus.NO_SHOW, notes=notes
+            queue_entry_id=queue_entry_id,
+            new_status=QueueEntryStatus.NO_SHOW,
+            staff_id=staff_id,  # <-- Pass staff_id
+            notes=notes,
         )
 
     async def cancel_queue_entry(
@@ -657,8 +692,10 @@ class QueueService:
     async def get_department_no_show_queue(
         self,
         department_id: UUID,
+        staff_id: UUID,
     ) -> List[QueueEntry]:
-        """Returns NO_SHOW entries for a department."""
+        """Returns NO_SHOW entries assigned to the authenticated staff member."""
+
         stmt = (
             select(QueueEntry)
             .options(
@@ -669,6 +706,7 @@ class QueueService:
                 and_(
                     QueueEntry.department_id == department_id,
                     QueueEntry.status == QueueEntryStatus.NO_SHOW,
+                    QueueEntry.assigned_staff_id == staff_id,
                 )
             )
             .order_by(
@@ -680,3 +718,101 @@ class QueueService:
         result = await self.db.execute(stmt)
 
         return list(result.scalars().all())
+
+    async def requeue_queue_entry(
+        self,
+        queue_entry_id: UUID,
+        staff_id: UUID,
+    ) -> QueueEntry:
+
+        stmt = (
+            select(QueueEntry)
+            .options(
+                # Chained load: loads QueueEntry -> Visit -> Patient
+                selectinload(QueueEntry.visit).selectinload(Visit.patient),
+                selectinload(QueueEntry.department),
+            )
+            .where(QueueEntry.queue_entry_id == queue_entry_id)
+        )
+        result = await self.db.execute(stmt)
+        entry = result.scalar_one_or_none()
+
+        if not entry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Queue entry {queue_entry_id} not found.",
+            )
+
+        if entry.status != QueueEntryStatus.NO_SHOW:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only NO_SHOW entries can be requeued.",
+            )
+
+        if entry.assigned_staff_id != staff_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only requeue patients assigned to you.",
+            )
+
+        entry.status = QueueEntryStatus.WAITING
+        entry.assigned_staff_id = None
+
+        await self.db.flush()
+
+        return entry
+
+    async def emit_department_event(
+        self,
+        entry: QueueEntry,
+        event_type: str,
+    ) -> None:
+        department_id = str(entry.department_id)
+
+        # Extract relationship attributes safely with fallbacks
+        token_number = (
+            entry.visit.token_number
+            if hasattr(entry, "visit") and entry.visit is not None
+            else getattr(entry, "token_number", None)
+        )
+
+        department_name = (
+            entry.department.name
+            if hasattr(entry, "department") and entry.department is not None
+            else None
+        )
+
+        queue_priority = (
+            entry.priority.value
+            if hasattr(entry, "priority") and entry.priority is not None
+            else getattr(entry, "priority", None)
+        )
+
+        status_val = (
+            entry.status.value
+            if hasattr(entry.status, "value")
+            else entry.status
+        )
+
+        payload = {
+            "event_id": str(uuid4()),
+            "event_type": event_type,
+            "priority": "NORMAL",
+            "queue_entry_id": str(entry.queue_entry_id),
+            "department_id": department_id,
+            "department_name": department_name,
+            "token_number": token_number,
+            "status": status_val,
+            "queue_priority": queue_priority,
+            "assigned_staff_id": (
+                str(entry.assigned_staff_id)
+                if entry.assigned_staff_id
+                else None
+            ),
+            "server_timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        await ws_manager.broadcast_department(
+            payload,
+            department_id=department_id,
+        )

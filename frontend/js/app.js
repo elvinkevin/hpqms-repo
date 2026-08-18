@@ -71,6 +71,8 @@ let starting = false;
 
 let syncing = false;
 
+let hasConnectedBefore = false;
+
 let unsubscribeDisplayState = null;
 
 const websocketSubscriptions = [];
@@ -233,7 +235,7 @@ function showAlert(alert) {
     setText(
         "alert-instruction",
         alert.message ??
-            "Please proceed to the assigned service point."
+        "Please proceed to the assigned service point."
     );
 
     layer.hidden = false;
@@ -316,7 +318,7 @@ function initializeRuntimeManagers() {
         dismiss: dismissAlert,
         playSound:
             config.alerts.audioEnabled &&
-            config.features.audio
+                config.features.audio
                 ? playAlertSound
                 : null,
     });
@@ -378,11 +380,24 @@ function getAppState() {
  * Events are never replayed to recover missed state.
  */
 async function syncSnapshot() {
+    console.warn(
+        "[DEBUG syncSnapshot] syncing =",
+        syncing
+    );
+
     if (syncing) {
+        console.warn(
+            "[DEBUG syncSnapshot] ALREADY SYNCING"
+        );
+
         return getState();
     }
 
     syncing = true;
+
+    console.warn(
+        "[DEBUG syncSnapshot] STARTING API REQUEST"
+    );
 
     try {
         const snapshot =
@@ -393,22 +408,30 @@ async function syncSnapshot() {
         return getState();
     } finally {
         syncing = false;
+
+        console.warn(
+            "[DEBUG syncSnapshot] FINISHED"
+        );
     }
 }
 
 
-/* ==========================================================================
-   WebSocket Event Handlers
-   ========================================================================== */
-
 /**
  * Handle successful WebSocket connection.
  *
- * Every successful connection performs an authoritative
- * snapshot synchronization.
+ * The initial application startup already performs an
+ * authoritative snapshot synchronization.
+ *
+ * Subsequent successful connections are treated as
+ * reconnections and therefore require snapshot recovery.
  */
 async function handleConnected() {
     setConnectionStatus("CONNECTED");
+
+    if (!hasConnectedBefore) {
+        hasConnectedBefore = true;
+        return;
+    }
 
     try {
         await syncSnapshot();
@@ -421,76 +444,91 @@ async function handleConnected() {
 /**
  * Handle incoming WebSocket data.
  *
- * websocket.js deliberately does not interpret messages.
- * app.js is responsible for parsing the transport payload
- * and passing the resulting event into the state layer.
+ * websocket.js is responsible for transport and JSON parsing.
+ * app.js orchestrates the parsed event between the application
+ * managers and the display-state layer.
+ *
+ * Normal state-changing events are applied locally immediately.
+ *
+ * Events that alter the ordered waiting-token projection are reconciled
+ * from the authoritative snapshot. A WebSocket event identifies the token
+ * that changed, but cannot contain the newly promoted token beyond the
+ * display's current next-token window.
  */
-function handleMessage(rawMessage) {
-    console.warn("[WS MESSAGE RECEIVED]", rawMessage);
-    let event;
+const QUEUE_PROJECTION_EVENTS = new Set([
+    "TOKEN_CALLED",
+    "TOKEN_REQUEUED",
+]);
 
-    try {
-        if (typeof rawMessage === "string") {
-            event = JSON.parse(rawMessage);
-        } else {
-            event = rawMessage;
+function handleMessage(event) {
+    console.warn("[WS EVENT RECEIVED]", event);
+
+    if (typeof event === "string") {
+        try {
+            event = JSON.parse(event);
+        } catch (error) {
+            handleError(
+                new Error(
+                    "Received invalid WebSocket JSON",
+                    { cause: error }
+                )
+            );
+            return;
         }
-        
-        // Log the parsed event type clearly
-        console.warn("[WS EVENT PARSED]", event?.event_type, event);
-    } catch (error) {
+    }
+
+    if (!event || typeof event !== "object") {
         handleError(
             new Error(
-                "Received invalid WebSocket JSON",
-                {
-                    cause: error,
-                }
+                "Received invalid WebSocket event payload"
             )
         );
-
         return;
     }
+
+    console.warn(
+        "[WS EVENT PARSED]",
+        event.event_type,
+        event
+    );
 
     try {
         latestNotificationEvent = event;
 
+        /*
+         * Alerts and department focus are application-level
+         * concerns and should receive the event regardless of
+         * whether it changes display state.
+         */
         handleAlertEvent(event);
 
         maybeFocusDepartment(event);
 
+        /*
+         * CONNECTION_ESTABLISHED is handled by handleConnected().
+         *
+         * It is not a normal display-state mutation and should
+         * not be passed to display-state.applyEvent().
+         */
+        if (event.event_type === "CONNECTION_ESTABLISHED") {
+            return;
+        }
+
+        /*
+         * Normal WebSocket events mutate the local display state immediately.
+         */
         applyEvent(event);
 
-        // Synchronize snapshot for all state-mutating queue lifecycle events
-        const SNAPSHOT_SYNC_EVENTS = typeof EVENT_TYPE !== "undefined"
-            ? new Set([
-                EVENT_TYPE.TOKEN_CALLED,
-                EVENT_TYPE.TOKEN_SERVICE_STARTED,
-                EVENT_TYPE.TOKEN_COMPLETED,
-                EVENT_TYPE.TOKEN_CANCELLED,
-                EVENT_TYPE.TOKEN_NO_SHOW,
-                EVENT_TYPE.PATIENT_ROUTED,
-                EVENT_TYPE.QUEUE_UPDATED,
-            ])
-            : new Set([
-                "TOKEN_CALLED",
-                "TOKEN_SERVICE_STARTED",
-                "TOKEN_COMPLETED",
-                "TOKEN_CANCELLED",
-                "TOKEN_NO_SHOW",
-                "PATIENT_ROUTED",
-                "QUEUE_UPDATED",
-            ]);
-
-        if (event?.event_type && SNAPSHOT_SYNC_EVENTS.has(event.event_type)) {
-            syncSnapshot().catch(handleError);
+        if (QUEUE_PROJECTION_EVENTS.has(event.event_type)) {
+            void syncSnapshot().catch(handleError);
         }
+
     } catch (error) {
         handleError(error);
     } finally {
         latestNotificationEvent = null;
     }
 }
-
 /**
  * Handle WebSocket disconnection.
  */
@@ -510,7 +548,8 @@ function handleDisconnected(details) {
  */
 function handleReconnecting(details) {
     setConnectionStatus(
-        "RECONNECTING"
+        "RECONNECTING",
+        null
     );
 
     return details;
@@ -694,11 +733,6 @@ async function start() {
 }
 
 
-/**
- * Stop the display application.
- *
- * Shutdown is intentionally idempotent.
- */
 function stop() {
     if (!started && !starting) {
         return;
@@ -717,8 +751,9 @@ function stop() {
     starting = false;
 
     syncing = false;
-}
 
+    hasConnectedBefore = false;
+}
 
 /* ==========================================================================
    Public API

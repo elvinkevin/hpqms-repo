@@ -18,6 +18,14 @@ import {
     getCurrentUser,
 } from "./staff-api.js";
 
+
+import {
+    connect as connectStaffWebSocket,
+    disconnect as disconnectStaffWebSocket,
+    on as onStaffWebSocket,
+    off as offStaffWebSocket,
+} from "./staff-websocket.js";
+
 const elements = {
     loginPanel: document.getElementById("login-panel"),
     loginForm: document.getElementById("login-form"),
@@ -53,6 +61,25 @@ let noShowEntries = [];
 let selectedQueueEntry = null;
 let currentUser = null;
 
+let staffWebSocketSubscriptions = [];
+
+let websocketConnected = false;
+
+let queueRefreshInProgress = false;
+
+let queueRefreshPending = false;
+
+
+const STAFF_QUEUE_EVENTS = new Set([
+    "TOKEN_CALLED",
+    "TOKEN_SERVICE_STARTED",
+    "TOKEN_COMPLETED",
+    "TOKEN_CANCELLED",
+    "TOKEN_NO_SHOW",
+    "TOKEN_REQUEUED",
+    "PATIENT_ROUTED",
+    "QUEUE_UPDATED",
+]);
 function showElement(element) {
     element.classList.remove("hidden");
 }
@@ -155,7 +182,7 @@ function renderQueueTable() {
     }
 }
 
-function getActionStates(entry) {
+function getActionStatesForTest(entry, user) {
     if (!entry) {
         return {
             call: false,
@@ -166,8 +193,8 @@ function getActionStates(entry) {
     }
 
     const isOwner =
-        currentUser &&
-        String(entry.assigned_staff_id) === String(currentUser.staff_id);
+        user &&
+        String(entry.assigned_staff_id) === String(user.staff_id);
 
     return {
         call:
@@ -186,6 +213,113 @@ function getActionStates(entry) {
             entry.status === "IN_PROGRESS" &&
             isOwner,
     };
+}
+
+function getActionStates(entry) {
+    return getActionStatesForTest(entry, currentUser);
+}
+
+function registerStaffWebSocketListeners() {
+    if (staffWebSocketSubscriptions.length > 0) {
+        return;
+    }
+
+    const subscriptions = [
+        [
+            "connected",
+            async () => {
+                websocketConnected = true;
+
+                console.log(
+                    "[STAFF WS] Connected"
+                );
+
+                /*
+                 * The connection may have been established after
+                 * the initial queue load, so recover authoritative
+                 * state when connected.
+                 */
+                await refreshQueue();
+            },
+        ],
+
+        [
+            "message",
+            handleStaffWebSocketMessage,
+        ],
+
+        [
+            "disconnected",
+            () => {
+                websocketConnected = false;
+
+                console.warn(
+                    "[STAFF WS] Disconnected"
+                );
+            },
+        ],
+
+        [
+            "reconnecting",
+            (details) => {
+                websocketConnected = false;
+
+                console.warn(
+                    "[STAFF WS] Reconnecting:",
+                    details
+                );
+            },
+        ],
+
+        [
+            "error",
+            (error) => {
+                console.error(
+                    "[STAFF WS] Error:",
+                    error
+                );
+            },
+        ],
+    ];
+
+    for (const [eventName, callback] of subscriptions) {
+        onStaffWebSocket(
+            eventName,
+            callback
+        );
+
+        staffWebSocketSubscriptions.push({
+            eventName,
+            callback,
+        });
+    }
+}
+
+function unregisterStaffWebSocketListeners() {
+    for (const {
+        eventName,
+        callback,
+    } of staffWebSocketSubscriptions) {
+        offStaffWebSocket(
+            eventName,
+            callback
+        );
+    }
+
+    staffWebSocketSubscriptions = [];
+    websocketConnected = false;
+}
+
+function startStaffWebSocket() {
+    registerStaffWebSocketListeners();
+
+    connectStaffWebSocket();
+}
+
+function stopStaffWebSocket() {
+    disconnectStaffWebSocket();
+
+    unregisterStaffWebSocketListeners();
 }
 
 function updateCurrentPatientPanel() {
@@ -245,15 +379,16 @@ function selectQueueEntry(queueEntryId) {
 
 function renderNoShowTable() {
     showElement(elements.noShowPanel);
+
     elements.noShowBody.innerHTML = "";
 
     if (noShowEntries.length === 0) {
         hideElement(elements.noShowTable);
-        setText(
-            elements.noShowState,
-            "No patients are currently marked as no-show."
-        );
         showElement(elements.noShowState);
+
+        elements.noShowState.textContent =
+            "No patients are currently marked as no-show.";
+
         return;
     }
 
@@ -272,24 +407,18 @@ function renderNoShowTable() {
             <td>${entry.status}</td>
             <td>
                 <button
+                    type="button"
                     class="button-primary requeue-button"
                     data-entry-id="${entry.queue_entry_id}"
                 >
-                    RE-QUEUE
+                    Re-Queue
                 </button>
             </td>
         `;
 
-        const button = tr.querySelector(".requeue-button");
-
-        button.addEventListener("click", () => {
-            requeueNoShowEntry(entry.queue_entry_id);
-        });
-
         elements.noShowBody.appendChild(tr);
     }
 }
-
 
 async function refreshNoShowQueue() {
     if (!selectedDepartmentId) {
@@ -320,25 +449,32 @@ async function refreshNoShowQueue() {
     }
 }
 
+
 async function refreshQueue() {
     if (!selectedDepartmentId) {
         return;
     }
 
+    /*
+     * If a refresh is already running, remember that another
+     * refresh was requested rather than starting competing
+     * HTTP requests.
+     */
+    if (queueRefreshInProgress) {
+        queueRefreshPending = true;
+        return;
+    }
+
+    queueRefreshInProgress = true;
+
     try {
-        queueEntries = await getDepartmentQueue(selectedDepartmentId);
+        const [activeQueue, noShows] = await Promise.all([
+            getDepartmentQueue(selectedDepartmentId),
+            getDepartmentNoShowQueue(selectedDepartmentId),
+        ]);
 
-        noShowEntries = await getDepartmentNoShowQueue(
-            selectedDepartmentId
-        );
-
-        console.log(
-            "Queue Refresh Snapshot",
-            {
-                active: queueEntries,
-                noShow: noShowEntries,
-            }
-        );
+        queueEntries = activeQueue;
+        noShowEntries = noShows;
 
         if (!selectedQueueEntry) {
             selectedQueueEntry = queueEntries[0] || null;
@@ -357,14 +493,27 @@ async function refreshQueue() {
         renderNoShowTable();
         updateCurrentPatientPanel();
 
-    } catch (error) {
+        } catch (error) {
         console.error(error);
+
         showError(
+            error.message ||
             "Unable to refresh queue. Please try again."
         );
+    } finally {
+        queueRefreshInProgress = false;
+
+        if (queueRefreshPending) {
+            queueRefreshPending = false;
+
+            /*
+             * Run one final refresh so that events received
+             * while the previous request was running are not lost.
+             */
+            await refreshQueue();
+        }
     }
 }
-
 async function requeueNoShowEntry(queueEntryId) {
     try {
         clearError();
@@ -524,11 +673,13 @@ async function identifyDepartment() {
             );
         }
 
-        selectedDepartmentId = currentUser.dept_id;
+       selectedDepartmentId = currentUser.dept_id;
 
-        await refreshQueue();
+       await refreshQueue();
 
-        setStatus(
+       startStaffWebSocket();
+
+       setStatus(
             `Ready — ${currentUser.first_name} ${currentUser.last_name}`
         );
     } catch (error) {
@@ -578,12 +729,17 @@ async function handleLogin(event) {
 }
 
 function handleLogout() {
+    stopStaffWebSocket();
+
     logout();
 
     currentUser = null;
     queueEntries = [];
     selectedQueueEntry = null;
     selectedDepartmentId = null;
+
+    queueRefreshInProgress = false;
+    queueRefreshPending = false;
 
     hideElement(elements.logoutButton);
     hideElement(elements.currentPatientPanel);
@@ -602,6 +758,101 @@ function handleLogout() {
     clearError();
 }
 
+
+function eventBelongsToCurrentDepartment(event) {
+    if (!event || !selectedDepartmentId) {
+        return false;
+    }
+
+    const departmentId = String(selectedDepartmentId);
+
+    if (
+        event.department_id &&
+        String(event.department_id) === departmentId
+    ) {
+        return true;
+    }
+
+    /*
+     * PATIENT_ROUTED contains source and target department IDs
+     * rather than necessarily using department_id.
+     */
+    if (
+        event.event_type === "PATIENT_ROUTED"
+    ) {
+        return (
+            String(event.source_department_id) === departmentId ||
+            String(event.target_department_id) === departmentId
+        );
+    }
+
+    return false;
+}
+
+async function handleStaffWebSocketMessage(event) {
+    if (!event || typeof event !== "object") {
+        return;
+    }
+
+    if (!STAFF_QUEUE_EVENTS.has(event.event_type)) {
+        return;
+    }
+
+    if (!eventBelongsToCurrentDepartment(event)) {
+        return;
+    }
+
+    console.log(
+        "[STAFF WS] Department queue event:",
+        event.event_type,
+        event
+    );
+
+    await refreshQueue();
+}
+
+async function handleRequeue(queueEntryId, buttonElement) {
+    // 1. Prevent duplicate clicks
+    if (buttonElement) {
+        buttonElement.disabled = true;
+    }
+
+    try {
+        clearError();
+        setStatus("Re-queuing patient...");
+
+        // 2. Perform API transition & refresh queue state
+        await requeueQueueEntry(queueEntryId);
+        const updatedState = await refreshQueue(); 
+
+        // Use updated state or fall back to selectedQueueEntry
+        const currentActive = updatedState?.selectedQueueEntry ?? selectedQueueEntry;
+
+        setStatus(
+            `Ready — ${
+                currentActive
+                    ? getQueueTokenLabel(currentActive)
+                    : "no current patient"
+            }`
+        );
+
+    } catch (error) {
+        console.error("Failed to requeue entry:", error);
+
+        showError(
+            error.message || "Unable to re-queue patient."
+        );
+
+        // 3. Reset status text on failure
+        setStatus("Ready — no current patient");
+    } finally {
+        if (buttonElement) {
+            buttonElement.disabled = false;
+        }
+    }
+}
+
+
 function attachEventListeners() {
     elements.loginForm.addEventListener("submit", handleLogin);
     elements.logoutButton.addEventListener("click", handleLogout);
@@ -609,6 +860,21 @@ function attachEventListeners() {
     elements.startButton.addEventListener("click", () => performTransition("start"));
     elements.noShowButton.addEventListener("click", () => performTransition("noshow"));
     elements.completeButton.addEventListener("click", () => performTransition("complete"));
+
+    // Event delegation for dynamically rendered no-show table rows
+    elements.noShowBody.addEventListener("click", (event) => {
+        const button = event.target.closest(".requeue-button");
+
+        if (!button || button.disabled) {
+            return;
+        }
+
+        const { entryId } = button.dataset;
+
+        if (entryId) {
+            handleRequeue(entryId, button);
+        }
+    });
 }
 
 function initialize() {
@@ -618,4 +884,18 @@ function initialize() {
     elements.queueBody.innerHTML = "";
 }
 
-initialize();
+if (document.getElementById("login-form")) {
+    initialize();
+}
+
+export {
+    getActionStates,
+    getPatientLabel,
+    getQueueTokenLabel,
+    updateOwnershipDisplay,
+    selectQueueEntry,
+    refreshQueue,
+    handleRequeue,
+    performTransition,
+    getActionStatesForTest,
+};

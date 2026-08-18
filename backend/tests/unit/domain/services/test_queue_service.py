@@ -2,17 +2,21 @@ import uuid
 import pytest
 from datetime import datetime
 from fastapi import HTTPException, status
+import pytest_asyncio
 from sqlalchemy.exc import IntegrityError
-
+from uuid import uuid4
 from app.domain.models.models import (
     Department,
+    DeptType,
     Patient,
     QueueEntry,
     QueueEntryStatus,
     QueuePriority,
     EntryType,
+    StaffRole,
     Visit,
     VisitStage,
+    Staff,
 )
 from app.domain.services.queue_service import QueueService
 
@@ -94,6 +98,71 @@ async def create_helper_visit(db, patient, token_number):
     await db.flush()
     await db.refresh(visit)
     return visit
+
+
+# ---------------------------------------------------------------------------
+# 1. Hospital Departments Suite (OPD, Triage, Emergency)
+# ---------------------------------------------------------------------------
+@pytest_asyncio.fixture
+async def routing_departments(db):
+    """
+    Creates standard hospital departments required by the routing workflow service.
+    """
+    departments = []
+
+    configs = [
+        ("Reception", "RECEPTION", DeptType.OPD),
+        ("Triage", "TRIAGE", DeptType.OPD),
+        ("Emergency", "EMERGENCY", DeptType.EMERGENCY),
+    ]
+
+    for name, code, dept_type in configs:
+        department = Department(
+            name=name,
+            department_code=code,
+            type=dept_type,
+            is_active=True,
+        )
+        db.add(department)
+        departments.append(department)
+
+    await db.commit()
+
+    for department in departments:
+        await db.refresh(department)
+
+    return {
+        "reception": departments[0],
+        "triage": departments[1],
+        "emergency": departments[2],
+    }
+
+
+@pytest_asyncio.fixture
+async def staff_member(db, routing_departments):
+    """
+    Doctor/Staff fixture used in the unit tests that satisfies all schema contracts.
+    """
+    # Fix: Use an existing key from your routing_departments fixture
+    triage_dept = routing_departments["triage"] 
+
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id=f"DOC-{str(uuid4())[:6]}",
+        first_name="Test",
+        last_name="Doctor",
+        role=StaffRole.DOCTOR,
+        dept_id=triage_dept.dept_id,             # Uses the valid department ID
+        hashed_password="mock_hashed_password",   # Satisfies the NOT NULL constraint
+        is_active=True,
+    )
+
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+    return staff
+
+
 
 
 # ==============================================================================
@@ -211,41 +280,6 @@ async def test_get_next_patient(queue_service, db, patient, active_visit, depart
 # 3. STATUS TRANSITIONS CATEGORY
 # ==============================================================================
 
-@pytest.mark.asyncio
-async def test_call_patient(queue_service, active_visit, department):
-    """Verifies transitioning status from WAITING -> CALLED and setting timestamp."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
-
-    called = await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
-
-    assert called.status == QueueEntryStatus.CALLED
-    assert isinstance(called.called_at, datetime)
-
-
-@pytest.mark.asyncio
-async def test_start_consultation(queue_service, active_visit, department):
-    """Verifies transitioning status from CALLED -> IN_PROGRESS and setting started_at timestamp."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
-
-    started = await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.IN_PROGRESS)
-
-    assert started.status == QueueEntryStatus.IN_PROGRESS
-    assert isinstance(started.started_at, datetime)
-
-
-@pytest.mark.asyncio
-async def test_complete_queue_entry(queue_service, active_visit, department):
-    """Verifies transitioning status from IN_PROGRESS -> COMPLETED."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.IN_PROGRESS)
-
-    completed = await queue_service.complete_queue_entry(entry.queue_entry_id, notes="Finished exam")
-
-    assert completed.status == QueueEntryStatus.COMPLETED
-    assert completed.completed_at is not None
-    assert completed.notes == "Finished exam"
 
 
 @pytest.mark.asyncio
@@ -258,17 +292,6 @@ async def test_cancel_queue_entry(queue_service, active_visit, department):
     assert cancelled.status == QueueEntryStatus.CANCELLED
     assert cancelled.completed_at is not None
 
-
-@pytest.mark.asyncio
-async def test_mark_no_show(queue_service, active_visit, department):
-    """Verifies transitioning CALLED -> NO_SHOW."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
-
-    no_show = await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.NO_SHOW)
-
-    assert no_show.status == QueueEntryStatus.NO_SHOW
-    assert no_show.completed_at is not None
 
 
 # ==============================================================================
@@ -303,16 +326,7 @@ async def test_priority_order(queue_service, db, patient, active_visit, departme
     assert next_up.queue_entry_id == e2.queue_entry_id
 
 
-@pytest.mark.asyncio
-async def test_completed_not_returned(queue_service, active_visit, department):
-    """Ensures completed tickets are excluded from active department queue calls."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.IN_PROGRESS)
-    await queue_service.complete_queue_entry(entry.queue_entry_id)
 
-    queue = await queue_service.get_department_queue(department.dept_id)
-    assert len(queue) == 0
 
 
 @pytest.mark.asyncio
@@ -420,14 +434,134 @@ async def test_cancelled_entry(queue_service, active_visit, department):
 
 
 @pytest.mark.asyncio
-async def test_completed_entry(queue_service, active_visit, department):
+async def test_call_patient(queue_service, active_visit, department, staff_member):
+    """Verifies transitioning status from WAITING -> CALLED and setting timestamp."""
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+
+    called = await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.CALLED,
+        staff_id=staff_member.staff_id,
+    )
+
+    assert called.status == QueueEntryStatus.CALLED
+    assert isinstance(called.called_at, datetime)
+
+
+@pytest.mark.asyncio
+async def test_start_consultation(queue_service, active_visit, department, staff_member):
+    """Verifies transitioning status from CALLED -> IN_PROGRESS and setting started_at timestamp."""
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.CALLED,
+        staff_id=staff_member.staff_id,
+    )
+
+    started = await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.IN_PROGRESS,
+        staff_id=staff_member.staff_id,
+    )
+
+    assert started.status == QueueEntryStatus.IN_PROGRESS
+    assert isinstance(started.started_at, datetime)
+
+
+@pytest.mark.asyncio
+async def test_complete_queue_entry(queue_service, active_visit, department, staff_member):
+    """Verifies transitioning status from IN_PROGRESS -> COMPLETED."""
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.CALLED,
+        staff_id=staff_member.staff_id,
+    )
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.IN_PROGRESS,
+        staff_id=staff_member.staff_id,
+    )
+
+    completed = await queue_service.complete_queue_entry(
+        queue_entry_id=entry.queue_entry_id,
+        staff_id=staff_member.staff_id,
+        notes="Finished exam",
+    )
+
+    assert completed.status == QueueEntryStatus.COMPLETED
+    assert completed.completed_at is not None
+    assert completed.notes == "Finished exam"
+
+
+@pytest.mark.asyncio
+async def test_mark_no_show(queue_service, active_visit, department, staff_member):
+    """Verifies transitioning CALLED -> NO_SHOW."""
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.CALLED,
+        staff_id=staff_member.staff_id,
+    )
+
+    no_show = await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.NO_SHOW,
+        staff_id=staff_member.staff_id,
+    )
+
+    assert no_show.status == QueueEntryStatus.NO_SHOW
+    assert no_show.no_show_at is not None
+    assert no_show.completed_at is None
+
+
+@pytest.mark.asyncio
+async def test_completed_not_returned(queue_service, active_visit, department, staff_member):
+    """Ensures completed tickets are excluded from active department queue calls."""
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.CALLED,
+        staff_id=staff_member.staff_id,
+    )
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.IN_PROGRESS,
+        staff_id=staff_member.staff_id,
+    )
+    await queue_service.complete_queue_entry(
+        queue_entry_id=entry.queue_entry_id,
+        staff_id=staff_member.staff_id,
+    )
+
+    queue = await queue_service.get_department_queue(department.dept_id)
+    assert len(queue) == 0
+
+
+@pytest.mark.asyncio
+async def test_completed_entry(queue_service, active_visit, department, staff_member):
     """Confirms completed terminal state prevents any further state transitions."""
     entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
-    await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.IN_PROGRESS)
-    await queue_service.complete_queue_entry(entry.queue_entry_id)
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.CALLED,
+        staff_id=staff_member.staff_id,
+    )
+    await queue_service.transition_entry_status(
+        queue_entry_id=entry.queue_entry_id,
+        new_status=QueueEntryStatus.IN_PROGRESS,
+        staff_id=staff_member.staff_id,
+    )
+    await queue_service.complete_queue_entry(
+        queue_entry_id=entry.queue_entry_id,
+        staff_id=staff_member.staff_id,
+    )
 
     with pytest.raises(HTTPException) as exc:
-        await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.CALLED)
+        await queue_service.transition_entry_status(
+            queue_entry_id=entry.queue_entry_id,
+            new_status=QueueEntryStatus.CALLED,
+            staff_id=staff_member.staff_id,
+        )
 
     assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

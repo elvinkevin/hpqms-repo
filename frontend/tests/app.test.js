@@ -846,8 +846,175 @@ describe("handleMessage()", () => {
 
         errorSpy.mockRestore();
     });
+
+    it("passes TOKEN_CALLED events to display-state", () => {
+    const event = {
+        event_type: "TOKEN_CALLED",
+        token_number: "W-109",
+        department_id: "department-001",
+    };
+
+    handleMessage(event);
+
+    expect(
+        mockDisplayState.applyEvent
+    ).toHaveBeenCalledWith(event);
 });
 
+
+    it("handles TOKEN_SERVICE_STARTED events", () => {
+        const event = {
+            event_type: "TOKEN_SERVICE_STARTED",
+            token_number: "W-109",
+            department_id: "department-001",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(event);
+    });
+
+
+    it("reconciles next tokens from the snapshot after a requeue event", async () => {
+        const event = {
+            event_type: "TOKEN_REQUEUED",
+            token_number: "W-109",
+            department_id: "department-001",
+        };
+
+        handleMessage(event);
+
+        await vi.waitFor(() => {
+            expect(mockApi.getDisplaySnapshot)
+                .toHaveBeenCalledTimes(1);
+        });
+
+        expect(mockDisplayState.setSnapshot)
+            .toHaveBeenCalledWith(snapshot);
+    });
+
+
+    it("handles TOKEN_COMPLETED events", () => {
+        const event = {
+            event_type: "TOKEN_COMPLETED",
+            token_number: "W-109",
+            department_id: "department-001",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(event);
+    });
+
+
+    it("handles TOKEN_NO_SHOW events", () => {
+        const event = {
+            event_type: "TOKEN_NO_SHOW",
+            token_number: "W-109",
+            department_id: "department-001",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(event);
+    });
+
+
+    it("handles TOKEN_CANCELLED events", () => {
+        const event = {
+            event_type: "TOKEN_CANCELLED",
+            token_number: "W-109",
+            department_id: "department-001",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(event);
+    });
+
+
+    it("handles PATIENT_ROUTED events", () => {
+        const event = {
+            event_type: "PATIENT_ROUTED",
+            token_number: "W-109",
+            department_id: "department-002",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(event);
+    });
+
+
+    it("handles QUEUE_UPDATED events", () => {
+        const event = {
+            event_type: "QUEUE_UPDATED",
+            department_id: "department-001",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(event);
+    });
+
+   it(
+    "applies non-projection state events locally without synchronizing the snapshot",
+    () => {
+        const event = {
+            ...notificationEvent,
+            event_type: "TOKEN_SERVICE_STARTED",
+        };
+
+        handleMessage(event);
+
+        expect(
+            mockDisplayState.applyEvent
+        ).toHaveBeenCalledWith(
+            event
+        );
+
+        expect(
+            mockApi.getDisplaySnapshot
+        ).not.toHaveBeenCalled();
+
+        expect(
+            mockDisplayState.setSnapshot
+        ).not.toHaveBeenCalled();
+    }
+);
+
+
+    it("calls the API when synchronizing a snapshot", async () => {
+    mockApi.getDisplaySnapshot.mockResolvedValue({
+        departments: [],
+    });
+
+    await syncSnapshot();
+
+    expect(
+        mockApi.getDisplaySnapshot
+    ).toHaveBeenCalledTimes(1);
+
+    expect(
+        mockDisplayState.setSnapshot
+    ).toHaveBeenCalledWith({
+        departments: [],
+    });
+});
+});
+    
 
 /*
 |--------------------------------------------------------------------------
@@ -942,6 +1109,49 @@ describe("reconnection synchronization", () => {
             mockDisplayState.setSnapshot
         ).toHaveBeenCalledWith(snapshot);
     });
+
+    it("does not synchronize the snapshot for non-state events", () => {
+    const event = {
+        event_type: "ANNOUNCEMENT_CREATED",
+        message: "Please proceed to reception.",
+    };
+
+    handleMessage(event);
+
+    expect(
+        mockDisplayState.applyEvent
+    ).toHaveBeenCalledWith(event);
+
+    expect(
+        mockApi.getDisplaySnapshot
+    ).not.toHaveBeenCalled();
+});
+
+    it("passes incoming events to the alert manager", () => {
+    handleMessage(notificationEvent);
+
+    expect(
+        mockAlerts.handleEvent
+    ).toHaveBeenCalledWith(
+        notificationEvent
+    );
+});
+
+    it("passes the same event to both alert manager and display-state", () => {
+    handleMessage(notificationEvent);
+
+    expect(
+        mockAlerts.handleEvent
+    ).toHaveBeenCalledWith(
+        notificationEvent
+    );
+
+    expect(
+        mockDisplayState.applyEvent
+    ).toHaveBeenCalledWith(
+        notificationEvent
+    );
+});
 });
 
 

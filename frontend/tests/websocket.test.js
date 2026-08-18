@@ -301,7 +301,7 @@ describe("successful connection", () => {
 */
 
 describe("incoming messages", () => {
-    it("emits received data through the message event", () => {
+    it("parses valid JSON messages before emitting them", () => {
         const callback = vi.fn();
 
         on("message", callback);
@@ -318,13 +318,13 @@ describe("incoming messages", () => {
         );
 
         expect(callback)
-            .toHaveBeenCalledWith(
-                '{"event_type":"TOKEN_CALLED"}'
-            );
+            .toHaveBeenCalledWith({
+                event_type: "TOKEN_CALLED",
+            });
     });
 
 
-    it("does not interpret incoming message payloads", () => {
+    it("preserves the complete event payload", () => {
         const callback = vi.fn();
 
         on("message", callback);
@@ -337,16 +337,52 @@ describe("incoming messages", () => {
         socket.open();
 
         const payload = {
+            event_id: "event-001",
             event_type: "TOKEN_CALLED",
+            priority: "HIGH",
+            department_id: "dept-001",
+            department_name: "Reception",
             token_number: "A-102",
         };
 
-        socket.receive(JSON.stringify(payload));
+        socket.receive(
+            JSON.stringify(payload)
+        );
 
         expect(callback)
-            .toHaveBeenCalledWith(
-                JSON.stringify(payload)
-            );
+            .toHaveBeenCalledWith(payload);
+    });
+
+
+    it("emits an error when an incoming message contains invalid JSON", () => {
+        const messageCallback = vi.fn();
+        const errorCallback = vi.fn();
+
+        on("message", messageCallback);
+        on("error", errorCallback);
+
+        connect();
+
+        const socket =
+            MockWebSocket.instances[0];
+
+        socket.open();
+
+        socket.receive(
+            "this is not valid JSON"
+        );
+
+        expect(messageCallback)
+            .not.toHaveBeenCalled();
+
+        expect(errorCallback)
+            .toHaveBeenCalledTimes(1);
+
+        const error =
+            errorCallback.mock.calls[0][0];
+
+        expect(error)
+            .toBeInstanceOf(Error);
     });
 });
 

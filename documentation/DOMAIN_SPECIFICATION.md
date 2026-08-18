@@ -94,3 +94,32 @@ PHASE 7 — Public display frontend
 PHASE 8 — Staff queue frontend
         ↓
 PHASE 9 — Responsive testing
+
+
+
+                    DEPARTMENT QUEUE
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+          WAITING                  OWNERSHIP
+             │                         │
+       department-wide          assigned_staff_ID= CURRENT_USER
+                                       │
+                    ┌──────────────────┼─────────────────┐
+                    │                  │                 │
+                  CALLED          IN_PROGRESS         NO_SHOW
+                    │                  │                 │
+                  owner             owner              owner
+                    │                  │                 │
+                    └──────────────────┴─────────────────┘
+                                       │
+                                  owner only
+
+
+                        NO_SHOW
+   │
+   │ owner requeues
+   ▼
+WAITING
+   │
+   └── assigned_staff_id = NULL
