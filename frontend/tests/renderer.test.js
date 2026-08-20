@@ -331,6 +331,26 @@ describe("department rendering", () => {
     });
 
 
+    it("uses the queue component class contract", () => {
+        renderSnapshot(createSnapshot());
+
+        const department = document.querySelector(
+            '[data-department-id="dept-1"]'
+        );
+
+        expect(department?.classList.contains("queue-card"))
+            .toBe(true);
+        expect(department?.dataset.state)
+            .toBe("CALLED");
+        expect(
+            department.querySelector(".department-title")
+        ).not.toBeNull();
+        expect(
+            department.querySelector(".service-point")
+        ).not.toBeNull();
+    });
+
+
     it("renders multiple departments independently", () => {
 
         renderSnapshot(createSnapshot());

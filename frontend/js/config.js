@@ -44,6 +44,10 @@ const DEFAULT_CONFIG = {
         facilityName: "HPQMS Hospital",
     },
 
+    layout: {
+        mode: "SINGLE_DEPARTMENT",
+    },
+
     backend: {
         apiBaseUrl: dynamicBackendDefaults.apiBaseUrl,
         websocketUrl: dynamicBackendDefaults.websocketUrl,
@@ -88,9 +92,6 @@ const DEFAULT_CONFIG = {
         multiDepartment: true,
     },
 
-    kiosk: {
-        apiKey: "generate-a-long-random-value",
-    },
 };
 
 
@@ -263,6 +264,22 @@ function validateConfig(config) {
     ) {
         throw new Error(
             "reconnect.maxDelayMs must be greater than or equal to initialDelayMs"
+        );
+    }
+
+
+    /* Layout */
+
+    const supportedLayoutModes = new Set([
+        "ROOM",
+        "SINGLE_DEPARTMENT",
+        "ROTATING_BOARD",
+        "ATRIUM",
+    ]);
+
+    if (!supportedLayoutModes.has(config.layout?.mode)) {
+        throw new Error(
+            "layout.mode must be one of ROOM, SINGLE_DEPARTMENT, ROTATING_BOARD, or ATRIUM"
         );
     }
 

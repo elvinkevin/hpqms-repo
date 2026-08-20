@@ -246,7 +246,7 @@ function createActiveTokenElement(token) {
         const servicePoint = createElement(
             "div",
             {
-                className: "token-service-point",
+                className: "token-service-point service-point",
                 textContent: displayValue(
                     token.service_point
                 ),
@@ -314,7 +314,7 @@ function renderDepartment(department) {
     const container = createElement(
         "section",
         {
-            className: "department-board",
+            className: "department-board queue-card",
         }
     );
 
@@ -324,6 +324,17 @@ function renderDepartment(department) {
             ""
         );
 
+    const activeTokens =
+        Array.isArray(department.active_tokens)
+            ? department.active_tokens
+            : [];
+
+    const activeState = activeTokens[0]?.status;
+
+    if (activeState) {
+        container.dataset.state = activeState;
+    }
+
     /* --------------------------------------------------------------
        Department Header
        -------------------------------------------------------------- */
@@ -331,14 +342,14 @@ function renderDepartment(department) {
     const header = createElement(
         "header",
         {
-            className: "department-header",
+            className: "department-header queue-card-header",
         }
     );
 
     const title = createElement(
         "h2",
         {
-            className: "department-name",
+            className: "department-name department-title",
             textContent: displayValue(
                 department.department_name,
                 "Department"
@@ -377,13 +388,6 @@ function renderDepartment(department) {
             className: "active-tokens",
         }
     );
-
-    const activeTokens =
-        Array.isArray(
-            department.active_tokens
-        )
-            ? department.active_tokens
-            : [];
 
     if (activeTokens.length === 0) {
         activeContainer.appendChild(

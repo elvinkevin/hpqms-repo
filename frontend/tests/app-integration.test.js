@@ -206,6 +206,9 @@ describe("frontend runtime integration", () => {
     it("renders the initial snapshot through app startup", async () => {
         await start();
 
+        expect(document.body.dataset.layout)
+            .toBe("SINGLE_DEPARTMENT");
+
         expect(
             document.querySelector("#facility-name")?.textContent
         ).toContain("HPQMS Hospital");

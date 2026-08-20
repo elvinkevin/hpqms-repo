@@ -105,6 +105,17 @@ function setText(id, value) {
 }
 
 
+/**
+ * Apply the configured presentation strategy before the renderer creates
+ * viewport content. Layout CSS is intentionally selected through this DOM
+ * attribute so display configuration stays separate from markup.
+ */
+function applyLayoutMode(config) {
+    document.body.dataset.layout =
+        config.layout?.mode ?? "SINGLE_DEPARTMENT";
+}
+
+
 function normalizeConnectionStatus(status) {
     switch (status) {
         case "CONNECTED":
@@ -695,7 +706,9 @@ async function start() {
          * This also ensures configuration has been
          * initialized before dependent modules operate.
          */
-        getConfig();
+        const config = getConfig();
+
+        applyLayoutMode(config);
 
         initializeRuntimeManagers();
 

@@ -65,6 +65,10 @@ const VALID_OVERRIDES = {
         announcements: true,
         multiDepartment: true,
     },
+
+    layout: {
+        mode: "SINGLE_DEPARTMENT",
+    },
 };
 
 
@@ -229,6 +233,25 @@ describe("display configuration", () => {
 
         expect(getConfig().display.facilityName)
             .toBe("HPQMS Hospital");
+    });
+});
+
+
+describe("layout configuration", () => {
+    it("uses the single-department layout by default", () => {
+        expect(getConfig().layout.mode)
+            .toBe("SINGLE_DEPARTMENT");
+    });
+
+
+    it("rejects an unsupported layout mode", () => {
+        expect(() => {
+            initializeConfig({
+                layout: {
+                    mode: "UNKNOWN",
+                },
+            });
+        }).toThrow();
     });
 });
 
