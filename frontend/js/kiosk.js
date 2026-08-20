@@ -25,10 +25,12 @@ import { kioskCheckIn } from "./kiosk-api.js";
   var successTimer = null;
   var successCountdownInterval = null;
 
-  var LABELS = {
-    national_id: { title: "Enter your National ID", subtitle: "We use this to find your patient record.", label: "National ID number", placeholder: "Enter your National ID" },
-    phone:       { title: "Enter your phone number", subtitle: "We use this to find your patient record.", label: "Phone number", placeholder: "Enter your phone number" },
-    
+  // Maps each identification method to the translation keys that describe it.
+  // Replaces the old English-only LABELS object so the step 2 copy follows
+  // both the selected method AND the active language.
+  var ID_METHOD_KEYS = {
+    national_id: { title: "nationalIdTitle", subtitle: "patientRecord", label: "nationalIdLabel", placeholder: "nationalIdPlaceholder" },
+    phone:       { title: "phoneTitle",      subtitle: "patientRecord", label: "phoneLabel",      placeholder: "phonePlaceholder" }
   };
 
   /* -----------------------------------------------------------
@@ -69,15 +71,237 @@ import { kioskCheckIn } from "./kiosk-api.js";
   var successGreeting = document.getElementById("success-greeting");
   var tokenValue       = document.getElementById("token-value");
   var deptValue        = document.getElementById("dept-value");
+  var deptValueIsDefault = true; // tracks whether dept-value still shows the translated fallback, vs a real API value
   var autoResetNote    = document.getElementById("auto-reset-note");
   var doneBtn           = document.getElementById("done-btn");
 
   var notfoundRetryBtn = document.getElementById("notfound-retry-btn");
   var errorRetryBtn    = document.getElementById("error-retry-btn");
 
+
+
+  const translations = {
+  en: {
+    welcome: "Welcome",
+    welcomeTitle: "Welcome to<br>Horizon General Hospital",
+    welcomeMessage: "Please use this kiosk to check in for your visit.",
+    privacyNote: "Your privacy matters to us. Please make sure you have your identification information ready.",
+
+    identify: "Identify",
+    yourDetails: "Your details",
+    visitType: "Visit type",
+
+    identificationQuestion: "How would you like to identify yourself?",
+    chooseOption: "Choose one option to continue.",
+
+    nationalId: "National ID",
+    phoneNumber: "Phone Number",
+
+    next: "NEXT",
+    back: "BACK",
+
+    nationalIdTitle: "Enter your National ID",
+    phoneTitle: "Enter your Phone Number",
+
+    patientRecord: "We use this to find your patient record.",
+
+    nationalIdLabel: "National ID number",
+    phoneLabel: "Phone Number",
+
+    nationalIdPlaceholder: "Enter your National ID",
+    phonePlaceholder: "Enter your Phone Number",
+
+    identificationError:
+      "Please enter your identification number to continue.",
+
+    visitQuestion: "What type of visit are you making?",
+    visitSubtitle: "Select the option that best describes your visit.",
+
+    walkIn: "Walk-in",
+    appointment: "Appointment",
+    referral: "Referral",
+    emergency: "Emergency",
+
+    visitTypeError:
+      "Please select a visit type to continue.",
+
+    checkIn: "CHECK IN",
+    checkingIn: "Checking you in\u2026",
+
+    checkInComplete: "Check-in complete",
+    checkInSuccessTitle: "Check-In Successful!",
+    welcomeShort: "Welcome",
+    allSet: "You're all set. Please note your details below.",
+
+    queueToken: "Your queue token is",
+    proceedTo: "Please proceed to",
+    reception: "RECEPTION",
+
+    tokenHelper:
+      "A staff member will call your token when it is your turn.",
+
+    done: "DONE",
+
+    autoReset:
+      "This screen will reset automatically in 30s.",
+    autoResetTemplate:
+      "This screen will reset automatically in {s}s.",
+
+    patientNotFound: "Patient not found",
+
+    patientNotFoundMessage:
+      "We couldn't find a patient record using the information provided. Please check your information and try again.",
+
+    patientNotFoundHelper:
+      "If this is your first visit, please continue and our reception team will help complete your registration.",
+
+    tryAgain: "TRY AGAIN",
+
+    somethingWentWrong: "Something went wrong",
+
+    errorMessage:
+      "We couldn't complete your check-in. Please try again.",
+
+    secureInformation:
+      "Your information is handled securely",
+
+    needHelp:
+      "Need help? Ask a staff member"
+  },
+
+  sw: {
+    welcome: "Karibu",
+
+    welcomeTitle:
+      "Karibu katika<br>Hospitali Kuu ya Horizon",
+
+    welcomeMessage:
+      "Tafadhali tumia kifaa hiki kujisajili kwa ziara yako.",
+
+    privacyNote:
+      "Faragha yako ni muhimu kwetu. Tafadhali hakikisha una taarifa zako za utambulisho.",
+
+    identify: "Utambulisho",
+    yourDetails: "Taarifa zako",
+    visitType: "Aina ya ziara",
+
+    identificationQuestion:
+      "Ungependa kujitambulisha kwa njia gani?",
+
+    chooseOption:
+      "Chagua chaguo moja ili kuendelea.",
+
+    nationalId: "Kitambulisho cha Taifa",
+    phoneNumber: "Nambari ya Simu",
+
+    next: "ENDELEA",
+    back: "RUDI",
+
+    nationalIdTitle:
+      "Weka nambari yako ya Kitambulisho cha Taifa",
+
+    phoneTitle:
+      "Weka Nambari yako ya Simu",
+
+    patientRecord:
+      "Tunatumia taarifa hii kupata rekodi yako ya mgonjwa.",
+
+    nationalIdLabel:
+      "Nambari ya Kitambulisho cha Taifa",
+
+    phoneLabel:
+      "Nambari ya Simu",
+
+    nationalIdPlaceholder:
+      "Weka nambari yako ya Kitambulisho cha Taifa",
+
+    phonePlaceholder:
+      "Weka Nambari yako ya Simu",
+
+    identificationError:
+      "Tafadhali weka nambari yako ya utambulisho ili kuendelea.",
+
+    visitQuestion:
+      "Unakuja kwa aina gani ya ziara?",
+
+    visitSubtitle:
+      "Chagua chaguo linaloelezea vizuri sababu ya ziara yako.",
+
+    walkIn: "Bila miadi",
+    appointment: "Miadi",
+    referral: "Rufaa",
+    emergency: "Dharura",
+
+    visitTypeError:
+      "Tafadhali chagua aina ya ziara ili kuendelea.",
+
+    checkIn: "JISAJILI",
+    checkingIn: "Inakusajili\u2026",
+
+    checkInComplete:
+      "Usajili umekamilika",
+    checkInSuccessTitle: "Usajili Umefaulu!",
+
+    welcomeShort: "Karibu",
+
+    allSet:
+      "Uko tayari. Tafadhali zingatia taarifa zako hapa chini.",
+
+    queueToken:
+      "Nambari yako ya foleni ni",
+
+    proceedTo:
+      "Tafadhali elekea",
+
+    reception:
+      "MAPOKEZI",
+
+    tokenHelper:
+      "Mfanyakazi ataita nambari yako ya foleni wakati wako ukifika.",
+
+    done: "IMEKAMILIKA",
+
+    autoReset:
+      "Ukurasa huu utajirekebisha baada ya sekunde 30.",
+    autoResetTemplate:
+      "Ukurasa huu utajirekebisha baada ya sekunde {s}.",
+
+    patientNotFound:
+      "Mgonjwa hakupatikana",
+
+    patientNotFoundMessage:
+      "Hatukuweza kupata rekodi ya mgonjwa kwa kutumia taarifa ulizoweka. Tafadhali hakikisha taarifa zako ni sahihi na ujaribu tena.",
+
+    patientNotFoundHelper:
+      "Ikiwa hii ni ziara yako ya kwanza, tafadhali endelea na timu yetu ya mapokezi itakusaidia kukamilisha usajili wako.",
+
+    tryAgain:
+      "JARIBU TENA",
+
+    somethingWentWrong:
+      "Kuna tatizo limetokea",
+
+    errorMessage:
+      "Hatukuweza kukamilisha usajili wako. Tafadhali jaribu tena.",
+
+    secureInformation:
+      "Taarifa zako zinashughulikiwa kwa usalama",
+
+    needHelp:
+      "Unahitaji msaada? Muulize mfanyakazi"
+  }
+};
+
+  let currentLanguage = "en";
+
   /* -----------------------------------------------------------
      HELPERS
   ----------------------------------------------------------- */
+  function t(key){
+    var strings = translations[currentLanguage] || translations.en;
+    return strings[key] !== undefined ? strings[key] : translations.en[key];
+  }
+
   function showScreen(name){
     screenCheckin.classList.toggle("hidden", name !== "checkin");
     screenSuccess.classList.toggle("hidden", name !== "success");
@@ -144,18 +368,19 @@ import { kioskCheckIn } from "./kiosk-api.js";
     state.submitting = isSubmitting;
     checkinBtn.disabled = isSubmitting;
     if (isSubmitting){
-      checkinBtn.innerHTML = '<span class="spinner"></span><span>Checking you in&hellip;</span>';
+      checkinBtn.innerHTML = '<span class="spinner"></span><span>' + t("checkingIn") + '</span>';
     } else {
-      checkinBtn.innerHTML = '<span id="checkin-btn-label">CHECK IN</span>';
+      checkinBtn.innerHTML = '<span id="checkin-btn-label" data-i18n="checkIn">' + t("checkIn") + '</span>';
+      checkinBtnLabel = document.getElementById("checkin-btn-label");
     }
   }
 
   function applyIdMethodLabels(method){
-    var cfg = LABELS[method];
-    idInputTitle.textContent = cfg.title;
-    idInputSubtitle.textContent = cfg.subtitle;
-    idInputLabel.textContent = cfg.label;
-    idInput.placeholder = cfg.placeholder;
+    var keys = ID_METHOD_KEYS[method] || ID_METHOD_KEYS.national_id;
+    idInputTitle.textContent = t(keys.title);
+    idInputSubtitle.textContent = t(keys.subtitle);
+    idInputLabel.textContent = t(keys.label);
+    idInput.placeholder = t(keys.placeholder);
   }
 
   /* -----------------------------------------------------------
@@ -255,22 +480,22 @@ async function handleFormSubmit() {
     setSubmitting(true);
 
     try {
-        // Since state contains: idMethod, idValue, and visitType, 
+        // Since state contains: idMethod, idValue, and visitType,
         // we can pass it directly into the network translation layer!
         const response = await kioskCheckIn(state);
-        
+
         setSubmitting(false);
 
         // Success: Forward the exact flat Pydantic schema parameters to the UI
         renderSuccess({
             queue_token: response.token_number || "—",
-            department: response.department_name || "RECEPTION"
+            department: response.department_name || null
         });
 
     } catch (error) {
         setSubmitting(false);
         console.error("Kiosk transaction breakdown:", error);
-        
+
         if (error.status === 404) {
             showScreen("notfound");
         } else {
@@ -281,19 +506,29 @@ async function handleFormSubmit() {
 
 function renderSuccess(kioskData) {
     kioskData = kioskData || {};
-    
-    successGreeting.textContent = "Check-In Successful!"; 
+
+    successGreeting.textContent = t("checkInSuccessTitle");
     tokenValue.textContent = kioskData.queue_token || "—";
-    deptValue.textContent = kioskData.department || "RECEPTION";
-    
+
+    if (kioskData.department) {
+        deptValue.textContent = kioskData.department;
+        deptValue.removeAttribute("data-i18n");
+        deptValueIsDefault = false;
+    } else {
+        deptValue.textContent = t("reception");
+        deptValue.setAttribute("data-i18n", "reception");
+        deptValueIsDefault = true;
+    }
+
     showScreen("success");
     startSuccessCountdown();
 }
 
 
+
   function startSuccessCountdown(){
     var remaining = Math.ceil(SUCCESS_AUTO_RESET_MS / 1000);
-    autoResetNote.textContent = "This screen will reset automatically in " + remaining + "s.";
+    autoResetNote.textContent = t("autoResetTemplate").replace("{s}", remaining);
 
     if (successCountdownInterval) clearInterval(successCountdownInterval);
     successCountdownInterval = setInterval(function(){
@@ -302,7 +537,7 @@ function renderSuccess(kioskData) {
         clearInterval(successCountdownInterval);
         return;
       }
-      autoResetNote.textContent = "This screen will reset automatically in " + remaining + "s.";
+      autoResetNote.textContent = t("autoResetTemplate").replace("{s}", remaining);
     }, 1000);
 
     if (successTimer) clearTimeout(successTimer);
@@ -333,18 +568,77 @@ function renderSuccess(kioskData) {
   });
 
   /* -----------------------------------------------------------
-     LANGUAGE TOGGLE (placeholder — wire to i18n strings as needed)
+     LANGUAGE TOGGLE
   ----------------------------------------------------------- */
-  document.querySelector(".lang-toggle").addEventListener("click", function(e){
+  document.querySelector(".lang-toggle").addEventListener("click", function(e) {
     var btn = e.target.closest("button[data-lang]");
     if (!btn) return;
-    Array.prototype.forEach.call(document.querySelectorAll(".lang-toggle button"), function(b){
-      b.classList.remove("active");
-    });
+
+    var lang = btn.dataset.lang;
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".lang-toggle button"),
+      function(b) {
+        b.classList.remove("active");
+      }
+    );
+
     btn.classList.add("active");
+
+    setLanguage(lang);
+
     resetIdleTimer();
-    // Hook point: swap text content here based on btn.dataset.lang
   });
+
+  function setLanguage(lang) {
+    if (!translations[lang]) return;
+    currentLanguage = lang;
+
+    var strings = translations[lang];
+
+    document.querySelectorAll("[data-i18n]").forEach(function(element) {
+      var key = element.dataset.i18n;
+      if (strings[key] !== undefined) {
+        element.innerHTML = strings[key];
+      }
+    });
+
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(function(element) {
+      var key = element.dataset.i18nPlaceholder;
+      if (strings[key] !== undefined) {
+        element.placeholder = strings[key];
+      }
+    });
+
+    document.documentElement.lang = lang;
+
+    // Re-render strings that are set dynamically in JS rather than through
+    // static [data-i18n] attributes, so a language switch mid-flow stays consistent.
+    applyIdMethodLabels(state.idMethod);
+
+    if (!state.submitting) {
+      checkinBtn.innerHTML = '<span id="checkin-btn-label" data-i18n="checkIn">' + t("checkIn") + '</span>';
+      checkinBtnLabel = document.getElementById("checkin-btn-label");
+    } else {
+      checkinBtn.innerHTML = '<span class="spinner"></span><span>' + t("checkingIn") + '</span>';
+    }
+
+    if (!screenSuccess.classList.contains("hidden")) {
+      successGreeting.textContent = t("checkInSuccessTitle");
+      if (deptValueIsDefault) {
+        deptValue.textContent = t("reception");
+      }
+      if (successCountdownInterval || successTimer) {
+        // leave the exact remaining count alone; just re-translate the template
+        var currentText = autoResetNote.textContent;
+        var match = currentText.match(/(\d+)/);
+        var remaining = match ? match[1] : Math.ceil(SUCCESS_AUTO_RESET_MS / 1000);
+        autoResetNote.textContent = t("autoResetTemplate").replace("{s}", remaining);
+      }
+    }
+  }
+
+
 
   /* -----------------------------------------------------------
      GLOBAL IDLE ACTIVITY LISTENER
@@ -360,7 +654,7 @@ function renderSuccess(kioskData) {
   /* -----------------------------------------------------------
      INIT
   ----------------------------------------------------------- */
-  applyIdMethodLabels("national_id");
+  setLanguage("en");
   showScreen("checkin");
   goToStep(1);
 
