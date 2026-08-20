@@ -1,397 +1,884 @@
-import uuid
+"""
+Unit tests for RoutingService
+
+Covers:
+- Initial kiosk dispatch for all entry types
+- Patient transfers between departments
+- Live location tracking
+- Queue journey history
+- Error handling and validation
+"""
+
+from datetime import datetime
+from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 
 from app.domain.models.models import (
     Department,
+    DeptType,
+    EntryType,
     Patient,
+    QueueEntry,
     QueueEntryStatus,
     QueuePriority,
-    EntryType,
     RegistrationStatus,
     Visit,
     VisitStage,
 )
+from app.domain.schemas.schemas import TransferReason
 from app.domain.services.routing_service import RoutingService
 
 
-# ==============================================================================
-# FIXTURES
-# ==============================================================================
-
-@pytest.fixture
-async def routing_service(db):
-    """Provides a RoutingService instance bound to the active async session."""
-    return RoutingService(db)
+# ============================================================================
+# FIXTURES FOR SERVICE-LEVEL TESTING
+# ============================================================================
 
 
 @pytest.fixture
-async def patient(db):
-    """Creates a fully registered active patient."""
-    patient = Patient(
-        first_name="Jane",
-        last_name="Doe",
-        registration_status=RegistrationStatus.COMPLETE,
-    )
-    db.add(patient)
-    await db.flush()
-    await db.refresh(patient)
-    return patient
+def mock_visit_service():
+    """Mock VisitService"""
+    return AsyncMock()
 
 
 @pytest.fixture
-async def incomplete_patient(db):
-    """Creates a patient with an incomplete/skeleton registration profile."""
-    patient = Patient(
-        first_name="John",
-        last_name="Doe",
-        registration_status=RegistrationStatus.INCOMPLETE,
-    )
-    db.add(patient)
-    await db.flush()
-    await db.refresh(patient)
-    return patient
+def mock_queue_service():
+    """Mock QueueService"""
+    return AsyncMock()
 
 
 @pytest.fixture
-async def system_departments(db):
-    """Seeds required system departments for kiosk dispatch and transfers."""
-    depts = [
-        Department(name="Reception", department_code="RECEPTION", is_active=True),
-        Department(name="Triage", department_code="TRIAGE", is_active=True),
-        Department(name="Emergency", department_code="EMERGENCY", is_active=True),
-        Department(name="Radiology", department_code="RAD", is_active=True),
-        Department(name="Closed Dept", department_code="CLOSED", is_active=False),
-    ]
-    db.add_all(depts)
-    await db.flush()
-    
-    dept_map = {}
-    for d in depts:
-        await db.refresh(d)
-        dept_map[d.department_code] = d
-    return dept_map
+def mock_department_service():
+    """Mock DepartmentService"""
+    return AsyncMock()
 
 
 @pytest.fixture
-async def walkin_visit(db, patient):
-    """Creates an active walk-in visit."""
-    visit = Visit(
-        patient_id=patient.patient_id,
-        token_number="W-101",
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.WALK_IN,
-    )
-    db.add(visit)
-    await db.flush()
-    await db.refresh(visit)
+def routing_service(db, mock_visit_service, mock_queue_service, mock_department_service):
+    """Create RoutingService with mocked dependencies"""
+    service = RoutingService(db)
+    service.visit_service = mock_visit_service
+    service.queue_service = mock_queue_service
+    service.department_service = mock_department_service
+    return service
+
+
+# ============================================================================
+# HELPER FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def mock_department():
+    """Create a mock active department"""
+    dept = MagicMock(spec=Department)
+    dept.dept_id = uuid4()
+    dept.name = "Triage"
+    dept.department_code = "TRIAGE"
+    dept.is_active = True
+    return dept
+
+
+@pytest.fixture
+def mock_emergency_department():
+    """Create a mock emergency department"""
+    dept = MagicMock(spec=Department)
+    dept.dept_id = uuid4()
+    dept.name = "Emergency"
+    dept.department_code = "EMERGENCY"
+    dept.is_active = True
+    return dept
+
+
+@pytest.fixture
+def mock_reception_department():
+    """Create a mock reception department"""
+    dept = MagicMock(spec=Department)
+    dept.dept_id = uuid4()
+    dept.name = "Reception"
+    dept.department_code = "RECEPTION"
+    dept.is_active = True
+    return dept
+
+
+@pytest.fixture
+def mock_visit():
+    """Create a mock visit"""
+    visit = MagicMock(spec=Visit)
+    visit.visit_id = uuid4()
+    visit.token_number = "W-101"
+    visit.entry_type = EntryType.WALK_IN
+    visit.stage = VisitStage.ACTIVE
+    visit.current_queue_entry_id = None
+    visit.patient = MagicMock(spec=Patient)
+    visit.patient.registration_status = RegistrationStatus.COMPLETE
     return visit
 
 
-# ==============================================================================
-# GROUP 1: INITIAL KIOSK DISPATCH (6 TESTS)
-# ==============================================================================
-
-@pytest.mark.asyncio
-async def test_dispatch_emergency_to_emergency(db, routing_service, patient, system_departments):
-    """Emergency patients bypass triage/reception and enter Emergency with CRITICAL priority."""
-    visit = Visit(
-        patient_id=patient.patient_id,
-        token_number="E-001",
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.EMERGENCY,
-    )
-    db.add(visit)
-    await db.flush()
-
-    entry = await routing_service.dispatch_initial_kiosk_route(visit.visit_id)
-
-    assert entry.department_id == system_departments["EMERGENCY"].dept_id
-    assert entry.priority == QueuePriority.CRITICAL
+@pytest.fixture
+def mock_queue_entry():
+    """Create a mock queue entry"""
+    entry = MagicMock(spec=QueueEntry)
+    entry.queue_entry_id = uuid4()
+    entry.visit_id = uuid4()
+    entry.department_id = uuid4()
+    entry.status = QueueEntryStatus.WAITING
+    entry.priority = QueuePriority.NORMAL
+    entry.entered_at = datetime.utcnow()
+    entry.assigned_staff_id = None
+    return entry
 
 
-@pytest.mark.asyncio
-async def test_dispatch_incomplete_registration_to_reception(db, routing_service, incomplete_patient, system_departments):
-    """Patients with incomplete profiles are routed to Reception regardless of entry type."""
-    visit = Visit(
-        patient_id=incomplete_patient.patient_id,
-        token_number="A-101",
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.APPOINTMENT,
-    )
-    db.add(visit)
-    await db.flush()
-
-    entry = await routing_service.dispatch_initial_kiosk_route(visit.visit_id)
-
-    assert entry.department_id == system_departments["RECEPTION"].dept_id
-    assert entry.priority == QueuePriority.NORMAL
+@pytest.fixture
+def mock_in_progress_queue_entry():
+    """Create a mock in-progress queue entry"""
+    entry = MagicMock(spec=QueueEntry)
+    entry.queue_entry_id = uuid4()
+    entry.visit_id = uuid4()
+    entry.department_id = uuid4()
+    entry.status = QueueEntryStatus.IN_PROGRESS
+    entry.priority = QueuePriority.NORMAL
+    entry.entered_at = datetime.utcnow()
+    entry.assigned_staff_id = uuid4()
+    return entry
 
 
-@pytest.mark.asyncio
-async def test_dispatch_appointment_to_triage(db, routing_service, patient, system_departments):
-    """Fully registered appointment patients bypass Reception and go straight to Triage."""
-    visit = Visit(
-        patient_id=patient.patient_id,
-        token_number="A-102",
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.APPOINTMENT,
-    )
-    db.add(visit)
-    await db.flush()
-
-    entry = await routing_service.dispatch_initial_kiosk_route(visit.visit_id)
-
-    assert entry.department_id == system_departments["TRIAGE"].dept_id
+# ============================================================================
+# TEST: INITIAL KIOSK DISPATCH
+# ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_dispatch_walkin_to_reception(routing_service, walkin_visit, system_departments):
-    """Walk-in patients route directly to Reception."""
-    entry = await routing_service.dispatch_initial_kiosk_route(walkin_visit.visit_id)
+class TestDispatchInitialKioskRoute:
+    """Test suite for dispatch_initial_kiosk_route"""
 
-    assert entry.department_id == system_departments["RECEPTION"].dept_id
+    async def test_dispatch_emergency_patient(
+        self,
+        routing_service,
+        mock_visit,
+        mock_emergency_department,
+        mock_queue_entry,
+    ):
+        """Test emergency patients are routed directly to Emergency"""
+        mock_visit.entry_type = EntryType.EMERGENCY
+        mock_visit.patient.registration_status = RegistrationStatus.COMPLETE
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_code = AsyncMock(
+            return_value=mock_emergency_department
+        )
+        routing_service.transfer_patient = AsyncMock(return_value=mock_queue_entry)
+
+        result = await routing_service.dispatch_initial_kiosk_route(mock_visit.visit_id)
+
+        assert result == mock_queue_entry
+        routing_service.transfer_patient.assert_called_once()
+        call_kwargs = routing_service.transfer_patient.call_args[1]
+        assert call_kwargs["reason"] == TransferReason.DIRECT_ROUTING
+        assert call_kwargs["priority"] == QueuePriority.CRITICAL
+        assert "Emergency patient" in call_kwargs["notes"]
+
+    async def test_dispatch_incomplete_registration(
+        self,
+        routing_service,
+        mock_visit,
+        mock_reception_department,
+        mock_queue_entry,
+    ):
+        """Test incomplete registrations go to Reception"""
+        mock_visit.entry_type = EntryType.WALK_IN
+        mock_visit.patient.registration_status = RegistrationStatus.INCOMPLETE
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_code = AsyncMock(
+            return_value=mock_reception_department
+        )
+        routing_service.transfer_patient = AsyncMock(return_value=mock_queue_entry)
+
+        result = await routing_service.dispatch_initial_kiosk_route(mock_visit.visit_id)
+
+        assert result == mock_queue_entry
+        routing_service.transfer_patient.assert_called_once()
+        call_kwargs = routing_service.transfer_patient.call_args[1]
+        assert call_kwargs["priority"] == QueuePriority.NORMAL
+        assert "registration" in call_kwargs["notes"].lower()
+
+    async def test_dispatch_appointment_patient(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_queue_entry,
+    ):
+        """Test appointment patients bypass Reception and go to Triage"""
+        mock_visit.entry_type = EntryType.APPOINTMENT
+        mock_visit.patient.registration_status = RegistrationStatus.COMPLETE
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_code = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.transfer_patient = AsyncMock(return_value=mock_queue_entry)
+
+        result = await routing_service.dispatch_initial_kiosk_route(mock_visit.visit_id)
+
+        assert result == mock_queue_entry
+        routing_service.transfer_patient.assert_called_once()
+        call_kwargs = routing_service.transfer_patient.call_args[1]
+        assert "Appointment" in call_kwargs["notes"]
+
+    async def test_dispatch_walk_in_patient(
+        self,
+        routing_service,
+        mock_visit,
+        mock_reception_department,
+        mock_queue_entry,
+    ):
+        """Test walk-in patients go to Reception"""
+        mock_visit.entry_type = EntryType.WALK_IN
+        mock_visit.patient.registration_status = RegistrationStatus.COMPLETE
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_code = AsyncMock(
+            return_value=mock_reception_department
+        )
+        routing_service.transfer_patient = AsyncMock(return_value=mock_queue_entry)
+
+        result = await routing_service.dispatch_initial_kiosk_route(mock_visit.visit_id)
+
+        assert result == mock_queue_entry
+        routing_service.transfer_patient.assert_called_once()
+        call_kwargs = routing_service.transfer_patient.call_args[1]
+        assert "Walk-in" in call_kwargs["notes"]
+
+    async def test_dispatch_visit_not_found(self, routing_service):
+        """Test 404 when visit doesn't exist"""
+        routing_service.visit_service.get_visit = AsyncMock(return_value=None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.dispatch_initial_kiosk_route(uuid4())
+
+        assert exc_info.value.status_code == 404
+        assert "Visit not found" in exc_info.value.detail
 
 
-@pytest.mark.asyncio
-async def test_dispatch_referral_to_reception(db, routing_service, patient, system_departments):
-    """Referred patients route directly to Reception."""
-    visit = Visit(
-        patient_id=patient.patient_id,
-        token_number="R-201",
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.REFERRAL,
-    )
-    db.add(visit)
-    await db.flush()
-
-    entry = await routing_service.dispatch_initial_kiosk_route(visit.visit_id)
-
-    assert entry.department_id == system_departments["RECEPTION"].dept_id
+# ============================================================================
+# TEST: TRANSFER PATIENT
+# ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_dispatch_unknown_visit_raises_404(routing_service):
-    """Routing an invalid visit UUID raises HTTP 404."""
-    with pytest.raises(HTTPException) as exc:
-        await routing_service.dispatch_initial_kiosk_route(uuid.uuid4())
+class TestTransferPatient:
+    """Test suite for transfer_patient"""
 
-    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+    async def test_transfer_patient_success(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_in_progress_queue_entry,
+        mock_queue_entry,
+    ):
+        """Test successful patient transfer"""
+        staff_id = uuid4()
+        mock_in_progress_queue_entry.department_id = uuid4()  # Different department
+        mock_department.dept_id = uuid4()
 
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_in_progress_queue_entry
+        )
+        routing_service.queue_service.create_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.queue_service.get_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.queue_service.emit_department_event = AsyncMock()
 
-# ==============================================================================
-# GROUP 2: PATIENT TRANSFERS (5 TESTS)
-# ==============================================================================
-
-@pytest.mark.asyncio
-async def test_move_patient_success(routing_service, walkin_visit, system_departments):
-    """Verifies moving a patient creates a new active queue entry in the target department."""
-    target_dept = system_departments["TRIAGE"]
-
-    entry = await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=target_dept.dept_id,
-        priority=QueuePriority.NORMAL,
-        notes="Routing from kiosk to triage",
-    )
-
-    assert entry.department_id == target_dept.dept_id
-    assert entry.visit_id == walkin_visit.visit_id
-    assert entry.status == QueueEntryStatus.WAITING
-
-
-@pytest.mark.asyncio
-async def test_move_patient_completes_existing_queue(
-    routing_service,
-    walkin_visit,
-    system_departments,
-):
-    reception = system_departments["RECEPTION"]
-    triage = system_departments["TRIAGE"]
-
-    # Patient enters Reception queue
-    initial_entry = await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=reception.dept_id,
-    )
-
-    # Reception begins serving the patient
-    await routing_service.queue_service.call_queue_entry(
-        initial_entry.queue_entry_id
-    )
-
-    await routing_service.queue_service.start_consultation(
-        initial_entry.queue_entry_id
-    )
-
-    # Reception transfers patient to Triage
-    next_entry = await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=triage.dept_id,
-    )
-
-    completed_entry = await routing_service.queue_service.get_queue_entry(
-        initial_entry.queue_entry_id
-    )
-
-    assert completed_entry.status == QueueEntryStatus.COMPLETED
-    assert "Transferred" in completed_entry.notes
-    assert next_entry.queue_entry_id != initial_entry.queue_entry_id
-
-
-@pytest.mark.asyncio
-async def test_move_patient_updates_visit_current_queue(routing_service, walkin_visit, system_departments):
-    """Verifies that Visit.current_queue_entry_id is updated upon transfer."""
-    triage = system_departments["TRIAGE"]
-
-    entry = await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=triage.dept_id,
-    )
-
-    updated_visit = await routing_service.visit_service.get_visit(walkin_visit.visit_id)
-    assert updated_visit.current_queue_entry_id == entry.queue_entry_id
-
-
-@pytest.mark.asyncio
-async def test_move_patient_inactive_visit_rejected(db, routing_service, patient, system_departments):
-    """Transfers fail with HTTP 409 Conflict if the visit is no longer active (e.g., DISCHARGED)."""
-    closed_visit = Visit(
-        patient_id=patient.patient_id,
-        token_number="W-999",
-        stage=VisitStage.COMPLETED,
-        entry_type=EntryType.WALK_IN,
-    )
-    db.add(closed_visit)
-    await db.flush()
-
-    with pytest.raises(HTTPException) as exc:
-        await routing_service.move_patient(
-            visit_id=closed_visit.visit_id,
-            target_department_id=system_departments["TRIAGE"].dept_id,
+        result = await routing_service.transfer_patient(
+            visit_id=mock_visit.visit_id,
+            target_department_id=mock_department.dept_id,
+            priority=QueuePriority.NORMAL,
+            notes="Patient needs follow-up",
+            initiated_by_staff_id=staff_id,
         )
 
-    assert exc.value.status_code == status.HTTP_409_CONFLICT
+        assert result == mock_queue_entry
+        routing_service.queue_service.complete_queue_entry.assert_called_once()
+        routing_service.queue_service.create_queue_entry.assert_called_once()
+        routing_service.queue_service.emit_department_event.assert_called_once()
 
+    async def test_transfer_inactive_visit(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+    ):
+        """Test transfer fails when visit is not active"""
+        mock_visit.stage = VisitStage.COMPLETED
 
-@pytest.mark.asyncio
-async def test_move_patient_inactive_department_rejected(routing_service, walkin_visit, system_departments):
-    """Transfers fail with HTTP 400 Bad Request if the target department is marked inactive."""
-    closed_dept = system_departments["CLOSED"]
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
 
-    with pytest.raises(HTTPException) as exc:
-        await routing_service.move_patient(
-            visit_id=walkin_visit.visit_id,
-            target_department_id=closed_dept.dept_id,
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.transfer_patient(
+                visit_id=mock_visit.visit_id,
+                target_department_id=mock_department.dept_id,
+            )
+
+        assert exc_info.value.status_code == 409
+        assert "no longer active" in exc_info.value.detail
+
+    async def test_transfer_inactive_department(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+    ):
+        """Test transfer fails when target department is inactive"""
+        mock_department.is_active = False
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
         )
 
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.transfer_patient(
+                visit_id=mock_visit.visit_id,
+                target_department_id=mock_department.dept_id,
+            )
 
+        assert exc_info.value.status_code == 400
+        assert "inactive" in exc_info.value.detail
 
-# ==============================================================================
-# GROUP 3: CURRENT LOCATION (2 TESTS)
-# ==============================================================================
-
-@pytest.mark.asyncio
-async def test_get_current_location_active_queue(routing_service, walkin_visit, system_departments):
-    """Location query returns accurate department name, position, wait time, and queue status."""
-    reception = system_departments["RECEPTION"]
-    
-    await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=reception.dept_id,
-    )
-
-    loc = await routing_service.get_current_location(walkin_visit.visit_id)
-
-    assert loc["visit_id"] == walkin_visit.visit_id
-    assert loc["current_department_name"] == "Reception"
-    assert loc["current_department_id"] == reception.dept_id
-    assert loc["status"] == "WAITING"               # Maps to status.value
-    assert loc["position_in_line"] == 1             # Maps to position_in_line
-
-
-@pytest.mark.asyncio
-async def test_get_current_location_no_active_queue(routing_service, walkin_visit):
-    """Location query returns neutral empty metrics if the visit has no active ticket."""
-    loc = await routing_service.get_current_location(walkin_visit.visit_id)
-
-    assert loc["visit_id"] == walkin_visit.visit_id
-    assert loc["current_department_name"] is None
-    assert loc["status"] is None                    # Maps to status
-    assert loc["position_in_line"] == 0             # Maps to position_in_line
-    assert loc["estimated_wait_minutes"] == 0       # Maps to estimated_wait_minutes
-
-
-
-# ==============================================================================
-# GROUP 4: MOVEMENT HISTORY (2 TESTS)
-# ==============================================================================
-
-@pytest.mark.asyncio
-async def test_get_token_movement_history_ordered(
-    routing_service,
-    walkin_visit,
-    system_departments,
-):
-    reception = system_departments["RECEPTION"]
-    triage = system_departments["TRIAGE"]
-
-    e1 = await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=reception.dept_id,
-    )
-
-    await routing_service.queue_service.call_queue_entry(
-        e1.queue_entry_id
-    )
-
-    await routing_service.queue_service.start_consultation(
-        e1.queue_entry_id
-    )
-
-    e2 = await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=triage.dept_id,
-    )
-
-    history = await routing_service.get_token_movement_history(
-        walkin_visit.visit_id
-    )
-
-    assert len(history) == 2
-
-    assert history[0].queue_entry_id == e1.queue_entry_id
-    assert history[1].queue_entry_id == e2.queue_entry_id
-
-    assert history[0].department.name == "Reception"
-    assert history[1].department.name == "Triage"
-
-
-@pytest.mark.asyncio
-async def test_get_token_movement_history_empty(routing_service, walkin_visit):
-    """Movement history returns an empty list for a visit that has not been queued anywhere."""
-    history = await routing_service.get_token_movement_history(walkin_visit.visit_id)
-    assert history == []
-
-@pytest.mark.asyncio
-async def test_cannot_transfer_waiting_patient(
-    routing_service,
-    walkin_visit,
-    system_departments,
-):
-    reception = system_departments["RECEPTION"]
-    triage = system_departments["TRIAGE"]
-
-    await routing_service.move_patient(
-        visit_id=walkin_visit.visit_id,
-        target_department_id=reception.dept_id,
-    )
-
-    with pytest.raises(HTTPException) as exc:
-        await routing_service.move_patient(
-            visit_id=walkin_visit.visit_id,
-            target_department_id=triage.dept_id,
+    async def test_transfer_critical_without_notes(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+    ):
+        """Test transfer fails when CRITICAL priority has no notes"""
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
         )
 
-    assert exc.value.status_code == status.HTTP_409_CONFLICT
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.transfer_patient(
+                visit_id=mock_visit.visit_id,
+                target_department_id=mock_department.dept_id,
+                priority=QueuePriority.CRITICAL,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "clinical justification" in exc_info.value.detail.lower()
+
+    async def test_transfer_same_department(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_in_progress_queue_entry,
+    ):
+        """Test transfer fails when trying to transfer to same department"""
+        mock_in_progress_queue_entry.department_id = mock_department.dept_id
+        staff_id = uuid4()
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_in_progress_queue_entry
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.transfer_patient(
+                visit_id=mock_visit.visit_id,
+                target_department_id=mock_department.dept_id,
+                initiated_by_staff_id=staff_id,
+            )
+
+        assert exc_info.value.status_code == 409
+        assert "already queued" in exc_info.value.detail
+
+    async def test_transfer_not_in_progress(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_queue_entry,
+    ):
+        """Test transfer fails when queue entry is not IN_PROGRESS"""
+        mock_queue_entry.status = QueueEntryStatus.WAITING
+        staff_id = uuid4()
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.transfer_patient(
+                visit_id=mock_visit.visit_id,
+                target_department_id=mock_department.dept_id,
+                initiated_by_staff_id=staff_id,
+            )
+
+        assert exc_info.value.status_code == 409
+        assert "in-progress" in exc_info.value.detail.lower()
+
+    async def test_transfer_missing_staff_id(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_in_progress_queue_entry,
+    ):
+        """Test transfer fails when staff_id not provided for active entry"""
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_in_progress_queue_entry
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.transfer_patient(
+                visit_id=mock_visit.visit_id,
+                target_department_id=mock_department.dept_id,
+                # No initiated_by_staff_id
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "staff member" in exc_info.value.detail.lower()
+
+    async def test_transfer_return_visit_escalation(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_queue_entry,
+    ):
+        """Test return visits are auto-escalated to URGENT"""
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=None
+        )
+        routing_service.queue_service.create_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.queue_service.get_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.queue_service.emit_department_event = AsyncMock()
+
+        await routing_service.transfer_patient(
+            visit_id=mock_visit.visit_id,
+            target_department_id=mock_department.dept_id,
+            reason=TransferReason.RETURN_TO_DEPARTMENT,
+            priority=QueuePriority.NORMAL,  # Should be escalated to URGENT
+        )
+
+        call_kwargs = routing_service.queue_service.create_queue_entry.call_args[1]
+        assert call_kwargs["priority"] == QueuePriority.URGENT
+
+    async def test_transfer_no_active_entry(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_queue_entry,
+    ):
+        """Test transfer with no active queue entry (initial dispatch)"""
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=None
+        )
+        routing_service.queue_service.create_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.queue_service.get_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.queue_service.emit_department_event = AsyncMock()
+
+        result = await routing_service.transfer_patient(
+            visit_id=mock_visit.visit_id,
+            target_department_id=mock_department.dept_id,
+        )
+
+        assert result == mock_queue_entry
+        # Should not call complete_queue_entry when no active entry
+        routing_service.queue_service.complete_queue_entry.assert_not_called()
+        routing_service.queue_service.create_queue_entry.assert_called_once()
+
+
+# ============================================================================
+# TEST: GET CURRENT LOCATION
+# ============================================================================
+
+
+class TestGetCurrentLocation:
+    """Test suite for get_current_location"""
+
+    async def test_get_current_location_with_active_entry(
+        self,
+        routing_service,
+        mock_visit,
+        mock_department,
+        mock_queue_entry,
+    ):
+        """Test retrieving current location with active queue entry"""
+        mock_queue_entry.entered_at = datetime.utcnow()
+
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+        routing_service.queue_service.get_patient_position = AsyncMock(return_value=3)
+        routing_service.queue_service.get_estimated_wait_time = AsyncMock(return_value=15)
+
+        result = await routing_service.get_current_location(mock_visit.visit_id)
+
+        assert result["visit_id"] == mock_visit.visit_id
+        assert result["token_number"] == mock_visit.token_number
+        assert result["current_queue_entry_id"] == mock_queue_entry.queue_entry_id
+        assert result["current_department_id"] == mock_department.dept_id
+        assert result["current_department_name"] == mock_department.name
+        assert result["position_in_line"] == 3
+        assert result["estimated_wait_minutes"] == 15
+        assert result["status"] == mock_queue_entry.status.value
+
+    async def test_get_current_location_no_active_entry(
+        self,
+        routing_service,
+        mock_visit,
+    ):
+        """Test retrieving location when no active queue entry"""
+        routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=None
+        )
+
+        result = await routing_service.get_current_location(mock_visit.visit_id)
+
+        assert result["visit_id"] == mock_visit.visit_id
+        assert result["current_queue_entry_id"] is None
+        assert result["current_department_id"] is None
+        assert result["current_department_name"] is None
+        assert result["status"] is None
+        assert result["position_in_line"] == 0
+        assert result["estimated_wait_minutes"] == 0
+
+    async def test_get_current_location_invalid_visit(self, routing_service):
+        """Test location retrieval for non-existent visit"""
+        routing_service.visit_service.get_visit = AsyncMock(
+            side_effect=HTTPException(status_code=404, detail="Visit not found")
+        )
+
+        with pytest.raises(HTTPException):
+            await routing_service.get_current_location(uuid4())
+
+
+# ============================================================================
+# TEST: GET TOKEN MOVEMENT HISTORY
+# ============================================================================
+
+
+class TestGetTokenMovementHistory:
+    """Test suite for get_token_movement_history"""
+
+    async def test_get_movement_history(
+        self,
+        routing_service,
+        mock_visit,
+        mock_queue_entry,
+    ):
+        """Test retrieving patient movement history"""
+        history_entries = [
+            MagicMock(spec=QueueEntry, queue_entry_id=uuid4()),
+            MagicMock(spec=QueueEntry, queue_entry_id=uuid4()),
+            MagicMock(spec=QueueEntry, queue_entry_id=uuid4()),
+        ]
+
+        routing_service.visit_service.get_visit = AsyncMock(
+            return_value=mock_visit
+        )
+
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        with patch.object(routing_service, "db") as mock_db:
+            # db.execute() is async, but the SQLAlchemy result is not.
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = history_entries
+
+            mock_db.execute = AsyncMock(return_value=mock_result)
+
+            result = await routing_service.get_token_movement_history(
+                mock_visit.visit_id
+            )
+
+            assert len(result) == 3
+            assert result == history_entries
+            assert all(isinstance(entry, MagicMock) for entry in result)
+
+            mock_db.execute.assert_awaited_once()
+
+    async def test_get_movement_history_visit_not_found(
+        self,
+        routing_service,
+    ):
+        """Test history retrieval for non-existent visit"""
+
+        routing_service.visit_service.get_visit = AsyncMock(
+            side_effect=HTTPException(
+                status_code=404,
+                detail="Visit not found",
+            )
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await routing_service.get_token_movement_history(uuid4())
+
+        assert exc_info.value.status_code == 404
+
+
+
+# ============================================================================
+# TEST: DELEGATED QUEUE OPERATIONS
+# ============================================================================
+
+
+class TestDelegatedQueueOperations:
+    """Test suite for delegated queue operations"""
+
+    async def test_call_queue_entry(self, routing_service, mock_queue_entry):
+        """Test calling a queue entry"""
+        mock_queue_entry.status = QueueEntryStatus.CALLED
+        routing_service.queue_service.call_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        result = await routing_service.call_queue_entry(mock_queue_entry.queue_entry_id)
+
+        assert result == mock_queue_entry
+        routing_service.queue_service.call_queue_entry.assert_called_once_with(
+            mock_queue_entry.queue_entry_id
+        )
+
+    async def test_start_queue_entry(self, routing_service, mock_queue_entry):
+        """Test starting a queue entry"""
+        mock_queue_entry.status = QueueEntryStatus.IN_PROGRESS
+        routing_service.queue_service.start_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        result = await routing_service.start_queue_entry(mock_queue_entry.queue_entry_id)
+
+        assert result == mock_queue_entry
+        routing_service.queue_service.start_queue_entry.assert_called_once_with(
+            mock_queue_entry.queue_entry_id
+        )
+
+    async def test_complete_queue_entry(self, routing_service, mock_queue_entry):
+        """Test completing a queue entry"""
+        mock_queue_entry.status = QueueEntryStatus.COMPLETED
+        routing_service.queue_service.complete_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        result = await routing_service.complete_queue_entry(
+            mock_queue_entry.queue_entry_id,
+            notes="Completed successfully",
+        )
+
+        assert result == mock_queue_entry
+        routing_service.queue_service.complete_queue_entry.assert_called_once_with(
+            mock_queue_entry.queue_entry_id,
+            notes="Completed successfully",
+        )
+
+    async def test_mark_no_show(self, routing_service, mock_queue_entry):
+        """Test marking queue entry as no-show"""
+        mock_queue_entry.status = QueueEntryStatus.NO_SHOW
+        routing_service.queue_service.mark_no_show = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        result = await routing_service.mark_no_show(
+            mock_queue_entry.queue_entry_id,
+            notes="Patient didn't show up",
+        )
+
+        assert result == mock_queue_entry
+        routing_service.queue_service.mark_no_show.assert_called_once_with(
+            mock_queue_entry.queue_entry_id,
+            notes="Patient didn't show up",
+        )
+
+    async def test_cancel_queue_entry(self, routing_service, mock_queue_entry):
+        """Test canceling a queue entry"""
+        mock_queue_entry.status = QueueEntryStatus.CANCELLED
+        routing_service.queue_service.cancel_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        result = await routing_service.cancel_queue_entry(
+            mock_queue_entry.queue_entry_id,
+            notes="Cancelled by patient",
+        )
+
+        assert result == mock_queue_entry
+        routing_service.queue_service.cancel_queue_entry.assert_called_once_with(
+            mock_queue_entry.queue_entry_id,
+            notes="Cancelled by patient",
+        )
+
+
+# ============================================================================
+# INTEGRATION-STYLE TESTS
+# ============================================================================
+
+
+class TestRoutingServiceIntegration:
+    """Integration tests combining multiple operations"""
+
+    async def test_complete_patient_journey(
+        self,
+        routing_service,
+        mock_visit,
+        mock_reception_department,
+        mock_department,
+        mock_queue_entry,
+        mock_in_progress_queue_entry,
+    ):
+        """Test complete patient journey: dispatch -> transfer -> complete"""
+
+        staff_id = uuid4()
+
+        # ---------------------------------------------------------
+        # Step 1: Initial dispatch to Reception
+        # ---------------------------------------------------------
+
+        routing_service.visit_service.get_visit = AsyncMock(
+            return_value=mock_visit
+        )
+
+        routing_service.department_service.get_by_code = AsyncMock(
+            return_value=mock_reception_department
+        )
+
+        routing_service.department_service.get_by_id = AsyncMock(
+            return_value=mock_department
+        )
+
+        # IMPORTANT:
+        # Initial kiosk dispatch has no existing active queue entry.
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=None
+        )
+
+        routing_service.queue_service.create_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        routing_service.queue_service.get_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        routing_service.queue_service.emit_department_event = AsyncMock()
+
+        # Initial dispatch
+        dispatch_result = await routing_service.dispatch_initial_kiosk_route(
+            mock_visit.visit_id
+        )
+
+        assert dispatch_result == mock_queue_entry
+
+        # ---------------------------------------------------------
+        # Step 2: Call patient
+        # ---------------------------------------------------------
+
+        routing_service.queue_service.call_queue_entry = AsyncMock(
+            return_value=mock_queue_entry
+        )
+
+        called_result = await routing_service.call_queue_entry(
+            mock_queue_entry.queue_entry_id
+        )
+
+        assert called_result == mock_queue_entry
+
+        # ---------------------------------------------------------
+        # Step 3: Start service
+        # ---------------------------------------------------------
+
+        routing_service.queue_service.start_queue_entry = AsyncMock(
+            return_value=mock_in_progress_queue_entry
+        )
+
+        started_result = await routing_service.start_queue_entry(
+            mock_queue_entry.queue_entry_id
+        )
+
+        assert started_result == mock_in_progress_queue_entry
+
+        # ---------------------------------------------------------
+        # Step 4: Transfer to clinic
+        # ---------------------------------------------------------
+
+        # The current queue entry must be IN_PROGRESS.
+        mock_in_progress_queue_entry.status = QueueEntryStatus.IN_PROGRESS
+
+        # Make sure current department differs from target department.
+        mock_in_progress_queue_entry.department_id = uuid4()
+
+        # During transfer, the patient now has an active
+        # in-progress queue entry.
+        routing_service.queue_service.get_active_queue_entry = AsyncMock(
+            return_value=mock_in_progress_queue_entry
+        )
+
+        new_queue_entry = MagicMock(spec=QueueEntry)
+        new_queue_entry.queue_entry_id = uuid4()
+
+        routing_service.queue_service.create_queue_entry = AsyncMock(
+            return_value=new_queue_entry
+        )
+
+        routing_service.queue_service.get_queue_entry = AsyncMock(
+            return_value=new_queue_entry
+        )
+
+        routing_service.queue_service.complete_queue_entry = AsyncMock()
+
+        transferred = await routing_service.transfer_patient(
+            visit_id=mock_visit.visit_id,
+            target_department_id=mock_department.dept_id,
+            initiated_by_staff_id=staff_id,
+        )
+
+        assert transferred == new_queue_entry
+        routing_service.queue_service.complete_queue_entry.assert_awaited_once()
+        routing_service.queue_service.create_queue_entry.assert_awaited()
+        routing_service.queue_service.emit_department_event.assert_awaited()

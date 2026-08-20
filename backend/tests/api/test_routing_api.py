@@ -359,14 +359,34 @@ async def test_dispatch_completed_visit_fails(
 
 # ── GROUP 2: MOVE PATIENT ────────────────────────────────────────────────────
 
-async def test_move_patient_success(
-    client: AsyncClient, db, active_visit, queue_entry, doctor_token_headers, setup_departments
+
+async def test_dispatch_rejects_an_invalid_kiosk_api_key(
+    client: AsyncClient,
 ):
-    """POST /api/routing/move/{visit_id} - Moves in-progress patient to target department."""
+    """Kiosk dispatch is unavailable without the managed-device secret."""
+    response = await client.post(
+        f"/api/routing/dispatch/{uuid4()}",
+        headers={"X-Kiosk-API-Key": "invalid-key"},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+async def test_move_patient_success(
+    client,
+    db,
+    active_visit,
+    queue_entry,
+    doctor_staff,
+    doctor_token_headers,
+    setup_departments,
+):
     queue_entry.status = QueueEntryStatus.IN_PROGRESS
+    queue_entry.assigned_staff_id = doctor_staff.staff_id
+
     await db.commit()
 
     target_dept = setup_departments["TRIAGE"]
+
     payload = {
         "target_department_id": str(target_dept.dept_id),
         "priority": "NORMAL",
@@ -374,16 +394,22 @@ async def test_move_patient_success(
     }
 
     response = await client.post(
-        f"/api/routing/move/{active_visit.visit_id}", json=payload, headers=doctor_token_headers
+        f"/api/routing/move/{active_visit.visit_id}",
+        json=payload,
+        headers=doctor_token_headers,
     )
+
     assert response.status_code == status.HTTP_200_OK
 
     data = response.json()
+
     assert data["department_id"] == str(target_dept.dept_id)
     assert data["visit_id"] == str(active_visit.visit_id)
     assert data["status"] == "WAITING"
     assert data["priority"] == "NORMAL"
     assert data["notes"] == "Transferring to triage"
+
+
 
 
 async def test_move_patient_inactive_department(
@@ -425,23 +451,35 @@ async def test_move_patient_invalid_uuid(client: AsyncClient, doctor_token_heade
 
 
 async def test_move_patient_token_preservation_regression(
-    client: AsyncClient, db, active_visit, queue_entry, doctor_token_headers, setup_departments
+    client: AsyncClient,
+    db,
+    active_visit,
+    queue_entry,
+    doctor_staff,
+    doctor_token_headers,
+    setup_departments,
 ):
-    """POST /api/routing/move/{visit_id} - Preserves token number across movement."""
     queue_entry.status = QueueEntryStatus.IN_PROGRESS
+    queue_entry.assigned_staff_id = doctor_staff.staff_id
+
     old_token = active_visit.token_number
+
     await db.commit()
 
     target_dept = setup_departments["TRIAGE"]
-    payload = {"target_department_id": str(target_dept.dept_id)}
 
     response = await client.post(
-        f"/api/routing/move/{active_visit.visit_id}", json=payload, headers=doctor_token_headers
+        f"/api/routing/move/{active_visit.visit_id}",
+        json={"target_department_id": str(target_dept.dept_id)},
+        headers=doctor_token_headers,
     )
+
     assert response.status_code == status.HTTP_200_OK
 
     await db.refresh(active_visit)
+
     assert active_visit.token_number == old_token
+
 
 async def test_move_patient_forbidden_role(
     client,

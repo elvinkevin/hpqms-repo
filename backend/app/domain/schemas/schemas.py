@@ -16,20 +16,29 @@ class ORMBase(BaseModel):
 
 # ── KIOSK TOUCHSCREEN PAYLOADS ────────────────────────────────────────────
 
-class KioskCheckInRequest(BaseModel):
-    """
-    Polymorphic payload used exclusively by the kiosk terminal touchscreen.
-    Accepts either a National ID or a Phone Number as a single string field.
-    """
-    identifier: str = Field(..., description="Enter National ID or Phone Number")
+class PatientIdentifierType(str, Enum):
+    PHONE = "PHONE"
+    NATIONAL_ID = "NATIONAL_ID"
 
-    @field_validator("identifier")
-    @classmethod
-    def clean_identifier(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 5:
-            raise ValueError("Identifier input must be at least 5 characters long")
-        return v
+class KioskCheckInRequest(BaseModel):
+    identifier: str = Field(min_length=1)
+    identifier_type: PatientIdentifierType
+    visit_type: EntryType
+
+
+class KioskCheckInResponse(BaseModel):
+    patient_id: UUID
+    visit_id: UUID
+    queue_entry_id: UUID
+
+    token_number: str
+    entry_type: EntryType
+
+    department_id: UUID
+    department_name: str
+
+    status: QueueEntryStatus
+
 
 # ── PATIENT SCHEMAS ───────────────────────────────────────────────────────
 
@@ -305,22 +314,25 @@ class MessageResponse(BaseModel):
 # ── NEW: DEPARTMENT QUEUE ENTRY SCHEMAS ───────────────────────────────────
 
 class QueueEntryRead(ORMBase):
-    """Replaces legacy QueueTokenRead to map cleanly to the current room segments."""
     queue_entry_id: UUID
     visit_id: UUID
     department_id: UUID
+    department_name: Optional[str] = None
+
     assigned_staff_id: Optional[UUID]
     sequence_number: int
     priority: QueuePriority
     status: QueueEntryStatus
     notes: Optional[str]
+
     entered_at: datetime
     called_at: Optional[datetime]
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
-    
-    # Eager relational embedding parameters
+
     visit: Optional[VisitRead] = None
+
+
 
 class QueueEntryStatusUpdate(BaseModel):
     """Used by staff members to progress tokens (e.g., WAITING -> CALLED)."""
@@ -338,21 +350,22 @@ class PatientMovementRequest(BaseModel):
 class LiveLocationRead(BaseModel):
     visit_id: UUID
     token_number: str
-    visit_stage: str
+    visit_stage: VisitStage
 
     current_queue_entry_id: Optional[UUID] = None
 
     current_department_id: Optional[UUID] = None
     current_department_name: Optional[str] = None
 
-    status: Optional[str] = None
+    status: Optional[QueueEntryStatus] = None
 
     assigned_staff_id: Optional[UUID] = None
 
-    position_in_line: int
-    estimated_wait_minutes: int
+    position_in_line: Optional[int] = None
+    estimated_wait_minutes: Optional[int] = None
 
     entered_at: Optional[datetime] = None
+
 
 # ── VITALS SCHEMAS ────────────────────────────────────────────────────────
 
@@ -752,7 +765,7 @@ class NotificationEvent(BaseModel):
 
     message: str | None = Field(
         default=None,
-        max_length=500,
+        max_length=255,
         description="Optional human-readable event or announcement message",
     )
 
@@ -764,3 +777,37 @@ class NotificationEvent(BaseModel):
         default_factory=list,
         description="Consumers that should react to this event",
     )
+
+
+
+class TransferReason(str, Enum):
+    DEPARTMENT_TRANSFER = "DEPARTMENT_TRANSFER"
+    DIRECT_ROUTING = "DIRECT_ROUTING"
+    CLINICAL_REFERRAL = "CLINICAL_REFERRAL"
+    RETURN_TO_DEPARTMENT = "RETURN_TO_DEPARTMENT"
+
+
+from pydantic import BaseModel, Field, model_validator
+
+
+class TransferPatientRequest(BaseModel):
+    target_department_id: UUID
+
+    reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER
+
+    priority: QueuePriority = QueuePriority.NORMAL
+
+    notes: Optional[str] = Field(
+        default=None,
+        description="Mandatory when priority is CRITICAL or when clinical notes are required.",
+        max_length=1000,
+    )
+
+    @model_validator(mode="after")
+    def validate_transfer(self):
+        if self.priority == QueuePriority.CRITICAL and not self.notes:
+            raise ValueError(
+                "notes are required when priority is CRITICAL"
+            )
+
+        return self

@@ -154,9 +154,9 @@ async def test_starting_called_queue_entry_updates_display(
         ↓
     Backend state becomes IN_PROGRESS
         ↓
-    WebSocket publishes QUEUE_UPDATED
+    WebSocket publishes TOKEN_SERVICE_STARTED
         ↓
-    Public display receives the update
+    Public display receives the event
     """
 
     await db.commit()
@@ -222,20 +222,25 @@ async def test_starting_called_queue_entry_updates_display(
                 assert start_body["visit"]["token_number"] == "W-101"
 
                 # --------------------------------------------------
-                # 4. Verify display receives QUEUE_UPDATED
+                # 4. Verify display receives TOKEN_SERVICE_STARTED
                 # --------------------------------------------------
 
                 update_event = websocket.receive_json()
 
-                assert update_event["event_type"] == "QUEUE_UPDATED"
+                assert update_event["event_type"] == (
+                    "TOKEN_SERVICE_STARTED"
+                )
+                assert update_event["token_number"] == "W-101"
                 assert update_event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert update_event["status"] == "IN_PROGRESS"
 
     finally:
         app.dependency_overrides.clear()
         ws_manager._display_connections.clear()
         ws_manager._staff_connections.clear()
+
 
 @pytest.mark.asyncio
 async def test_completing_in_progress_queue_entry_updates_display(
@@ -273,14 +278,20 @@ async def test_completing_in_progress_queue_entry_updates_display(
                 "/ws/display"
             ) as websocket:
 
+                # --------------------------------------------------
                 # 1. Consume connection handshake
+                # --------------------------------------------------
+
                 connection_event = websocket.receive_json()
 
                 assert connection_event["event_type"] == (
                     "CONNECTION_ESTABLISHED"
                 )
 
+                # --------------------------------------------------
                 # 2. Call patient
+                # --------------------------------------------------
+
                 call_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/call",
                     headers=receptionist_token_headers,
@@ -295,7 +306,10 @@ async def test_completing_in_progress_queue_entry_updates_display(
                 assert called_event["event_type"] == "TOKEN_CALLED"
                 assert called_event["token_number"] == "W-101"
 
+                # --------------------------------------------------
                 # 3. Start service
+                # --------------------------------------------------
+
                 start_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/start",
                     headers=receptionist_token_headers,
@@ -304,15 +318,22 @@ async def test_completing_in_progress_queue_entry_updates_display(
                 assert start_response.status_code == 200
                 assert start_response.json()["status"] == "IN_PROGRESS"
 
-                # Consume QUEUE_UPDATED
-                updated_event = websocket.receive_json()
+                # Consume TOKEN_SERVICE_STARTED
+                started_event = websocket.receive_json()
 
-                assert updated_event["event_type"] == "QUEUE_UPDATED"
-                assert updated_event["department_id"] == str(
+                assert started_event["event_type"] == (
+                    "TOKEN_SERVICE_STARTED"
+                )
+                assert started_event["token_number"] == "W-101"
+                assert started_event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert started_event["status"] == "IN_PROGRESS"
 
+                # --------------------------------------------------
                 # 4. Complete service
+                # --------------------------------------------------
+
                 complete_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/complete",
                     headers=receptionist_token_headers,
@@ -325,7 +346,10 @@ async def test_completing_in_progress_queue_entry_updates_display(
                 assert complete_body["status"] == "COMPLETED"
                 assert complete_body["visit"]["token_number"] == "W-101"
 
+                # --------------------------------------------------
                 # 5. Verify TOKEN_COMPLETED reaches display
+                # --------------------------------------------------
+
                 completed_event = websocket.receive_json()
 
                 assert completed_event["event_type"] == (
@@ -335,11 +359,13 @@ async def test_completing_in_progress_queue_entry_updates_display(
                 assert completed_event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert completed_event["status"] == "COMPLETED"
 
     finally:
         app.dependency_overrides.clear()
         ws_manager._display_connections.clear()
         ws_manager._staff_connections.clear()
+
 
 @pytest.mark.asyncio
 async def test_cancelling_queue_entry_updates_display(
@@ -557,13 +583,17 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                 assert start_response.status_code == 200
                 assert start_response.json()["status"] == "IN_PROGRESS"
 
-                # Consume QUEUE_UPDATED event.
+                # Consume TOKEN_SERVICE_STARTED event.
                 started_event = websocket.receive_json()
 
-                assert started_event["event_type"] == "QUEUE_UPDATED"
+                assert started_event["event_type"] == (
+                    "TOKEN_SERVICE_STARTED"
+                )
+                assert started_event["token_number"] == "W-101"
                 assert started_event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert started_event["status"] == "IN_PROGRESS"
 
                 # --------------------------------------------------
                 # 4. IN_PROGRESS -> COMPLETED
@@ -590,18 +620,18 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                 assert completed_event["event_type"] == (
                     "TOKEN_COMPLETED"
                 )
-
                 assert completed_event["token_number"] == "W-101"
-
                 assert completed_event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert completed_event["status"] == "COMPLETED"
 
     finally:
         app.dependency_overrides.clear()
 
         ws_manager._display_connections.clear()
         ws_manager._staff_connections.clear()
+
 
 @pytest.mark.asyncio
 async def test_cancelling_queue_entry_broadcasts_token_cancelled_to_display(
@@ -661,7 +691,7 @@ async def test_cancelling_queue_entry_broadcasts_token_cancelled_to_display(
         ws_manager._staff_connections.clear()
 
 @pytest.mark.asyncio
-async def test_queue_change_broadcasts_queue_updated_to_display(
+async def test_queue_change_broadcasts_token_service_started_to_display(
     db,
     queue_entry,
     receptionist_token_headers,
@@ -669,7 +699,7 @@ async def test_queue_change_broadcasts_queue_updated_to_display(
     """
     WAITING -> CALLED -> IN_PROGRESS
 
-    The public display should receive QUEUE_UPDATED
+    The public display should receive TOKEN_SERVICE_STARTED
     when the patient enters service.
     """
 
@@ -687,15 +717,19 @@ async def test_queue_change_broadcasts_queue_updated_to_display(
                 "/ws/display"
             ) as websocket:
 
+                # --------------------------------------------------
+                # 1. Consume WebSocket handshake
+                # --------------------------------------------------
+
                 connection_event = websocket.receive_json()
 
                 assert connection_event["event_type"] == (
                     "CONNECTION_ESTABLISHED"
                 )
 
-                # -----------------------------------------------
-                # WAITING -> CALLED
-                # -----------------------------------------------
+                # --------------------------------------------------
+                # 2. WAITING -> CALLED
+                # --------------------------------------------------
 
                 call_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/call",
@@ -708,10 +742,11 @@ async def test_queue_change_broadcasts_queue_updated_to_display(
                 called_event = websocket.receive_json()
 
                 assert called_event["event_type"] == "TOKEN_CALLED"
+                assert called_event["token_number"] == "W-101"
 
-                # -----------------------------------------------
-                # CALLED -> IN_PROGRESS
-                # -----------------------------------------------
+                # --------------------------------------------------
+                # 3. CALLED -> IN_PROGRESS
+                # --------------------------------------------------
 
                 start_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/start",
@@ -725,21 +760,26 @@ async def test_queue_change_broadcasts_queue_updated_to_display(
                 assert body["status"] == "IN_PROGRESS"
                 assert body["visit"]["token_number"] == "W-101"
 
-                # -----------------------------------------------
-                # Verify display update
-                # -----------------------------------------------
+                # --------------------------------------------------
+                # 4. Verify TOKEN_SERVICE_STARTED
+                # --------------------------------------------------
 
                 event = websocket.receive_json()
 
-                assert event["event_type"] == "QUEUE_UPDATED"
+                assert event["event_type"] == (
+                    "TOKEN_SERVICE_STARTED"
+                )
                 assert event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert event["token_number"] == "W-101"
+                assert event["status"] == "IN_PROGRESS"
 
     finally:
         app.dependency_overrides.clear()
         ws_manager._display_connections.clear()
         ws_manager._staff_connections.clear()
+
 
 @pytest.mark.asyncio
 async def test_event_reaches_only_correct_department_display(
@@ -886,7 +926,7 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
     receptionist_token_headers,
 ):
     """
-    End-to-end flow:
+    End-to-end test:
 
     Queue entry is called
         ↓
@@ -896,7 +936,9 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
         ↓
     Backend commits the state
         ↓
-    Display receives TOKEN_COMPLETED
+    WebSocket manager publishes TOKEN_COMPLETED
+        ↓
+    Public display receives the event
     """
 
     await db.commit()
@@ -913,84 +955,95 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                 "/ws/display"
             ) as websocket:
 
-                # Consume WebSocket handshake.
+                # --------------------------------------------------
+                # 1. Consume WebSocket handshake
+                # --------------------------------------------------
+
                 connection_event = websocket.receive_json()
 
                 assert connection_event["event_type"] == (
                     "CONNECTION_ESTABLISHED"
                 )
 
-                # -------------------------------------------------
-                # 1. CALL
-                # -------------------------------------------------
+                # --------------------------------------------------
+                # 2. WAITING -> CALLED
+                # --------------------------------------------------
 
-                response = test_client.patch(
+                call_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/call",
                     headers=receptionist_token_headers,
                 )
 
-                assert response.status_code == 200
-                assert response.json()["status"] == "CALLED"
+                assert call_response.status_code == 200
+                assert call_response.json()["status"] == "CALLED"
 
-                # Consume TOKEN_CALLED before continuing.
+                # Consume TOKEN_CALLED event.
                 called_event = websocket.receive_json()
 
                 assert called_event["event_type"] == "TOKEN_CALLED"
                 assert called_event["token_number"] == "W-101"
 
-                # -------------------------------------------------
-                # 2. START SERVICE
-                # -------------------------------------------------
+                # --------------------------------------------------
+                # 3. CALLED -> IN_PROGRESS
+                # --------------------------------------------------
 
-                response = test_client.patch(
+                start_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/start",
                     headers=receptionist_token_headers,
                 )
 
-                assert response.status_code == 200
-                assert response.json()["status"] == "IN_PROGRESS"
+                assert start_response.status_code == 200
+                assert start_response.json()["status"] == "IN_PROGRESS"
 
-                # Consume QUEUE_UPDATED.
-               
-                updated_event = websocket.receive_json()
+                # Consume TOKEN_SERVICE_STARTED event.
+                started_event = websocket.receive_json()
 
-                assert updated_event["event_type"] == "QUEUE_UPDATED"
-                assert updated_event["department_id"] == str(
+                assert started_event["event_type"] == (
+                    "TOKEN_SERVICE_STARTED"
+                )
+                assert started_event["token_number"] == "W-101"
+                assert started_event["department_id"] == str(
                     queue_entry.department_id
                 )
-                assert "W-101" in updated_event["message"]
+                assert started_event["status"] == "IN_PROGRESS"
 
-                # -------------------------------------------------
-                # 3. COMPLETE
-                # -------------------------------------------------
+                # --------------------------------------------------
+                # 4. IN_PROGRESS -> COMPLETED
+                # --------------------------------------------------
 
-                response = test_client.patch(
+                complete_response = test_client.patch(
                     f"/api/queue/{queue_entry.queue_entry_id}/complete",
                     headers=receptionist_token_headers,
                 )
 
-                assert response.status_code == 200
+                assert complete_response.status_code == 200
 
-                body = response.json()
+                body = complete_response.json()
 
                 assert body["status"] == "COMPLETED"
+                assert body["visit"]["token_number"] == "W-101"
 
-                # -------------------------------------------------
-                # 4. VERIFY DISPLAY EVENT
-                # -------------------------------------------------
+                # --------------------------------------------------
+                # 5. Verify TOKEN_COMPLETED reached display
+                # --------------------------------------------------
 
-                event = websocket.receive_json()
+                completed_event = websocket.receive_json()
 
-                assert event["event_type"] == "TOKEN_COMPLETED"
-                assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
+                assert completed_event["event_type"] == (
+                    "TOKEN_COMPLETED"
+                )
+                assert completed_event["token_number"] == "W-101"
+                assert completed_event["department_id"] == str(
                     queue_entry.department_id
                 )
+                assert completed_event["status"] == "COMPLETED"
 
     finally:
         app.dependency_overrides.clear()
+
         ws_manager._display_connections.clear()
         ws_manager._staff_connections.clear()
+
 
 
 @pytest.mark.asyncio

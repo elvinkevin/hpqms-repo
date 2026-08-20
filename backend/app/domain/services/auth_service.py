@@ -1,6 +1,8 @@
+from hmac import compare_digest
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +15,7 @@ from app.core.security import (
     decode_access_token,
     decode_refresh_token,
 )
+from app.core.config import settings
 from app.db.session import get_db
 from app.domain.models.models import Staff, StaffRole
 from app.domain.schemas.schemas import (
@@ -23,6 +26,11 @@ from app.domain.schemas.schemas import (
     CurrentUser,
 )
 
+KIOSK_API_KEY_NAME = "X-Kiosk-API-Key"
+kiosk_key_header = APIKeyHeader(
+    name=KIOSK_API_KEY_NAME,
+    auto_error=False,
+)
 
 class AuthService:
     """
@@ -270,3 +278,28 @@ def ensure_department_access(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to access this department.",
         )
+
+
+
+async def validate_kiosk_api_key(
+    api_key_header: str | None = Security(kiosk_key_header),
+) -> str:
+    """
+    Validates that the incoming request header matches the server's
+    stored secret kiosk environment variable.
+    """
+    expected_key = settings.KIOSK_INTERNAL_API_KEY
+
+    if not expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Kiosk authentication backend configuration error."
+        )
+
+    if not api_key_header or not compare_digest(api_key_header, expected_key):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate Kiosk credentials."
+        )
+
+    return api_key_header

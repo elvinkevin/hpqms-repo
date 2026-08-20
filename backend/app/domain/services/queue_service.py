@@ -1,6 +1,6 @@
 import zoneinfo
 from datetime import date, datetime, timezone
-from typing import Final, List, Optional
+from typing import Any, Final, List, Mapping, Optional
 from uuid import UUID, uuid4
 
 from asyncpg.exceptions import UniqueViolationError
@@ -726,14 +726,14 @@ class QueueService:
     ) -> QueueEntry:
 
         stmt = (
-            select(QueueEntry)
-            .options(
-                # Chained load: loads QueueEntry -> Visit -> Patient
-                selectinload(QueueEntry.visit).selectinload(Visit.patient),
-                selectinload(QueueEntry.department),
+                select(QueueEntry)
+                .options(
+                    selectinload(QueueEntry.visit),
+                    selectinload(QueueEntry.department),
+                )
+                .where(QueueEntry.queue_entry_id == queue_entry_id)
             )
-            .where(QueueEntry.queue_entry_id == queue_entry_id)
-        )
+
         result = await self.db.execute(stmt)
         entry = result.scalar_one_or_none()
 
@@ -766,6 +766,7 @@ class QueueService:
         self,
         entry: QueueEntry,
         event_type: str,
+        extra_payload: Mapping[str, Any] | None = None,
     ) -> None:
         department_id = str(entry.department_id)
 
@@ -811,6 +812,9 @@ class QueueService:
             ),
             "server_timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+        if extra_payload:
+            payload.update(extra_payload)
 
         await ws_manager.broadcast_department(
             payload,

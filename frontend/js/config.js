@@ -87,6 +87,10 @@ const DEFAULT_CONFIG = {
         announcements: true,
         multiDepartment: true,
     },
+
+    kiosk: {
+        apiKey: "generate-a-long-random-value",
+    },
 };
 
 
@@ -448,6 +452,9 @@ export function getConfigValue(path) {
 
     return deepClone(value);
 }
+
+
+
 
 
 /**

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.security import create_access_token, hash_password
+from app.core.config import settings
 from app.db.session import Base, get_db
 from app.domain.models.models import (
     Department,
@@ -90,9 +91,17 @@ async def client(db):
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
+    original_kiosk_key = settings.KIOSK_INTERNAL_API_KEY
+    settings.KIOSK_INTERNAL_API_KEY = "test-kiosk-api-key"
+
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Kiosk-API-Key": settings.KIOSK_INTERNAL_API_KEY},
+    ) as ac:
         yield ac
+    settings.KIOSK_INTERNAL_API_KEY = original_kiosk_key
     app.dependency_overrides.clear()
 
 
@@ -265,3 +274,27 @@ async def queue_entry(db, active_visit, department):
     await db.commit()
     await db.refresh(entry)
     return entry
+
+
+
+import pytest_asyncio
+
+@pytest_asyncio.fixture
+async def patient_factory(db, faker):
+    async def _create_patient(**kwargs):
+        defaults = {
+            "first_name": faker.first_name(),
+            "last_name": faker.last_name(),
+            "gender": "MALE",
+            "date_of_birth": faker.date_of_birth(),
+            "phone": faker.phone_number(),
+        }
+        defaults.update(kwargs)
+        patient = Patient(**defaults)
+        db.add(patient)
+        await db.flush()
+        return patient
+
+    return _create_patient
+
+

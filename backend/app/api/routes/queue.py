@@ -3,10 +3,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy.orm import selectinload
 from app.db.session import get_db
-from app.domain.models.models import QueueEntry, QueueEntryStatus, StaffRole
+from app.domain.models.models import QueueEntry, QueueEntryStatus, StaffRole, Visit
 from app.domain.schemas.schemas import CurrentUser, QueueEntryRead
 from app.domain.services.auth_service import (
     ensure_department_access,
@@ -255,27 +256,65 @@ async def requeue_queue_entry(
 ):
     service = QueueService(db)
 
-    entry = await service.requeue_queue_entry(
+    # --------------------------------------------------------------
+    # 1. Perform state transition
+    # --------------------------------------------------------------
+
+    await service.requeue_queue_entry(
         queue_entry_id,
         staff_id=current_user.staff_id,
     )
 
-    await db.commit()
-    await db.refresh(entry)
+    # --------------------------------------------------------------
+    # 2. Commit transaction
+    # --------------------------------------------------------------
 
-    # Broadcast to display boards
+    await db.commit()
+
+    # --------------------------------------------------------------
+    # 3. Reload committed state with ALL relationships needed by:
+    #    - display event
+    #    - staff event
+    #    - QueueEntryRead response
+    # --------------------------------------------------------------
+
+    stmt = (
+        select(QueueEntry)
+        .options(
+            selectinload(QueueEntry.visit).selectinload(Visit.patient),
+            selectinload(QueueEntry.department),
+        )
+        .where(QueueEntry.queue_entry_id == queue_entry_id)
+    )
+
+    result = await db.execute(stmt)
+    entry = result.scalar_one()
+
+    # --------------------------------------------------------------
+    # 4. Publish canonical display event AFTER commit
+    # --------------------------------------------------------------
+
     await service.emit_display_event(
         entry,
         event_type="TOKEN_REQUEUED",
     )
 
-    # Broadcast to staff dashboards
+    # --------------------------------------------------------------
+    # 5. Publish staff event
+    # --------------------------------------------------------------
+
     await service.emit_department_event(
         entry,
         event_type="TOKEN_REQUEUED",
     )
 
+    # --------------------------------------------------------------
+    # 6. Return fully-loaded object
+    # --------------------------------------------------------------
+
     return entry
+
+
 # ==========================================
 # STATISTICAL METRICS (READ-ONLY)
 # ==========================================

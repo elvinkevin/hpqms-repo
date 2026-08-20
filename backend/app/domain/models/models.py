@@ -68,7 +68,7 @@ class NotificationChannel(str, PyEnum):
     DISPLAY = "DISPLAY"
     PA = "PA"
 
-class ArrivalMode(str, Enum):
+class ArrivalMode(str, PyEnum):
 
     WALK_IN = "WALK_IN"
 

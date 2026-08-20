@@ -18,6 +18,7 @@ from app.domain.models.models import (
 from app.domain.services.visit_service import VisitService
 from app.domain.services.queue_service import QueueService
 from app.domain.services.departments_service import DepartmentService
+from app.domain.schemas.schemas import TransferReason
 
 
 class RoutingService:
@@ -40,23 +41,12 @@ class RoutingService:
         self.queue_service = QueueService(db)
         self.department_service = DepartmentService(db)
 
-    # ---------------------------------------------------------
-    # INITIAL KIOSK DISPATCH
-    # ---------------------------------------------------------
-
     async def dispatch_initial_kiosk_route(
         self,
         visit_id: UUID,
     ) -> QueueEntry:
 
-        stmt = (
-            select(Visit)
-            .options(selectinload(Visit.patient))
-            .where(Visit.visit_id == visit_id)
-        )
-
-        result = await self.db.execute(stmt)
-        visit = result.scalar_one_or_none()
+        visit = await self.visit_service.get_visit(visit_id)
 
         if not visit:
             raise HTTPException(
@@ -75,9 +65,10 @@ class RoutingService:
                 "EMERGENCY"
             )
 
-            return await self.move_patient(
+            return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_department_id=emergency.dept_id,
+                reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.CRITICAL,
                 notes="Emergency patient routed directly to Emergency.",
             )
@@ -88,12 +79,13 @@ class RoutingService:
         if patient.registration_status == RegistrationStatus.INCOMPLETE:
 
             reception = await self.department_service.get_by_code(
-                "RECEPTION"
+                "REC"
             )
 
-            return await self.move_patient(
+            return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_department_id=reception.dept_id,
+                reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
                 notes="Patient requires registration.",
             )
@@ -107,9 +99,10 @@ class RoutingService:
                 "TRIAGE"
             )
 
-            return await self.move_patient(
+            return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_department_id=triage.dept_id,
+                reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
                 notes="Appointment patient routed directly to Triage.",
             )
@@ -118,19 +111,135 @@ class RoutingService:
         # Walk-ins & Referrals
         # ---------------------------------------------------------
         reception = await self.department_service.get_by_code(
-            "RECEPTION"
+            "REC"
         )
 
-        return await self.move_patient(
+        return await self.transfer_patient(
             visit_id=visit.visit_id,
             target_department_id=reception.dept_id,
+            reason=TransferReason.DIRECT_ROUTING,
             priority=QueuePriority.NORMAL,
             notes="Walk-in patient routed to Reception.",
         )
-
     # ---------------------------------------------------------
     # MOVE PATIENT
     # ---------------------------------------------------------
+
+    async def transfer_patient(
+        self,
+        visit_id: UUID,
+        target_department_id: UUID,
+        reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER,
+        priority: QueuePriority = QueuePriority.NORMAL,
+        notes: Optional[str] = None,
+        initiated_by_staff_id: Optional[UUID] = None,
+    ) -> QueueEntry:
+        """
+        Orchestrates an inter-departmental TRANSFER command:
+        1. Validates visit state and target department.
+        2. Applies priority escalation rules based on TransferReason.
+        3. Enforces guardrails (e.g., CRITICAL priority requires notes).
+        4. Completes current active QueueEntry (frees doctor/staff slot).
+        5. Creates new QueueEntry (WAITING) for target department.
+        6. Emits WebSocket 'PATIENT_ROUTED' event to receiving department.
+        """
+        # 1. Fetch & Validate Active Visit
+        visit = await self.visit_service.get_visit(visit_id)
+        if visit.stage != VisitStage.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Visit is no longer active.",
+            )
+
+        # 2. Fetch & Validate Target Department
+        target_dept = await self.department_service.get_by_id(target_department_id)
+        if not target_dept.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Target department is inactive or does not exist.",
+            )
+
+        # 3. Apply Priority Escalation Rules
+        # Auto-escalate return visits to prevent re-queuing behind new walk-ins
+        if reason == TransferReason.RETURN_TO_DEPARTMENT and priority == QueuePriority.NORMAL:
+            priority = QueuePriority.URGENT
+
+        # 4. Safety Guardrails
+        if priority == QueuePriority.CRITICAL and not (notes and notes.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A clinical justification note is required when assigning CRITICAL priority.",
+            )
+
+        async with self.db.begin_nested():
+            # 5. Fetch Active Encounter & Complete It
+            current_entry = await self.queue_service.get_active_queue_entry(visit_id)
+
+            if current_entry:
+                if current_entry.department_id == target_dept.dept_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Patient is already queued in the target department.",
+                    )
+
+                if current_entry.status != QueueEntryStatus.IN_PROGRESS:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=(
+                            "Only an in-progress encounter can be transferred. "
+                            "Call and start service before transferring the patient."
+                        ),
+                    )
+
+                if initiated_by_staff_id is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="The staff member initiating the transfer is required.",
+                    )
+
+                staff_info = f" by Staff [{initiated_by_staff_id}]" if initiated_by_staff_id else ""
+                completion_note = (
+                    f"[{reason.value}] Transferred to {target_dept.name}{staff_info}."
+                    f"{f' Notes: {notes.strip()}' if notes else ''}"
+                )
+
+                # Complete current encounter (Frees desk/clinician slot)
+                await self.queue_service.complete_queue_entry(
+                    current_entry.queue_entry_id,
+                    staff_id=initiated_by_staff_id,
+                    notes=completion_note,
+                )
+
+            # 6. Create Target Department Encounter
+            new_entry = await self.queue_service.create_queue_entry(
+                visit_id=visit.visit_id,
+                department_id=target_dept.dept_id,
+                priority=priority,
+                notes=notes,
+            )
+
+            # 7. Update Visit's Current Active Queue Reference
+            visit.current_queue_entry_id = new_entry.queue_entry_id
+            await self.db.flush()
+
+        new_entry = await self.queue_service.get_queue_entry(
+            new_entry.queue_entry_id
+        )
+
+        # 8. Dispatch Real-time Event to Target Department
+        await self.queue_service.emit_department_event(
+            new_entry,
+            event_type="PATIENT_ROUTED",
+            extra_payload={
+                "transfer_reason": reason.value,
+                "source_department_id": (
+                    str(current_entry.department_id) if current_entry else None
+                ),
+                "target_department_id": str(target_dept.dept_id),
+            },
+        )
+
+        return new_entry
 
     async def move_patient(
         self,
@@ -138,61 +247,17 @@ class RoutingService:
         target_department_id: UUID,
         priority: QueuePriority = QueuePriority.NORMAL,
         notes: Optional[str] = None,
+        initiated_by_staff_id: Optional[UUID] = None,
     ) -> QueueEntry:
-
-        visit = await self.visit_service.get_visit(visit_id)
-
-        if visit.stage != VisitStage.ACTIVE:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Visit is no longer active.",
-            )
-
-        target_department = await self.department_service.get_by_id(
-            target_department_id
+        """Backward-compatible alias for a standard department transfer."""
+        return await self.transfer_patient(
+            visit_id=visit_id,
+            target_department_id=target_department_id,
+            reason=TransferReason.DEPARTMENT_TRANSFER,
+            priority=priority,
+            notes=notes,
+            initiated_by_staff_id=initiated_by_staff_id,
         )
-
-        if not target_department.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Target department is inactive.",
-            )
-
-        async with self.db.begin_nested():
-            current_entry = await self.queue_service.get_active_queue_entry(
-                visit.visit_id
-            )
-
-            if current_entry:
-                if current_entry.status != QueueEntryStatus.IN_PROGRESS:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail="Patient must be in consultation before being transferred.",
-                    )
-
-                await self.queue_service.complete_queue_entry(
-                    current_entry.queue_entry_id,
-                    notes=f"Transferred. {notes or ''}",
-                )
-
-            # ALWAYS create the next queue entry
-            new_entry = await self.queue_service.create_queue_entry(
-                visit_id=visit.visit_id,
-                department_id=target_department.dept_id,
-                priority=priority,
-                notes=notes,
-                
-                
-            )
-
-            visit.current_queue_entry_id = new_entry.queue_entry_id
-
-            await self.db.flush()
-
-        await self.db.refresh(new_entry)
-        await self.db.refresh(visit)
-
-        return new_entry
 
     # ---------------------------------------------------------
     # LIVE LOCATION

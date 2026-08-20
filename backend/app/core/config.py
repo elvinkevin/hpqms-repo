@@ -31,6 +31,10 @@ class Settings(BaseSettings):
 
     PA_CONTROLLER_URL: str = ""
 
+    # Shared only with managed kiosk devices. Do not expose this value in
+    # browser-delivered JavaScript or commit it to source control.
+    KIOSK_INTERNAL_API_KEY: str = ""
+
     ENVIRONMENT: str = "development"
 
     model_config = SettingsConfigDict(

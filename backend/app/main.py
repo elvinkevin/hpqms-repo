@@ -31,6 +31,9 @@ app.include_router(api_router)
 app.include_router(websocket_router)
 
 
+for route in app.routes:
+    print(route.path)
+
 @app.get("/")
 async def root():
     return {"message": "Hospital Queue Management API"}

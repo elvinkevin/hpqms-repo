@@ -491,58 +491,57 @@ function handleTokenRequeued() {
  * Requires routing context containing source and target departments.
  */
 function handlePatientRouted(event) {
-    const sourceDepartment = findDepartment(
-        event.source_department_id
-    );
-
     const targetDepartment = findDepartment(
         event.target_department_id
     );
 
-    /*
-     * If the event does not contain enough routing context,
-     * we deliberately refuse to guess.
-     *
-     * The application layer should request a fresh snapshot.
-     */
-    if (!sourceDepartment || !targetDepartment) {
+    if (!targetDepartment) {
         state.metadata.stale = true;
         return;
     }
 
-    const token = removeActiveToken(
-        sourceDepartment,
-        event.token_number
-    );
+    // Interdepartmental transfer
+    if (event.source_department_id) {
+        const sourceDepartment = findDepartment(
+            event.source_department_id
+        );
 
-    /*
-     * We may not have the token in the source department if
-     * the display joined late or missed an earlier event.
-     *
-     * In that case, mark the snapshot stale rather than
-     * inventing incomplete state.
-     */
-    if (!token) {
-        state.metadata.stale = true;
-        return;
+        if (!sourceDepartment) {
+            state.metadata.stale = true;
+            return;
+        }
+
+        const token = removeActiveToken(
+            sourceDepartment,
+            event.token_number
+        );
+
+        if (!token) {
+            state.metadata.stale = true;
+            return;
+        }
     }
 
+    // Initial dispatch OR successful transfer
     if (!Array.isArray(targetDepartment.next_tokens)) {
         targetDepartment.next_tokens = [];
     }
 
     const alreadyExists = targetDepartment.next_tokens.some(
-        nextToken =>
-            nextToken.token_number === event.token_number
+        token =>
+            getTokenNumber(token) === event.token_number
     );
 
     if (!alreadyExists) {
         targetDepartment.next_tokens.unshift({
             token_number: event.token_number,
         });
+
+        if (typeof targetDepartment.waiting_count === "number") {
+            targetDepartment.waiting_count += 1;
+        }
     }
 }
-
 
 /**
  * Handle ANNOUNCEMENT_CREATED.

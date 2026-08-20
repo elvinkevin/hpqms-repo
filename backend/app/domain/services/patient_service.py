@@ -13,6 +13,7 @@ from app.domain.models.models import Patient, RegistrationStatus
 from app.domain.schemas.schemas import (
     PatientCreate,
     EmergencyPatientCreate,
+    PatientIdentifierType,
     PatientReconciliation,
     PatientUpdate,
 )
@@ -276,3 +277,110 @@ class PatientService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Could not update patient due to a database constraint.",
             )
+
+
+    async def register_kiosk_patient(
+        self,
+        identifier: str,
+        identifier_type: PatientIdentifierType,
+    ) -> Patient:
+        """Find or create the minimal patient record required for kiosk check-in."""
+
+        identifier = identifier.strip()
+
+        if not identifier:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Patient identifier cannot be empty.",
+            )
+
+        # ---------------------------------------------------------
+        # 1. Validate according to the declared identifier type
+        # ---------------------------------------------------------
+
+        if identifier_type == PatientIdentifierType.PHONE:
+            if not identifier.isdigit():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Phone number must contain digits only.",
+                )
+
+            if len(identifier) != 10:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Phone number must contain 10 digits.",
+                )
+
+        elif identifier_type == PatientIdentifierType.NATIONAL_ID:
+            if not identifier.isdigit():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="National ID must contain digits only.",
+                )
+
+        # ---------------------------------------------------------
+        # 2. Look for an existing patient
+        # ---------------------------------------------------------
+
+        existing = await self.find_patient_optional(identifier)
+
+        if existing:
+            return existing
+
+        # ---------------------------------------------------------
+        # 3. Create minimal incomplete patient
+        # ---------------------------------------------------------
+
+        patient_kwargs = {
+            "registration_status": RegistrationStatus.INCOMPLETE,
+        }
+
+        if identifier_type == PatientIdentifierType.PHONE:
+            patient_kwargs["phone"] = identifier
+        else:
+            patient_kwargs["national_id"] = identifier
+
+        patient = Patient(**patient_kwargs)
+
+        # ---------------------------------------------------------
+        # 4. Protect against concurrent registration
+        # ---------------------------------------------------------
+
+        try:
+            self.db.add(patient)
+            await self.db.flush()
+            await self.db.refresh(patient)
+
+            return patient
+
+        except IntegrityError:
+            await self.db.rollback()
+
+            existing = await self.find_patient_optional(identifier)
+
+            if existing:
+                return existing
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Conflict detected. A patient record with this "
+                    "identifier is already being processed."
+                ),
+            )
+
+    async def find_patient_optional(
+        self,
+        query: str,
+    ) -> Patient | None:
+        result = await self.db.execute(
+            select(Patient).where(
+                or_(
+                    Patient.national_id == query,
+                    Patient.phone == query,
+                    Patient.temporary_identifier == query,
+                )
+            )
+        )
+
+        return result.scalar_one_or_none()
