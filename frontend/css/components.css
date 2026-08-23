@@ -3,56 +3,68 @@
    css/components.css — UI Components, Semantic States & Overlays
    ========================================================================== */
 
-
 /* ==========================================================================
-   1. HEADER COMPONENTS
+   HEADER COMPONENTS
    ========================================================================== */
 
 .facility-branding {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
     min-width: 0;
 }
 
-.facility-logo {
-    display: block;
+.facility-mark {
+    width: clamp(2.5rem, 4.5vh, 3.25rem);
+    height: clamp(2.5rem, 4.5vh, 3.25rem);
+    flex: 0 0 auto;
 
-    width: auto;
-    height: clamp(2rem, 4vh, 3rem);
-
-    max-width: 180px;
-
-    object-fit: contain;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* The logo is optional. An empty image source must never expose alt text. */
-.facility-logo[hidden] {
-    display: none;
+.facility-copy {
+    display: flex;
+    flex-direction: column;
+
+    /* Keep the two text lines grouped and centered */
+    justify-content: center;
+
+    min-width: 0;
+
+    /* Add breathing room above and below */
+    padding-block: 0.3rem;
 }
 
 .facility-name {
     margin: 0;
 
-    min-width: 0;
-
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
+    line-height: 1.15;
 
-    line-height: 1.1;
     letter-spacing: -0.02em;
+    color: #0c5a75;
 }
 
 
+.facility-tagline {
+    margin: 0.15rem 0 0;
+
+    font-size: clamp(0.9rem, 1.8vh, 1.15rem);
+    line-height: 1.1;
+
+    color: #40596b;
+}
 /* --------------------------------------------------------------------------
    Clock
    -------------------------------------------------------------------------- */
 
 .clock {
-    font-family: var(--font-family-mono);
+    font-family: var(--font-family-display);
 
-    font-size: var(--font-size-xl);
+    font-size: clamp(1.15rem, 2vw, 1.7rem);
     font-weight: var(--font-weight-bold);
 
     line-height: 1;
@@ -148,7 +160,7 @@
 
     overflow: hidden;
 
-    padding: var(--space-lg);
+    padding: clamp(var(--space-md), 1.8vw, var(--space-xl));
 
     background: var(--color-bg-surface);
 
@@ -208,14 +220,14 @@
 .token-number {
     margin: var(--space-sm) 0;
 
-    font-family: var(--font-family-mono);
+    font-family: var(--font-family-display);
 
-    font-size: var(--font-size-2xl);
+    font-size: clamp(5rem, 11vw, 9rem);
     font-weight: var(--font-weight-bold);
 
     line-height: 1;
 
-    letter-spacing: 0.02em;
+    letter-spacing: -0.055em;
 }
 
 
@@ -224,8 +236,8 @@
    -------------------------------------------------------------------------- */
 
 .service-point {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-medium);
+    font-size: clamp(1.25rem, 2.4vw, 2.4rem);
+    font-weight: var(--font-weight-bold);
 
     line-height: 1.2;
 
@@ -254,13 +266,11 @@
    -------------------------------------------------------------------------- */
 
 .queue-card[data-state="CALLED"] {
-    background: var(--color-state-called-bg);
-
-    border-color:
-        var(--color-state-called-border);
+    border-color: var(--color-state-called-border);
+    border-left-width: clamp(6px, 0.6vw, 12px);
 
     box-shadow:
-        inset 0 0 0 1px rgba(245, 158, 11, 0.15),
+        inset 0 0 0 1px rgba(19, 166, 166, 0.12),
         var(--shadow-card);
 }
 
@@ -580,8 +590,19 @@
    -------------------------------------------------------------------------- */
 
 .department-board {
-    gap: var(--space-lg);
+    display: grid;
+    grid-template-areas:
+        "header header"
+        "active sidebar";
+    grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(var(--space-md), 1.5vw, var(--space-xl));
+    height: 100%;
 }
+
+.department-header { grid-area: header; }
+.active-tokens-section { grid-area: active; }
+.department-sidebar { grid-area: sidebar; }
 
 .active-tokens-section,
 .next-tokens-section,
@@ -589,12 +610,25 @@
     min-width: 0;
 }
 
+.active-tokens-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.department-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(var(--space-md), 1.5vw, var(--space-xl));
+    min-width: 0;
+}
+
 .section-title,
 .summary-label {
     margin: 0;
 
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+    color: var(--color-brand-primary);
+    font-size: clamp(0.75rem, 1.1vw, 1rem);
     font-weight: var(--font-weight-bold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -602,24 +636,31 @@
 
 .active-tokens {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
     gap: var(--space-md);
     margin-top: var(--space-sm);
+    flex: 1;
 }
 
 .token-card {
-    padding: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: clamp(var(--space-md), 2vw, var(--space-xl));
+    text-align: center;
 
-    background: var(--color-bg-app);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
+    background: linear-gradient(145deg, #f5fcfc, #ffffff);
+    border: 1px solid #cce9e7;
+    border-radius: var(--radius-md);
 }
 
 .token-status {
     display: block;
 
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+    color: var(--color-brand-accent);
+    font-size: clamp(0.85rem, 1.3vw, 1.2rem);
     font-weight: var(--font-weight-bold);
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -636,36 +677,87 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
+    padding: var(--space-md);
+    background: var(--color-bg-surface-muted);
+    border-radius: var(--radius-sm);
 }
 
 .summary-value {
-    font-family: var(--font-family-mono);
-    font-size: var(--font-size-xl);
+    color: var(--color-brand-primary);
+    font-family: var(--font-family-display);
+    font-size: clamp(1.5rem, 3vw, 2.8rem);
 }
 
 .next-tokens,
 .recent-tokens {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-sm);
     margin: var(--space-sm) 0 0;
-    padding-left: var(--space-lg);
-}
-
-.recent-tokens {
-    padding-left: 0;
+    padding: 0;
     list-style: none;
 }
 
+.next-tokens { counter-reset: next-token; }
+
 .next-token,
 .recent-token {
-    font-family: var(--font-family-mono);
-    font-size: var(--font-size-lg);
+    min-width: 0;
+    padding: 0.65em 0.8em;
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-app);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-display);
+    font-size: clamp(1rem, 1.6vw, 1.5rem);
+    font-weight: var(--font-weight-bold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.next-token { counter-increment: next-token; }
+
+.next-token::before {
+    content: counter(next-token);
+    display: inline-grid;
+    width: 1.5em;
+    height: 1.5em;
+    place-items: center;
+    margin-right: 0.55em;
+    border-radius: 50%;
+    background: var(--color-brand-primary);
+    color: #ffffff;
+    font-size: 0.75em;
 }
 
 .empty-state {
     margin: var(--space-sm) 0 0;
     color: var(--color-text-muted);
+}
+
+.active-tokens .empty-state {
+    align-self: center;
+    justify-self: center;
+    margin: 0;
+    text-align: center;
+}
+
+@media (max-width: 767px) {
+    .department-board {
+        grid-template-areas:
+            "header"
+            "active"
+            "sidebar";
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(12rem, 1fr) auto;
+        overflow-y: auto;
+    }
+
+    .next-tokens,
+    .recent-tokens {
+        grid-template-columns: 1fr;
+    }
 }
 
 .viewport-loader p {
@@ -729,7 +821,7 @@
 .standby-content p {
     margin: 0;
 
-    color: var(--color-text-secondary);
+    color: var(--color-brand-primary);
 
     font-size: var(--font-size-lg);
 }

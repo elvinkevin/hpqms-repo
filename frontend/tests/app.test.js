@@ -40,7 +40,7 @@ const {
 
     const mockConfig = {
         backend: {
-            apiUrl: "http://localhost:8000/api",
+            apiBaseUrl: "http://localhost:8000/api",
             websocketUrl:
                 "ws://localhost:8000/ws/display",
             connectionTimeoutMs: 5000,

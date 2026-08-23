@@ -26,26 +26,26 @@
      Surface & Base Canvas
      ------------------------------------------------------------------------ */
 
-  --color-bg-app:              #0a0e14;
-  --color-bg-surface:          #121820;
-  --color-bg-surface-elevated: #1a222d;
-  --color-bg-surface-muted:    #0d1218;
+  --color-bg-app:              #f4f8fa;
+  --color-bg-surface:          #ffffff;
+  --color-bg-surface-elevated: #ffffff;
+  --color-bg-surface-muted:    #eaf4f6;
 
   /* ------------------------------------------------------------------------
      Borders & Dividers
      ------------------------------------------------------------------------ */
 
-  --color-border-subtle:       #242f3d;
-  --color-border-strong:       #3b4c60;
+  --color-border-subtle:       #dce6eb;
+  --color-border-strong:       #9bbbc7;
 
   /* ------------------------------------------------------------------------
      Typography
      ------------------------------------------------------------------------ */
 
-  --color-text-primary:        #f0f4f8;
-  --color-text-secondary:      #94a3b8;
-  --color-text-muted:          #64748b;
-  --color-text-inverse:        #0a0e14;
+  --color-text-primary:        #17324d;
+  --color-text-secondary:      #42627a;
+  --color-text-muted:          #6b7c8a;
+  --color-text-inverse:        #ffffff;
 
   /* ------------------------------------------------------------------------
      Brand / White-Label Defaults
@@ -54,8 +54,8 @@
      Facility-specific branding may override them at runtime.
      ------------------------------------------------------------------------ */
 
-  --color-brand-primary:       #0284c7;
-  --color-brand-accent:        #38bdf8;
+  --color-brand-primary:       #0f5b78;
+  --color-brand-accent:        #13a6a6;
 }
 
 
@@ -70,54 +70,54 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --color-state-called-bg:       #322200;
-  --color-state-called-border:   #f59e0b;
-  --color-state-called-text:     #fbbf24;
+  --color-state-called-bg:       #ffffff;
+  --color-state-called-border:   #13a6a6;
+  --color-state-called-text:     #0c4a62;
 
   /* ------------------------------------------------------------------------
      IN_PROGRESS
      Patient is currently being served.
      ------------------------------------------------------------------------ */
 
-  --color-state-serving-bg:      #062d1b;
-  --color-state-serving-border:  #10b981;
-  --color-state-serving-text:    #34d399;
+  --color-state-serving-bg:      #f0fdf8;
+  --color-state-serving-border:  #16855b;
+  --color-state-serving-text:    #0b6b48;
 
   /* ------------------------------------------------------------------------
      WAITING
      Patient is queued but has not yet been called.
      ------------------------------------------------------------------------ */
 
-  --color-state-waiting-bg:      #121820;
-  --color-state-waiting-border:  #242f3d;
-  --color-state-waiting-text:    #f0f4f8;
+  --color-state-waiting-bg:      #ffffff;
+  --color-state-waiting-border:  #dce6eb;
+  --color-state-waiting-text:    #17324d;
 
   /* ------------------------------------------------------------------------
      COMPLETED / RECENT
      Used only when Recently Completed is enabled.
      ------------------------------------------------------------------------ */
 
-  --color-state-recent-bg:       #0f141c;
-  --color-state-recent-border:   #1e293b;
-  --color-state-recent-text:     #64748b;
+  --color-state-recent-bg:       #f4f8fa;
+  --color-state-recent-border:   #dce6eb;
+  --color-state-recent-text:     #6b7c8a;
 
   /* ------------------------------------------------------------------------
      NO_SHOW
      Token is no longer being served because patient did not appear.
      ------------------------------------------------------------------------ */
 
-  --color-state-noshow-bg:       #1c1917;
-  --color-state-noshow-border:   #78716c;
-  --color-state-noshow-text:     #a8a29e;
+  --color-state-noshow-bg:       #f8fafc;
+  --color-state-noshow-border:   #94a3b8;
+  --color-state-noshow-text:     #64748b;
 
   /* ------------------------------------------------------------------------
      CANCELLED
      Queue entry / service was cancelled.
      ------------------------------------------------------------------------ */
 
-  --color-state-cancelled-bg:    #18181b;
-  --color-state-cancelled-border:#52525b;
-  --color-state-cancelled-text:  #a1a1aa;
+  --color-state-cancelled-bg:    #f8fafc;
+  --color-state-cancelled-border:#94a3b8;
+  --color-state-cancelled-text:  #64748b;
 
   /* ------------------------------------------------------------------------
      CRITICAL / EMERGENCY
@@ -315,7 +315,8 @@
 
 :root {
   --shadow-card:
-    0 4px 12px rgba(0, 0, 0, 0.4);
+    0 10px 25px -5px rgba(12, 90, 117, 0.08),
+    0 2px 8px rgba(12, 90, 117, 0.06);
 
   --shadow-alert:
     0 20px 60px rgba(0, 0, 0, 0.8),

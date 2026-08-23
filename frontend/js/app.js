@@ -81,6 +81,8 @@ let managersInitialized = false;
 
 let latestNotificationEvent = null;
 
+let clockIntervalId = null;
+
 
 /* ==========================================================================
    DOM Helpers
@@ -113,6 +115,45 @@ function setText(id, value) {
 function applyLayoutMode(config) {
     document.body.dataset.layout =
         config.layout?.mode ?? "SINGLE_DEPARTMENT";
+}
+
+
+function updateClock() {
+    const clock = document.getElementById("clock");
+
+    if (!clock) {
+        return;
+    }
+
+    const now = new Date();
+
+    clock.dateTime = now.toISOString();
+    clock.textContent = new Intl.DateTimeFormat(
+        "en-KE",
+        {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+        }
+    ).format(now);
+}
+
+
+function startClock() {
+    updateClock();
+
+    if (clockIntervalId === null) {
+        clockIntervalId = window.setInterval(updateClock, 1000);
+    }
+}
+
+
+function stopClock() {
+    if (clockIntervalId !== null) {
+        window.clearInterval(clockIntervalId);
+        clockIntervalId = null;
+    }
 }
 
 
@@ -469,6 +510,7 @@ async function handleConnected() {
 const QUEUE_PROJECTION_EVENTS = new Set([
     "TOKEN_CALLED",
     "TOKEN_REQUEUED",
+    "QUEUE_UPDATED",
 ]);
 
 function handleMessage(event) {
@@ -710,6 +752,8 @@ async function start() {
 
         applyLayoutMode(config);
 
+        startClock();
+
         initializeRuntimeManagers();
 
         registerWebSocketListeners();
@@ -758,6 +802,8 @@ function stop() {
     unregisterDisplayStateSubscription();
 
     resetRuntimeManagers();
+
+    stopClock();
 
     started = false;
 

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.models import Patient, RegistrationStatus
 from app.domain.schemas.schemas import (
+    CompletePatientRegistration,
     PatientCreate,
     EmergencyPatientCreate,
     PatientIdentifierType,
@@ -384,3 +385,58 @@ class PatientService:
         )
 
         return result.scalar_one_or_none()
+
+
+    async def complete_patient_registration(
+        self,
+        patient_id: UUID,
+        data: CompletePatientRegistration,
+    ) -> Patient:
+        """
+        Completes the registration of an existing incomplete patient.
+        """
+
+        patient = await self.get_by_id(patient_id)
+
+        # A temporary emergency patient should use the
+        # dedicated reconciliation workflow.
+        if patient.temporary_identifier is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Temporary emergency patients must be "
+                    "reconciled using the reconciliation workflow."
+                ),
+            )
+
+        # Validate national ID / phone uniqueness against
+        # other patient records.
+        await self._validate_unique_identity(
+            national_id=data.national_id,
+            phone=data.phone,
+            exclude_patient_id=patient_id,
+        )
+
+        updates = data.model_dump(exclude_unset=True)
+
+        for field, value in updates.items():
+            setattr(patient, field, value)
+
+        patient.registration_status = RegistrationStatus.COMPLETE
+
+        try:
+            await self.db.flush()
+            await self.db.refresh(patient)
+
+            return patient
+
+        except IntegrityError:
+            await self.db.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Could not complete patient registration "
+                    "due to a database constraint."
+                ),
+            )

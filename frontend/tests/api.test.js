@@ -30,7 +30,7 @@ import {
 beforeEach(() => {
     initializeConfig({
         backend: {
-            apiUrl: "http://localhost:8000/api",
+            apiBaseUrl: "http://localhost:8000/api",
             websocketUrl: "ws://localhost:8000/ws/display",
             connectionTimeoutMs: 5000,
         },
@@ -164,7 +164,7 @@ describe("request() URL construction", () => {
 
         initializeConfig({
             backend: {
-                apiUrl:
+                apiBaseUrl:
                     "http://localhost:8000/api/",
                 websocketUrl:
                     "ws://localhost:8000/ws/display",

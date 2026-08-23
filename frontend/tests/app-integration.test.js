@@ -82,7 +82,7 @@ import {
 
 
 const indexHtml = readFileSync(
-    resolve("frontend/index.html"),
+    resolve("frontend/display.html"),
     "utf8"
 );
 

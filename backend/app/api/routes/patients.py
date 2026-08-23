@@ -10,6 +10,7 @@ from app.domain.schemas.schemas import (
     PatientUpdate,
     EmergencyPatientCreate,
     PatientReconciliation,
+    CompletePatientRegistration,
 )
 from app.domain.services.patient_service import PatientService
 from app.domain.services.auth_service import (
@@ -114,7 +115,36 @@ async def reconcile_patient(
         staff_id=current_staff.staff_id,
     )
 
+@router.patch(
+    "/{patient_id}/complete-registration",
+    response_model=PatientRead,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.RECEPTIONIST,
+                StaffRole.ADMIN,
+            )
+        )
+    ],
+)
+async def complete_patient_registration(
+    patient_id: UUID,
+    data: CompletePatientRegistration,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Completes registration for an existing incomplete patient.
 
+    Used by Reception after a kiosk patient arrives and provides
+    the remaining required administrative information.
+    """
+    service = PatientService(db)
+
+    return await service.complete_patient_registration(
+        patient_id=patient_id,
+        data=data,
+    )
 # ------------------------------------------------------------------
 # SEARCH PATIENTS
 # ------------------------------------------------------------------

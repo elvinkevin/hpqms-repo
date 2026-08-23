@@ -131,6 +131,41 @@ class EmergencyPatientRead(BaseModel):
     last_name: str | None
     estimated_age: int | None
     gender: Optional[str] = None
+
+
+
+
+class CompletePatientRegistration(BaseModel):
+    """
+    Used by Reception to complete registration for an existing
+    incomplete patient, such as a kiosk patient.
+    """
+
+    # Required administrative identity
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    gender: str
+
+    # Identity / contact
+    national_id: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    # Clinical information is optional and does not determine
+    # registration completeness.
+    blood_type: Optional[str] = None
+    allergies: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_contact_info(self):
+        if not self.phone and not self.email:
+            raise ValueError(
+                "At least one contact method (phone or email) "
+                "is required to complete registration."
+            )
+
+        return self
 # ── VISIT SCHEMAS ─────────────────────────────────────────────────────────
 
 class VisitCreate(BaseModel):

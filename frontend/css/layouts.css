@@ -75,7 +75,7 @@ body {
 
   min-width: 0;
 
-  height: clamp(64px, 9vh, 100px);
+  height: clamp(58px, 7vh, 76px);
 
   display: flex;
   align-items: center;
@@ -137,7 +137,7 @@ body {
   overflow: hidden;
 
   padding:
-    clamp(var(--space-sm), 1.5vw, var(--space-lg));
+    clamp(var(--space-sm), 1.2vw, var(--space-md));
 }
 
 .primary-viewport {
@@ -266,17 +266,7 @@ body {
    -------------------------------------------------------------------------- */
 
 [data-layout="SINGLE_DEPARTMENT"] .primary-viewport {
-  display: grid;
-
-  grid-template-columns:
-    minmax(0, 2fr)
-    minmax(240px, 1fr);
-
-  gap: clamp(
-    var(--space-md),
-    2vw,
-    var(--space-xl)
-  );
+  display: block;
 }
 
 [data-layout="SINGLE_DEPARTMENT"] .viewport-view {

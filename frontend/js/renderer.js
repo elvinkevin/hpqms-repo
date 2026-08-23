@@ -410,6 +410,15 @@ function renderDepartment(department) {
     activeSection.appendChild(activeContainer);
     container.appendChild(activeSection);
 
+    const sidebar = createElement(
+        "aside",
+        {
+            className: "department-sidebar",
+        }
+    );
+
+    container.appendChild(sidebar);
+
 
     /* --------------------------------------------------------------
        Queue Summary
@@ -487,7 +496,7 @@ function renderDepartment(department) {
     queueSummary.appendChild(waiting);
     queueSummary.appendChild(waitTime);
 
-    container.appendChild(queueSummary);
+    sidebar.appendChild(queueSummary);
 
 
     /* --------------------------------------------------------------
@@ -544,7 +553,7 @@ function renderDepartment(department) {
     }
 
     nextSection.appendChild(nextList);
-    container.appendChild(nextSection);
+    sidebar.appendChild(nextSection);
 
 
     /* --------------------------------------------------------------
@@ -592,7 +601,7 @@ function renderDepartment(department) {
     });
 
     recentSection.appendChild(recentList);
-    container.appendChild(recentSection);
+    sidebar.appendChild(recentSection);
 
     return container;
 }
