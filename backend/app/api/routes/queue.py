@@ -111,6 +111,9 @@ async def get_visit_queue(
                 StaffRole.RECEPTIONIST,
                 StaffRole.NURSE,
                 StaffRole.DOCTOR,
+                StaffRole.TRIAGE_NURSE,
+                StaffRole.ADMIN,
+
             )
         )
     ],

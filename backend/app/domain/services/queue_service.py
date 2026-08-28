@@ -18,6 +18,8 @@ from app.domain.models.models import (
     QueueEntry,
     QueueEntryStatus,
     QueuePriority,
+    Staff,
+    StaffRole,
     Visit,
 )
 from app.domain.schemas.schemas import CurrentUser
@@ -278,6 +280,24 @@ class QueueService:
                 detail=f"Queue entry {queue_entry_id} not found.",
             )
 
+        # ---------------------------------------------------------
+        # DEPARTMENT ISOLATION GUARD
+        # ---------------------------------------------------------
+        if staff_id is not None:
+            staff_stmt = select(Staff).where(Staff.staff_id == staff_id)
+            staff_result = await self.db.execute(staff_stmt)
+            acting_staff = staff_result.scalar_one_or_none()
+
+            if acting_staff and acting_staff.role != StaffRole.ADMIN:
+                if acting_staff.dept_id != entry.department_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Cannot operate on queue entries outside your assigned department.",
+                    )
+
+        # ---------------------------------------------------------
+        # STATE TRANSITION VALIDATION
+        # ---------------------------------------------------------
         allowed = VALID_TRANSITIONS.get(entry.status, set())
         if new_status not in allowed:
             raise HTTPException(
@@ -364,7 +384,6 @@ class QueueService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You cannot mark this patient as no-show because the patient is assigned to another staff member.",
                 )
-
         # ---------------------------------------------------------
         # APPLY CHANGES & REFLECT STATE
         # ---------------------------------------------------------

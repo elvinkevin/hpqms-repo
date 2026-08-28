@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field, model_validator
 from sqlalchemy import Integer
 from app.domain.models.models import (
     StaffRole, DeptType, EntryType, VisitStage, 
@@ -80,6 +80,7 @@ class PatientRead(ORMBase):
     reconciled_at: Optional[datetime] = None
     reconciled_by: Optional[UUID] = None
     created_at: datetime
+    is_active: bool
 
 class PatientSummary(ORMBase):
     """Lightweight version embedded inside token/queue responses."""
@@ -166,6 +167,13 @@ class CompletePatientRegistration(BaseModel):
             )
 
         return self
+    
+
+class PatientActiveStatusUpdate(BaseModel):
+    """Used by authorized staff to activate or deactivate a patient record."""
+    is_active: bool
+
+
 # ── VISIT SCHEMAS ─────────────────────────────────────────────────────────
 
 class VisitCreate(BaseModel):

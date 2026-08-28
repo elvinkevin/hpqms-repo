@@ -9,7 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.models import Patient, RegistrationStatus
+from app.domain.models.models import Patient, RegistrationStatus, Visit, VisitStage
 from app.domain.schemas.schemas import (
     CompletePatientRegistration,
     PatientCreate,
@@ -440,3 +440,45 @@ class PatientService:
                     "due to a database constraint."
                 ),
             )
+        
+    async def set_active_status(
+        self,
+        patient_id: UUID,
+        is_active: bool,
+    ) -> Patient:
+        """
+        Activates or deactivates a patient record.
+
+        A patient cannot be deactivated while they have
+        an active hospital visit.
+        """
+
+        patient = await self.get_by_id(patient_id)
+
+        # Nothing to do if the requested state is already current.
+        if patient.is_active == is_active:
+            return patient
+
+        # Only check for an active visit when deactivating.
+        if not is_active:
+            active_visit = await self.db.execute(
+                select(Visit).where(
+                    Visit.patient_id == patient_id,
+                    Visit.stage == VisitStage.ACTIVE,
+                )
+            )
+
+            if active_visit.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "Cannot deactivate patient with an active visit."
+                    ),
+                )
+
+        patient.is_active = is_active
+
+        await self.db.flush()
+        await self.db.refresh(patient)
+
+        return patient

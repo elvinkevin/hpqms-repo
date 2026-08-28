@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import NullPool
+from sqlalchemy import NullPool, select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -178,27 +178,13 @@ async def receptionist_token_headers(receptionist_staff):
 
 
 @pytest_asyncio.fixture
-async def doctor_staff(db, department):
-    staff = Staff(
-        staff_id=uuid4(),
-        employee_id="DOC001",
-        dept_id=department.dept_id,
-        first_name="Dr.",
-        last_name="Smith",
-        role=StaffRole.DOCTOR,
-        hashed_password=hash_password("Password123!"),
-        is_active=True,
-    )
-    db.add(staff)
-    await db.commit()
-    await db.refresh(staff)
-    return staff
+async def doctor_staff(doctor):
+    return doctor
 
 
 @pytest_asyncio.fixture
 async def doctor_token_headers(doctor_staff):
-    token = create_access_token({"sub": str(doctor_staff.staff_id)})
-    return {"Authorization": f"Bearer {token}"}
+    return make_headers(doctor_staff)
 
 
 @pytest_asyncio.fixture
@@ -247,7 +233,7 @@ async def existing_patient(db):
 
 
 @pytest_asyncio.fixture
-async def active_visit(db, existing_patient):
+async def active_visit(db, existing_patient, setup_departments):
     visit = Visit(
         patient_id=existing_patient.patient_id,
         token_number="W-101",
@@ -256,6 +242,18 @@ async def active_visit(db, existing_patient):
         stage=VisitStage.ACTIVE,
     )
     db.add(visit)
+    await db.flush()
+
+    # Automatically create initial queue entry in Reception
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        department_id=setup_departments["RECEPTION"].dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
+    )
+    db.add(entry)
+
     await db.commit()
     await db.refresh(visit)
     return visit
@@ -298,3 +296,152 @@ async def patient_factory(db, faker):
     return _create_patient
 
 
+@pytest.fixture
+async def patient(db):
+    """Creates and persists a Patient parent record."""
+    patient = Patient(
+        first_name="Jane",
+        last_name="Doe",
+    )
+    db.add(patient)
+    await db.flush()
+    await db.refresh(patient)
+    return patient
+
+
+@pytest_asyncio.fixture
+async def setup_departments(db):
+    """
+    Creates (or reuses) the core hospital routing departments.
+    """
+
+    department_definitions = {
+        "RECEPTION": {
+            "name": "Reception",
+            "type": DeptType.OPD,
+        },
+        "TRIAGE": {
+            "name": "Triage",
+            "type": DeptType.OPD,
+        },
+         "CONSULT": {
+            "name": "Consultation",
+            "type": DeptType.OPD,
+        },
+        "EMERGENCY": {
+            "name": "Emergency",
+            "type": DeptType.EMERGENCY,
+        },
+    }
+
+    departments = {}
+
+    for code, values in department_definitions.items():
+
+        result = await db.execute(
+            select(Department).where(
+                Department.department_code == code
+            )
+        )
+
+        dept = result.scalar_one_or_none()
+
+        if dept is None:
+            dept = Department(
+                department_code=code,
+                name=values["name"],
+                type=values["type"],
+                is_active=True,
+            )
+
+            db.add(dept)
+            await db.flush()
+
+        departments[code] = dept
+
+    await db.commit()
+
+    for dept in departments.values():
+        await db.refresh(dept)
+
+    return departments
+
+
+@pytest_asyncio.fixture
+async def triage_nurse_staff(db, setup_departments):
+    """
+    Creates or reuses a triage nurse staff member.
+    """
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(Staff).where(Staff.employee_id == "NURSE001")
+    )
+    staff = result.scalar_one_or_none()
+
+    if staff is None:
+        triage_dept = setup_departments.get("TRIAGE") or setup_departments.get("RECEPTION")
+        staff = Staff(
+            staff_id=uuid4(),
+            employee_id="NURSE001",
+            dept_id=triage_dept.dept_id,
+            first_name="Nurse",
+            last_name="Joy",
+            role=StaffRole.TRIAGE_NURSE,  # Adjust to StaffRole.NURSE if your Enum uses that
+            hashed_password=hash_password("Password123!"),
+            is_active=True,
+        )
+        db.add(staff)
+        await db.commit()
+        await db.refresh(staff)
+
+    return staff
+
+
+@pytest_asyncio.fixture
+async def triage_token_headers(triage_nurse_staff):
+    """
+    Generates auth headers for the triage nurse.
+    """
+    token = create_access_token({"sub": str(triage_nurse_staff.staff_id)})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def nurse_staff(db, setup_departments):
+    """
+    Creates or reuses a standard nurse staff member.
+    """
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(Staff).where(Staff.employee_id == "NURSE002")
+    )
+    staff = result.scalar_one_or_none()
+
+    if staff is None:
+        dept = setup_departments.get("CONSULT") or setup_departments.get("RECEPTION")
+        staff = Staff(
+            staff_id=uuid4(),
+            employee_id="NURSE002",
+            dept_id=dept.dept_id,
+            first_name="Nurse",
+            last_name="Jackie",
+            role=StaffRole.NURSE,
+            hashed_password=hash_password("Password123!"),
+            is_active=True,
+        )
+        db.add(staff)
+        await db.commit()
+        await db.refresh(staff)
+
+    return staff
+
+
+@pytest_asyncio.fixture
+async def nurse_token_headers(nurse_staff):
+    """
+    Generates auth headers for the nurse.
+    """
+    token = create_access_token({"sub": str(nurse_staff.staff_id)})
+    return {"Authorization": f"Bearer {token}"}

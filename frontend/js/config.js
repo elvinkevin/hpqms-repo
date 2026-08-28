@@ -43,6 +43,10 @@ const DEFAULT_CONFIG = {
         name: "Public Patient Display",
         facilityName: "HPQMS Hospital",
     },
+    // Add kiosk configuration block
+    kiosk: {
+        apiKey: "generate-a-long-random-value", // Set your actual key or dev default here
+    },
 
     layout: {
         mode: "SINGLE_DEPARTMENT",
@@ -216,6 +220,14 @@ function assertWebSocketUrl(value, fieldName) {
  * Validate the complete runtime configuration.
  */
 function validateConfig(config) {
+
+    const apiKey = config.kiosk?.apiKey ?? config.backend?.kioskApiKey;
+
+    if (typeof apiKey !== "string" || apiKey.trim() === "") {
+        throw new Error(
+            "kiosk.apiKey or backend.kioskApiKey must be a non-empty string"
+        );
+    }
     /* Display */
 
     if (

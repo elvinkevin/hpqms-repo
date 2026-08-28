@@ -12,6 +12,7 @@ Covers:
 from datetime import datetime
 from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
+import uuid
 
 import pytest
 from fastapi import HTTPException
@@ -882,3 +883,150 @@ class TestRoutingServiceIntegration:
         routing_service.queue_service.complete_queue_entry.assert_awaited_once()
         routing_service.queue_service.create_queue_entry.assert_awaited()
         routing_service.queue_service.emit_department_event.assert_awaited()
+
+
+    async def test_discharge_patient_completes_queue_entry_and_visit(
+        self,
+        db,
+        active_visit,
+        queue_entry,
+    ):
+        # Link the existing queue_entry instance to active_visit
+        queue_entry.visit_id = active_visit.visit_id
+        await db.flush()
+
+        routing_service = RoutingService(db)
+
+        current_entry = await routing_service.queue_service.get_active_queue_entry(
+            active_visit.visit_id
+        )
+
+        assert current_entry is not None
+
+
+    async def test_cannot_discharge_waiting_patient(
+        self,
+        db,
+        active_visit,
+        queue_entry,
+    ):
+        # Link the queue_entry to active_visit and set status to WAITING
+        queue_entry.visit_id = active_visit.visit_id
+        queue_entry.status = QueueEntryStatus.WAITING
+        await db.flush()
+
+        routing_service = RoutingService(db)
+
+        current_entry = await routing_service.queue_service.get_active_queue_entry(
+            active_visit.visit_id
+        )
+
+        assert current_entry is not None
+        assert current_entry.status == QueueEntryStatus.WAITING
+
+        with pytest.raises(HTTPException) as exc:
+            await routing_service.discharge_patient(
+                visit_id=active_visit.visit_id,
+                staff_id=uuid.uuid4(),
+            )
+
+        assert exc.value.status_code == 409
+
+
+    async def test_cannot_discharge_called_patient(
+        self,
+        db,
+        active_visit,
+        queue_entry,
+    ):
+        # Link queue_entry to active_visit and set status to CALLED
+        queue_entry.visit_id = active_visit.visit_id
+        queue_entry.status = QueueEntryStatus.CALLED
+        await db.flush()
+
+        routing_service = RoutingService(db)
+
+        with pytest.raises(HTTPException) as exc:
+            await routing_service.discharge_patient(
+                visit_id=active_visit.visit_id,
+                staff_id=uuid.uuid4(),
+            )
+
+        assert exc.value.status_code == 409
+
+    async def test_discharge_unknown_visit_returns_404(
+        self,  # <--- Ensure 'self' is the first parameter
+        db,
+        admin_staff,
+    ):
+        routing_service = RoutingService(db)
+
+        with pytest.raises(HTTPException) as exc:
+            await routing_service.discharge_patient(
+                visit_id=uuid.uuid4(),
+                staff_id=admin_staff.staff_id,
+            )
+
+        assert exc.value.status_code == 404
+
+    async def test_cannot_discharge_completed_visit(
+        self,
+        db,
+        active_visit,
+        queue_entry,
+        admin_staff,  # Use existing staff fixture
+    ):
+        staff_id = admin_staff.staff_id
+
+        # Link queue_entry to active_visit, assign real staff_id, and set status to IN_PROGRESS
+        queue_entry.visit_id = active_visit.visit_id
+        queue_entry.assigned_staff_id = staff_id
+        queue_entry.status = QueueEntryStatus.IN_PROGRESS
+        await db.flush()
+
+        routing_service = RoutingService(db)
+
+        # First discharge succeeds
+        await routing_service.discharge_patient(
+            visit_id=active_visit.visit_id,
+            staff_id=staff_id,
+        )
+
+        # Attempting to discharge an already completed visit fails (HTTP 409)
+        with pytest.raises(HTTPException) as exc:
+            await routing_service.discharge_patient(
+                visit_id=active_visit.visit_id,
+                staff_id=staff_id,
+            )
+
+        assert exc.value.status_code == 409
+
+    async def test_discharge_does_not_create_new_queue_entry(
+        self,
+        db,
+        active_visit,
+        queue_entry,
+        admin_staff,
+    ):
+        staff_id = admin_staff.staff_id
+
+        # Link queue_entry to active_visit, assign real staff_id, and set status to IN_PROGRESS
+        queue_entry.visit_id = active_visit.visit_id
+        queue_entry.assigned_staff_id = staff_id
+        queue_entry.status = QueueEntryStatus.IN_PROGRESS
+        await db.flush()
+
+        routing_service = RoutingService(db)
+
+        await routing_service.discharge_patient(
+            visit_id=active_visit.visit_id,
+            staff_id=staff_id,
+        )
+
+        remaining_active = (
+            await routing_service.queue_service.get_active_queue_entry(
+                active_visit.visit_id
+            )
+        )
+
+        assert remaining_active is None

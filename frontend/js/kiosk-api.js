@@ -18,7 +18,6 @@ import { getConfig } from "./config.js";
  */
 function getKioskApiKey() {
     const config = getConfig();
-
     const apiKey =
         config?.kiosk?.apiKey ??
         config?.backend?.kioskApiKey;

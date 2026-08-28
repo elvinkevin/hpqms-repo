@@ -1,71 +1,241 @@
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>HPQMS Staff Dashboard</title>
+
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/layouts.css" />
     <link rel="stylesheet" href="css/components.css" />
+
     <style>
+        :root {
+            --primary: #0F5B78;
+            --primary-dark: #0C4A62;
+            --secondary: #13A6A6;
+            --bg: #F4F8FA;
+            --card: #FFFFFF;
+            --text: #17324D;
+            --muted: #6B7C8A;
+            --success: #16855B;
+            --error: #C0392B;
+            --border: #DCE6EB;
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --shadow: 0 10px 30px rgba(15, 91, 120, 0.08), 0 2px 8px rgba(15, 91, 120, 0.06);
+            --shadow-drawer: -10px 0 30px rgba(15, 91, 120, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
-            font-family: system-ui, sans-serif;
-            background: #f5f7fb;
-            color: #111827;
+            font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
         }
 
         .dashboard-shell {
             display: grid;
             grid-template-rows: auto 1fr;
             min-height: 100vh;
-            gap: 16px;
-            padding: 16px;
+            gap: 20px;
+            padding: 20px;
         }
 
         .dashboard-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 16px;
+            gap: 20px;
+            background: var(--card);
+            padding: 20px 28px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
         }
 
         .dashboard-header h1 {
             margin: 0;
             font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text);
         }
 
         .status-pill {
-            padding: 8px 14px;
+            padding: 10px 18px;
             border-radius: 999px;
-            background: #e2e8f0;
-            color: #0f172a;
+            background: var(--bg);
+            color: var(--text);
             font-weight: 600;
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            font-size: 0.95rem;
+            border: 1px solid var(--border);
         }
 
         .content-grid {
             display: grid;
-            grid-template-columns: 1.6fr 1fr;
-            gap: 16px;
-            align-items: start;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: stretch;
+            min-height: 0;
         }
 
         .panel {
-            background: #ffffff;
-            border: 1px solid #d1d5db;
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            height: 100%;
         }
 
         .panel h2 {
             margin-top: 0;
-            margin-bottom: 16px;
-            font-size: 1.1rem;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        /* ============================================================
+           CURRENT PATIENT PANEL - SIMPLIFIED (NO REGISTRATION SECTION)
+           ============================================================ */
+
+        #current-patient-panel {
+            grid-column: 1;
+        }
+
+        .patient-info-grid {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .patient-info-item {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            align-items: baseline;
+        }
+
+        .patient-info-item strong {
+            color: var(--text);
+            font-weight: 700;
+            min-width: 100px;
+        }
+
+        .patient-info-item span {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .patient-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .patient-actions button {
+            padding: 14px 18px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.15s ease, transform 0.1s ease;
+            min-height: 50px;
+        }
+
+        .patient-actions button:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .button-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .button-primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .button-secondary {
+            background: var(--secondary);
+            color: #fff;
+        }
+
+        .button-secondary:hover:not(:disabled) {
+            background: #0d8f8f;
+        }
+
+        .button-danger {
+            background: var(--error);
+            color: #fff;
+        }
+
+        .button-danger:hover:not(:disabled) {
+            background: #b81b1b;
+        }
+
+        .button-disabled {
+            background: var(--muted);
+            color: #fff;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .current-owner {
+            margin-top: 12px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            display: inline-block;
+        }
+
+        .current-owner.owner {
+            color: var(--success);
+            background: rgba(22, 133, 91, 0.1);
+        }
+
+        .current-owner.other-owner {
+            color: #d97706;
+            background: rgba(217, 119, 6, 0.1);
+        }
+
+        .current-owner.unassigned {
+            color: var(--muted);
+            background: var(--bg);
+        }
+
+        .error-text {
+            color: var(--error);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin: 12px 0 0;
+        }
+
+        /* ============================================================
+           QUEUE PANEL
+           ============================================================ */
+
+        #queue-panel {
+            grid-column: 2;
         }
 
         .queue-table {
@@ -75,133 +245,63 @@
 
         .queue-table th,
         .queue-table td {
-            padding: 12px 10px;
+            padding: 14px 12px;
             text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border);
         }
 
         .queue-table th {
-            font-size: 0.95rem;
-            color: #475569;
+            font-size: 0.9rem;
+            color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 0.04em;
+            font-weight: 700;
         }
 
         .queue-table tbody tr:hover {
-            background: #f8fafc;
+            background: var(--bg);
         }
 
         .queue-row {
             cursor: pointer;
+            transition: background 0.15s ease;
         }
 
         .queue-row.selected {
-            background: #e2e8f0;
-        }
-
-        .button-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        .button-row button {
-            flex: 1;
-            min-width: 120px;
-            padding: 12px 16px;
-            border: none;
-            border-radius: 10px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 150ms ease, transform 150ms ease;
-        }
-
-        .button-row button:hover {
-            transform: translateY(-1px);
-        }
-
-        .button-primary {
-            background: #2563eb;
-            color: #ffffff;
-        }
-
-        .button-secondary {
-            background: #1d4ed8;
-            color: #ffffff;
-        }
-
-        .button-danger {
-            background: #dc2626;
-            color: #ffffff;
-        }
-
-        .button-disabled {
-            background: #94a3b8;
-            color: #f8fafc;
-            cursor: not-allowed;
-        }
-
-        .login-panel {
-            display: grid;
-            gap: 12px;
-        }
-
-        .login-panel label {
-            display: block;
-            font-size: 0.9rem;
-            margin-bottom: 4px;
-        }
-
-        .login-panel input {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            font-size: 1rem;
-        }
-
-        .error-text {
-            color: #b91c1c;
-            font-size: 0.95rem;
-        }
-
-        .hidden {
-            display: none !important;
+            background: rgba(19, 166, 166, 0.08);
         }
 
         .empty-state {
-            color: #475569;
-            padding: 16px;
-            border-radius: 12px;
-            background: #f1f5f9;
+            color: var(--muted);
+            padding: 20px;
+            border-radius: var(--radius-md);
+            background: var(--bg);
+            text-align: center;
+            font-size: 0.95rem;
         }
 
-        .queue-section {
-            display: block;
-        }
+        /* ============================================================
+           NO-SHOW QUEUE
+           ============================================================ */
 
-        .queue-state {
-            color: #475569;
-            padding: 16px;
-            border-radius: 12px;
-            background: #f1f5f9;
-            margin-bottom: 16px;
+        #no-show-panel {
+            grid-column: 2;
         }
 
         .queue-table td button {
             padding: 10px 14px;
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             font-weight: 700;
             cursor: pointer;
-            color: #ffffff;
-            background: #2563eb;
-            transition: background 150ms ease, transform 150ms ease;
+            color: #fff;
+            background: var(--primary);
+            transition: background 0.15s ease, transform 0.1s ease;
+            font-size: 0.9rem;
         }
 
-        .queue-table td button:hover {
-            background: #1d4ed8;
+        .queue-table td button:hover:not(:disabled) {
+            background: var(--primary-dark);
             transform: translateY(-1px);
         }
 
@@ -209,96 +309,642 @@
             min-width: 110px;
         }
 
-        .current-owner {
-            margin-top: 8px;
+        /* ============================================================
+           MODAL OVERLAY (BACKDROP)
+           ============================================================ */
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: none;
+            z-index: 999;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* ============================================================
+           REGISTRATION DRAWER (SLIDE-OVER PANEL)
+           ============================================================ */
+
+        .registration-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100vh;
+            width: 420px;
+            background: var(--card);
+            box-shadow: var(--shadow-drawer);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            animation: slideIn 0.3s ease;
+            overflow: hidden;
+        }
+
+        .registration-drawer.active {
+            display: flex;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+            }
+            to {
+                transform: translateX(100%);
+            }
+        }
+
+        .registration-drawer.closing {
+            animation: slideOut 0.3s ease forwards;
+        }
+
+        .drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .drawer-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
             font-weight: 700;
+            color: var(--text);
+        }
+
+        .drawer-close-button {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--muted);
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .drawer-close-button:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .drawer-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            min-height: 0;
+        }
+
+        .drawer-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .drawer-content::-webkit-scrollbar-track {
+            background: var(--bg);
+            border-radius: 10px;
+        }
+
+        .drawer-content::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+
+        .drawer-content::-webkit-scrollbar-thumb:hover {
+            background: var(--muted);
+        }
+
+        .drawer-footer {
+            display: flex;
+            gap: 12px;
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .drawer-footer button {
+            flex: 1;
+            padding: 12px 18px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            cursor: pointer;
             font-size: 0.95rem;
+            transition: background 0.15s ease, transform 0.1s ease;
         }
 
-        .current-owner.owner {
-            color: #10b981;
+        .drawer-footer button:hover:not(:disabled) {
+            transform: translateY(-1px);
         }
 
-        .current-owner.other-owner {
-            color: #f59e0b;
+        .drawer-submit {
+            background: var(--primary);
+            color: #fff;
         }
 
-        .current-owner.unassigned {
-            color: #64748b;
+        .drawer-submit:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .drawer-submit:disabled {
+            background: var(--muted);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .drawer-cancel {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .drawer-cancel:hover:not(:disabled) {
+            background: var(--border);
+        }
+
+        .registration-description {
+            margin-top: 0;
+            margin-bottom: 18px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .registration-form {
+            display: grid;
+            gap: 16px;
+        }
+
+        .registration-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-field label {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .form-field input,
+        .form-field select,
+        .form-field textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px 14px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.95rem;
+            font-family: inherit;
+            background: var(--card);
+            color: var(--text);
+            transition: border-color 0.15s ease;
+        }
+
+        .form-field textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+
+        .form-field input:focus,
+        .form-field select:focus,
+        .form-field textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(15, 91, 120, 0.12);
+        }
+
+        .required-mark {
+            color: var(--error);
+        }
+
+        .drawer-error {
+            background: rgba(192, 57, 43, 0.1);
+            border: 1px solid var(--error);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            color: var(--error);
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .drawer-error.active {
+            display: block;
+        }
+
+        .keyboard-hint {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        /* ============================================================
+           MISCELLANEOUS
+           ============================================================ */
+
+        .hidden {
+            display: none !important;
+        }
+
+        #logout-button {
+            background: var(--error);
+            color: #fff;
+            padding: 12px 20px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.15s ease;
+        }
+
+        #logout-button:hover {
+            background: #b81b1b;
+        }
+
+        /* ============================================================
+           LOGIN PANEL
+           ============================================================ */
+
+        .login-panel {
+            display: grid;
+            gap: 16px;
+        }
+
+        .login-panel label {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .login-panel input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            box-sizing: border-box;
+            font-family: inherit;
+            transition: border-color 0.15s ease;
+        }
+
+        .login-panel input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(15, 91, 120, 0.12);
+        }
+
+        .login-panel button {
+            padding: 14px 18px;
+            margin-top: 6px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.15s ease;
+        }
+
+        .login-panel button:hover {
+            background: var(--primary-dark);
+        }
+
+        /* ============================================================
+           RESPONSIVE DESIGN
+           ============================================================ */
+
+        @media (max-width: 1200px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            #current-patient-panel {
+                grid-column: 1;
+            }
+
+            #queue-panel,
+            #no-show-panel {
+                grid-column: 1;
+            }
+
+            .patient-actions {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .registration-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-shell {
+                gap: 16px;
+                padding: 16px;
+            }
+
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 16px;
+            }
+
+            .panel {
+                padding: 20px;
+            }
+
+            .patient-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .registration-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Make drawer full-width on mobile */
+            .registration-drawer {
+                width: 100%;
+            }
         }
     </style>
+
 </head>
 
 <body>
+
     <div class="dashboard-shell">
+
         <header class="dashboard-header">
+
             <div>
                 <h1>HPQMS Staff Dashboard</h1>
-                <div id="dashboard-subtitle" class="status-pill">Please sign in to manage the queue</div>
+
+                <div id="dashboard-subtitle" class="status-pill">
+                    Please sign in to manage the queue
+                </div>
             </div>
+
             <div>
-                <button id="logout-button" class="button-secondary hidden">Logout</button>
+                <button
+                    id="logout-button"
+                    class="hidden"
+                >
+                    Logout
+                </button>
             </div>
+
         </header>
 
+
         <main class="content-grid">
+
+            <!-- ======================================================
+                 LOGIN
+                 ====================================================== -->
+
             <section class="panel" id="login-panel">
+
                 <h2>Staff Login</h2>
+
                 <form id="login-form" class="login-panel">
+
                     <div>
-                        <label for="employee-id">Employee ID</label>
-                        <input id="employee-id" name="employee_id" type="text" autocomplete="username" required />
+                        <label for="employee-id">
+                            Employee ID
+                        </label>
+
+                        <input
+                            id="employee-id"
+                            name="employee_id"
+                            type="text"
+                            autocomplete="username"
+                            required
+                        />
                     </div>
+
                     <div>
-                        <label for="password">Password</label>
-                        <input id="password" name="password" type="password" autocomplete="current-password" required />
+                        <label for="password">
+                            Password
+                        </label>
+
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autocomplete="current-password"
+                            required
+                        />
                     </div>
-                    <button type="submit" class="button-primary">Sign in</button>
-                    <p id="login-error" class="error-text hidden"></p>
+
+                    <button
+                        type="submit"
+                        class="button-primary"
+                    >
+                        Sign in
+                    </button>
+
+                    <p
+                        id="login-error"
+                        class="error-text hidden"
+                    ></p>
+
                 </form>
+
             </section>
 
-            <section class="panel hidden" id="current-patient-panel">
+
+            <!-- ======================================================
+                 CURRENT PATIENT - SIMPLIFIED
+                 ====================================================== -->
+
+            <section
+                class="panel hidden"
+                id="current-patient-panel"
+            >
+
                 <h2>Current Patient</h2>
-                <div id="current-patient-content">
-                    <p><strong>Token:</strong> <span id="current-token">—</span></p>
-                    <p><strong>Status:</strong> <span id="current-status">—</span></p>
-                    <p><strong>Patient:</strong> <span id="current-patient">—</span></p>
-                    <p><strong>Priority:</strong> <span id="current-priority">—</span></p>
-                    <div id="current-owner" class="current-owner unassigned">Owner: Unassigned</div>
-                    <div class="button-row">
-                        <button id="call-button" class="button-primary">CALL</button>
-                        <button id="start-button" class="button-secondary">START SERVICE</button>
-                        <button id="noshow-button" class="button-danger">MARK NO-SHOW</button>
-                        <button id="complete-button" class="button-danger">COMPLETE</button>
+
+                <div class="patient-info-grid">
+
+                    <div class="patient-info-item">
+                        <strong>Token:</strong>
+                        <span id="current-token">—</span>
                     </div>
-                    <p id="action-error" class="error-text hidden"></p>
+
+                    <div class="patient-info-item">
+                        <strong>Status:</strong>
+                        <span id="current-status">—</span>
+                    </div>
+
+                    <div class="patient-info-item">
+                        <strong>Patient:</strong>
+                        <span id="current-patient">—</span>
+                    </div>
+
+                    <div class="patient-info-item">
+                        <strong>Priority:</strong>
+                        <span id="current-priority">—</span>
+                    </div>
+
                 </div>
+
+                <div
+                    id="current-owner"
+                    class="current-owner unassigned"
+                >
+                    Owner: Unassigned
+                </div>
+
+                <div class="patient-actions">
+
+                    <button
+                        id="call-button"
+                        class="button-primary"
+                    >
+                        CALL
+                    </button>
+
+                    <button
+                        id="start-button"
+                        class="button-secondary"
+                    >
+                        START SERVICE
+                    </button>
+
+                    <button
+                        id="noshow-button"
+                        class="button-danger"
+                    >
+                        MARK NO-SHOW
+                    </button>
+
+                    <button
+                        id="complete-button"
+                        class="button-danger"
+                    >
+                        COMPLETE
+                    </button>
+
+                </div>
+
+                <p
+                    id="action-error"
+                    class="error-text hidden"
+                ></p>
+
             </section>
 
-            <section class="panel hidden" id="queue-panel">
+
+            <!-- ======================================================
+                 RECEPTION QUEUE
+                 ====================================================== -->
+
+            <section
+                class="panel hidden"
+                id="queue-panel"
+            >
+
                 <h2>Reception Queue</h2>
-                <div id="queue-state" class="empty-state">Log in to view department queue entries.</div>
-                <table class="queue-table hidden" id="queue-table">
+
+                <div
+                    id="queue-state"
+                    class="empty-state"
+                >
+                    Log in to view department queue entries.
+                </div>
+
+                <table
+                    class="queue-table hidden"
+                    id="queue-table"
+                >
+
                     <thead>
+
                         <tr>
                             <th>Token</th>
                             <th>Patient</th>
                             <th>Priority</th>
                             <th>Status</th>
                         </tr>
+
                     </thead>
+
                     <tbody id="queue-body"></tbody>
+
                 </table>
+
             </section>
 
-            <section class="panel hidden" id="no-show-panel">
+
+            <!-- ======================================================
+                 NO-SHOW QUEUE
+                 ====================================================== -->
+
+            <section
+                class="panel hidden"
+                id="no-show-panel"
+            >
+
                 <h2>Missed / No-Show Patients</h2>
-                <div id="no-show-state" class="queue-state">
+
+                <div
+                    id="no-show-state"
+                    class="empty-state"
+                >
                     No patients are currently marked as no-show.
                 </div>
-                <table id="no-show-table" class="queue-table hidden">
+
+                <table
+                    id="no-show-table"
+                    class="queue-table hidden"
+                >
+
                     <thead>
+
                         <tr>
                             <th>TOKEN</th>
                             <th>PATIENT</th>
@@ -306,14 +952,207 @@
                             <th>STATUS</th>
                             <th>ACTION</th>
                         </tr>
+
                     </thead>
+
                     <tbody id="no-show-body"></tbody>
+
                 </table>
+
             </section>
+
         </main>
+
     </div>
 
-    <script type="module" src="js/staff.js"></script>
+
+    <!-- ======================================================
+         MODAL OVERLAY (BACKDROP)
+         ====================================================== -->
+
+    <div id="registration-overlay" class="modal-overlay"></div>
+
+
+    <!-- ======================================================
+         REGISTRATION DRAWER (SLIDE-OVER PANEL)
+         ====================================================== -->
+
+    <div id="registration-drawer" class="registration-drawer">
+
+        <div class="drawer-header">
+            <h3>Complete Patient Registration</h3>
+            <button
+                id="drawer-close-button"
+                class="drawer-close-button"
+                aria-label="Close registration"
+            >
+                ✕
+            </button>
+        </div>
+
+        <div class="drawer-content">
+
+            <p class="registration-description">
+                This patient has incomplete registration information.
+                Verify and complete the patient's administrative details.
+            </p>
+
+            <div
+                id="drawer-error"
+                class="drawer-error"
+            ></div>
+
+            <form id="patient-registration-form" class="registration-form">
+
+                <div class="registration-grid">
+
+                    <div class="form-field">
+                        <label for="registration-first-name">
+                            First Name
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input
+                            id="registration-first-name"
+                            name="first_name"
+                            type="text"
+                            autocomplete="given-name"
+                            required
+                        />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-last-name">
+                            Last Name
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input
+                            id="registration-last-name"
+                            name="last_name"
+                            type="text"
+                            autocomplete="family-name"
+                            required
+                        />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-date-of-birth">
+                            Date of Birth
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input
+                            id="registration-date-of-birth"
+                            name="date_of_birth"
+                            type="date"
+                            required
+                        />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-gender">
+                            Gender
+                            <span class="required-mark">*</span>
+                        </label>
+                        <select
+                            id="registration-gender"
+                            name="gender"
+                            required
+                        >
+                            <option value="">Select gender</option>
+                            <option value="MALE">Male</option>
+                            <option value="FEMALE">Female</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-national-id">
+                            National ID
+                        </label>
+                        <input
+                            id="registration-national-id"
+                            name="national_id"
+                            type="text"
+                        />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-phone">
+                            Phone
+                        </label>
+                        <input
+                            id="registration-phone"
+                            name="phone"
+                            type="tel"
+                            autocomplete="tel"
+                        />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-email">
+                            Email
+                        </label>
+                        <input
+                            id="registration-email"
+                            name="email"
+                            type="email"
+                            autocomplete="email"
+                        />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="registration-blood-type">
+                            Blood Type
+                        </label>
+                        <input
+                            id="registration-blood-type"
+                            name="blood_type"
+                            type="text"
+                        />
+                    </div>
+
+                </div>
+
+                <div class="form-field">
+                    <label for="registration-allergies">
+                        Allergies
+                    </label>
+                    <textarea
+                        id="registration-allergies"
+                        name="allergies"
+                    ></textarea>
+                </div>
+
+            </form>
+
+            <p class="keyboard-hint">
+                💡 Tip: Press <kbd>Ctrl+Enter</kbd> to save, or <kbd>Esc</kbd> to cancel
+            </p>
+
+        </div>
+
+        <div class="drawer-footer">
+            <button
+                id="drawer-cancel-button"
+                class="drawer-cancel"
+            >
+                Cancel
+            </button>
+            <button
+                id="drawer-submit-button"
+                class="drawer-submit"
+            >
+                Save & Close
+            </button>
+        </div>
+
+    </div>
+
+
+    <script
+        type="module"
+        src="js/staff.js"
+    ></script>
+
 </body>
 
 </html>

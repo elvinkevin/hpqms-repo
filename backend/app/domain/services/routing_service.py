@@ -134,15 +134,6 @@ class RoutingService:
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
     ) -> QueueEntry:
-        """
-        Orchestrates an inter-departmental TRANSFER command:
-        1. Validates visit state and target department.
-        2. Applies priority escalation rules based on TransferReason.
-        3. Enforces guardrails (e.g., CRITICAL priority requires notes).
-        4. Completes current active QueueEntry (frees doctor/staff slot).
-        5. Creates new QueueEntry (WAITING) for target department.
-        6. Emits WebSocket 'PATIENT_ROUTED' event to receiving department.
-        """
         # 1. Fetch & Validate Active Visit
         visit = await self.visit_service.get_visit(visit_id)
         if visit.stage != VisitStage.ACTIVE:
@@ -160,7 +151,6 @@ class RoutingService:
             )
 
         # 3. Apply Priority Escalation Rules
-        # Auto-escalate return visits to prevent re-queuing behind new walk-ins
         if reason == TransferReason.RETURN_TO_DEPARTMENT and priority == QueuePriority.NORMAL:
             priority = QueuePriority.URGENT
 
@@ -176,7 +166,8 @@ class RoutingService:
             current_entry = await self.queue_service.get_active_queue_entry(visit_id)
 
             if current_entry:
-                if current_entry.department_id == target_dept.dept_id:
+                # FIX: changed department_id to dept_id
+                if current_entry.dept_id == target_dept.dept_id:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
                         detail="Patient is already queued in the target department.",
@@ -203,7 +194,7 @@ class RoutingService:
                     f"{f' Notes: {notes.strip()}' if notes else ''}"
                 )
 
-                # Complete current encounter (Frees desk/clinician slot)
+                # Complete current encounter
                 await self.queue_service.complete_queue_entry(
                     current_entry.queue_entry_id,
                     staff_id=initiated_by_staff_id,
@@ -232,8 +223,9 @@ class RoutingService:
             event_type="PATIENT_ROUTED",
             extra_payload={
                 "transfer_reason": reason.value,
+                # FIX: changed department_id to dept_id
                 "source_department_id": (
-                    str(current_entry.department_id) if current_entry else None
+                    str(current_entry.dept_id) if current_entry else None
                 ),
                 "target_department_id": str(target_dept.dept_id),
             },
@@ -407,3 +399,84 @@ class RoutingService:
         return await self.queue_service.cancel_queue_entry(
             queue_entry_id, notes=notes
         )
+    
+
+    async def discharge_patient(
+        self,
+        visit_id: UUID,
+        staff_id: UUID,
+        notes: Optional[str] = None,
+    ) -> Visit:
+        """
+        Finish the patient's current clinical encounter and discharge
+        the entire hospital visit.
+
+        Workflow:
+            1. Verify visit exists and is ACTIVE.
+            2. Find the current active QueueEntry.
+            3. Require the queue entry to be IN_PROGRESS.
+            4. Complete the current QueueEntry.
+            5. Complete the Visit.
+            6. Leave no subsequent QueueEntry.
+        """
+
+        # ---------------------------------------------------------
+        # 1. Get and validate the visit
+        # ---------------------------------------------------------
+        visit = await self.visit_service.get_visit(visit_id)
+
+        if visit.stage != VisitStage.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Visit is no longer active.",
+            )
+
+        # ---------------------------------------------------------
+        # 2. Find current active queue entry
+        # ---------------------------------------------------------
+        current_entry = await self.queue_service.get_active_queue_entry(
+            visit_id
+        )
+
+        if not current_entry:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Patient has no active queue entry to discharge.",
+            )
+
+        # ---------------------------------------------------------
+        # 3. Discharge must happen from an active encounter
+        # ---------------------------------------------------------
+        if current_entry.status != QueueEntryStatus.IN_PROGRESS:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Patient must have an in-progress encounter "
+                    "before they can be discharged."
+                ),
+            )
+
+        # ---------------------------------------------------------
+        # 4. Complete the current department encounter
+        # ---------------------------------------------------------
+        completion_note = (
+            f"Encounter completed for visit discharge by Staff [{staff_id}]."
+        )
+
+        if notes and notes.strip():
+            completion_note += f" Notes: {notes.strip()}"
+
+        await self.queue_service.complete_queue_entry(
+            current_entry.queue_entry_id,
+            staff_id=staff_id,
+            notes=completion_note,
+        )
+
+        # ---------------------------------------------------------
+        # 5. Complete the entire visit
+        # ---------------------------------------------------------
+        visit = await self.visit_service.complete_visit(
+            visit_id
+        )
+
+        return visit

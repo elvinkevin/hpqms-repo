@@ -88,6 +88,12 @@ class VisitService:
                 detail="Patient not found.",
             )
 
+        if not patient.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Patient record is inactive.",
+            )
+
         existing = await self.get_active_visit(
             patient.patient_id
         )
@@ -116,7 +122,6 @@ class VisitService:
         await self.db.refresh(visit)
 
         return visit
-
     # ==========================================================
     # UPDATE
     # ==========================================================

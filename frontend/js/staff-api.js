@@ -112,7 +112,13 @@ async function getNextPatient(departmentId) {
     });
 }
 
-
+async function completePatientRegistration(patientId, data) {
+    return request(`/patients/${patientId}/complete-registration`, {
+        method: HTTP_METHOD.PATCH,
+        headers: buildAuthHeaders(),
+        body: data,
+    });
+}
 
 
 export {
@@ -128,5 +134,5 @@ export {
     requeueQueueEntry,
     getNextPatient,
     getCurrentUser,
-    
+    completePatientRegistration,
 };

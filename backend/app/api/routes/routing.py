@@ -11,6 +11,7 @@ from app.domain.schemas.schemas import (
     TransferPatientRequest,
     LiveLocationRead,
     CurrentUser,
+    VisitRead,
 )
 
 from app.domain.services.routing_service import RoutingService
@@ -74,6 +75,7 @@ async def dispatch_patient_from_kiosk(
                 StaffRole.NURSE,
                 StaffRole.TRIAGE_NURSE,
                 StaffRole.DOCTOR,
+                StaffRole.ADMIN
             )
         )
     ],
@@ -89,11 +91,15 @@ async def dispatch_patient_from_kiosk(
                 StaffRole.NURSE,
                 StaffRole.TRIAGE_NURSE,
                 StaffRole.DOCTOR,
+                StaffRole.ADMIN,
             )
         )
     ],
     deprecated=True,
 )
+
+
+
 async def transfer_patient(
     visit_id: UUID,
     payload: TransferPatientRequest,
@@ -170,3 +176,32 @@ async def get_patient_history(
     return await routing_service.get_token_movement_history(
         visit_id
     )
+
+
+@router.post(
+    "/{visit_id}/discharge",
+    response_model=VisitRead,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.DOCTOR,
+                StaffRole.ADMIN,
+            )
+        )
+    ],
+)
+async def discharge_patient(
+    visit_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    service = RoutingService(db)
+
+    visit = await service.discharge_patient(
+        visit_id=visit_id,
+        staff_id=current_user.staff_id,
+    )
+
+    await db.commit()
+
+    return visit

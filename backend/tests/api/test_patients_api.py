@@ -1,6 +1,11 @@
+import uuid
+
 import pytest
 from httpx import AsyncClient
 from fastapi import status
+
+from app.domain.models.models import Patient
+from app.domain.services.patient_service import PatientService
 
 pytestmark = pytest.mark.asyncio
 
@@ -453,3 +458,114 @@ async def test_unauthenticated_requests_blocked(client):
         json={"first_name": "John", "last_name": "Doe", "national_id": "123", "phone": "123", "date_of_birth": "2000-01-01"},
     )
     assert res_reconcile.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+
+async def test_admin_can_deactivate_patient(
+    client,
+    db,
+    patient,
+    admin_headers,
+):
+    response = await client.patch(
+        f"/api/patients/{patient.patient_id}/active-status",
+        json={"is_active": False},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["patient_id"] == str(patient.patient_id)
+    assert data["is_active"] is False
+
+
+
+@pytest.mark.asyncio
+async def test_deactivation_persists_to_database(
+    client,
+    db,
+    patient,
+    admin_headers,
+):
+    response = await client.patch(
+        f"/api/patients/{patient.patient_id}/active-status",
+        json={"is_active": False},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+
+    # Safely refresh the specific instance asynchronously
+    await db.refresh(patient)
+
+    assert patient.is_active is False
+
+
+async def test_admin_can_reactivate_patient(
+    client,
+    db,
+    patient,
+    admin_headers,
+):
+    patient.is_active = False
+    await db.flush()
+
+    response = await client.patch(
+        f"/api/patients/{patient.patient_id}/active-status",
+        json={"is_active": True},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is True
+
+
+import pytest
+from fastapi import HTTPException, status
+
+@pytest.mark.asyncio
+async def test_cannot_deactivate_patient_with_active_visit(
+    db,
+    active_visit,
+):
+    service = PatientService(db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.set_active_status(
+            patient_id=active_visit.patient_id,
+            is_active=False,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert exc_info.value.detail == "Cannot deactivate patient with an active visit."
+
+
+async def test_receptionist_cannot_deactivate_patient(
+    client,
+    patient,
+    receptionist_token_headers,
+):
+    response = await client.patch(
+        f"/api/patients/{patient.patient_id}/active-status",
+        json={"is_active": False},
+        headers=receptionist_token_headers,
+    )
+
+    assert response.status_code in (401, 403)
+
+
+async def test_deactivate_unknown_patient(
+    client,
+    admin_headers,
+):
+    patient_id = uuid.uuid4()
+
+    response = await client.patch(
+        f"/api/patients/{patient_id}/active-status",
+        json={"is_active": False},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 404

@@ -5,6 +5,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from app.domain.models.models import (
+    QueueEntry,
     VisitStage,
     EntryType,
     Department,
@@ -37,6 +38,10 @@ async def setup_departments(db):
         },
         "TRIAGE": {
             "name": "Triage",
+            "type": DeptType.OPD,
+        },
+         "CONSULT": {
+            "name": "Consultation",
             "type": DeptType.OPD,
         },
         "EMERGENCY": {
@@ -103,19 +108,25 @@ async def receptionist_headers(receptionist):
 
 @pytest.fixture
 async def doctor(db, department):
-    staff = Staff(
-        employee_id="DOC001",
-        first_name="Doctor",
-        last_name="User",
-        role=StaffRole.DOCTOR,
-        dept_id=department.dept_id,
-        hashed_password="ignored",
-        is_active=True,
+    # Check if DOC001 already exists in the test database
+    result = await db.execute(
+        select(Staff).where(Staff.employee_id == "DOC001")
     )
+    staff = result.scalar_one_or_none()
 
-    db.add(staff)
-    await db.commit()
-    await db.refresh(staff)
+    if staff is None:
+        staff = Staff(
+            employee_id="DOC001",
+            first_name="Doctor",
+            last_name="User",
+            role=StaffRole.DOCTOR,
+            dept_id=department.dept_id,
+            hashed_password="ignored",
+            is_active=True,
+        )
+        db.add(staff)
+        await db.commit()
+        await db.refresh(staff)
 
     return staff
 
@@ -743,3 +754,253 @@ async def test_get_patient_history_response_schema(
     }
 
     assert expected_fields.issubset(entry.keys())
+
+
+# ── GROUP 2: PATIENT TRANSFER / ROUTING ──────────────────────────────────────
+
+
+async def test_transfer_patient_success(
+    client: AsyncClient,
+    db,
+    active_visit,
+    setup_departments,
+    doctor_token_headers,
+    doctor_staff,
+):
+    """
+    A doctor transfers an in-progress patient to another department.
+
+    Expected:
+        Current QueueEntry -> COMPLETED
+        New QueueEntry      -> WAITING
+        Visit               -> ACTIVE
+    """
+    from sqlalchemy import select
+    from app.domain.models.models import QueueEntry, QueueEntryStatus, VisitStage
+
+    # 1. Retrieve the existing active QueueEntry created by active_visit fixture
+    result = await db.execute(
+        select(QueueEntry).where(
+            QueueEntry.visit_id == active_visit.visit_id
+        )
+    )
+    current_entry = result.scalar_one()
+
+    # 2. Update its status to IN_PROGRESS to simulate an ongoing consultation
+    current_entry.status = QueueEntryStatus.IN_PROGRESS
+    current_entry.assigned_staff_id = doctor_staff.staff_id
+    await db.commit()
+
+    # 3. Transfer payload to target department
+    target_department = setup_departments["CONSULT"]
+
+    payload = {
+        "target_department_id": str(target_department.dept_id),
+        "reason": "DEPARTMENT_TRANSFER",
+        "priority": "NORMAL",
+        "notes": "Patient requires further clinical assessment.",
+    }
+
+    # 4. Act
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        json=payload,
+        headers=doctor_token_headers,
+    )
+
+    # 5. Assert HTTP response
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+    assert data["visit_id"] == str(active_visit.visit_id)
+    assert data["department_id"] == str(target_department.dept_id)
+    assert data["status"] == QueueEntryStatus.WAITING.value
+
+    # 6. Assert current queue entry was marked COMPLETED
+    await db.refresh(current_entry)
+    assert current_entry.status == QueueEntryStatus.COMPLETED
+
+    # 7. Assert Visit remains ACTIVE
+    await db.refresh(active_visit)
+    assert active_visit.stage == VisitStage.ACTIVE
+
+    # 8. Assert new destination QueueEntry exists in WAITING state
+    result = await db.execute(
+        select(QueueEntry).where(
+            QueueEntry.visit_id == active_visit.visit_id,
+            QueueEntry.department_id == target_department.dept_id,
+        )
+    )
+    new_entry = result.scalar_one()
+    assert new_entry.status == QueueEntryStatus.WAITING
+
+
+async def test_transfer_waiting_patient_rejected(
+    client: AsyncClient,
+    db,
+    active_visit,
+    setup_departments,
+    doctor_token_headers,
+):
+    """
+    A patient must be actively in an encounter before being transferred.
+    """
+    from sqlalchemy import select
+    from app.domain.models.models import QueueEntry
+
+    result = await db.execute(
+        select(QueueEntry).where(
+            QueueEntry.visit_id == active_visit.visit_id
+        )
+    )
+
+    current_entry = result.scalar_one()
+
+    assert current_entry.status == QueueEntryStatus.WAITING
+
+    # Matches key in setup_departments fixture
+    target_department = setup_departments["CONSULT"]
+
+    payload = {
+        "target_department_id": str(target_department.dept_id),
+        "reason": "DEPARTMENT_TRANSFER",
+        "priority": "NORMAL",
+        "notes": "Transfer attempt.",
+    }
+
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        json=payload,
+        headers=doctor_token_headers,
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+
+    assert (
+        "in-progress" in response.json()["detail"].lower()
+        or "started" in response.json()["detail"].lower()
+    )
+
+
+async def test_transfer_to_same_department_rejected(
+    client: AsyncClient,
+    db,
+    active_visit,
+    setup_departments,
+    doctor_token_headers,
+):
+    """
+    A patient cannot be transferred to the department they are
+    already being served in.
+    """
+    from sqlalchemy import select
+    from app.domain.models.models import QueueEntry, QueueEntryStatus
+
+    # 1. Fetch the QueueEntry automatically created with active_visit
+    result = await db.execute(
+        select(QueueEntry).where(
+            QueueEntry.visit_id == active_visit.visit_id
+        )
+    )
+    current_entry = result.scalar_one()
+
+    # 2. Transition it to IN_PROGRESS so it simulates an active encounter
+    current_entry.status = QueueEntryStatus.IN_PROGRESS
+    await db.commit()
+
+    # 3. Payload targeting the same department
+    payload = {
+        "target_department_id": str(current_entry.department_id),
+        "reason": "DEPARTMENT_TRANSFER",
+        "priority": "NORMAL",
+        "notes": "Invalid same-department transfer.",
+    }
+
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        json=payload,
+        headers=doctor_token_headers,
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert (
+        response.json()["detail"]
+        == "Patient is already queued in the target department."
+    )
+
+
+async def test_transfer_to_inactive_department_rejected(
+    client: AsyncClient,
+    db,
+    active_visit,
+    setup_departments,
+    doctor_token_headers,
+):
+    """
+    Transfers to inactive departments must be rejected.
+    """
+    from sqlalchemy import select
+    from app.domain.models.models import QueueEntry, QueueEntryStatus
+
+    # Fetch active visit entry and transition to IN_PROGRESS
+    result = await db.execute(
+        select(QueueEntry).where(
+            QueueEntry.visit_id == active_visit.visit_id
+        )
+    )
+    current_entry = result.scalar_one()
+    current_entry.status = QueueEntryStatus.IN_PROGRESS
+
+    # Deactivate the target department
+    target_department = setup_departments["CONSULT"]
+    target_department.is_active = False
+
+    await db.commit()
+
+    payload = {
+        "target_department_id": str(target_department.dept_id),
+        "reason": "DEPARTMENT_TRANSFER",
+        "priority": "NORMAL",
+        "notes": "Transfer to inactive department.",
+    }
+
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        json=payload,
+        headers=doctor_token_headers,
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    assert (
+        "inactive" in response.json()["detail"].lower()
+        or "does not exist" in response.json()["detail"].lower()
+    )
+
+async def test_transfer_requires_authentication(
+    client: AsyncClient,
+    active_visit,
+    setup_departments,
+):
+    """
+    An unauthenticated client cannot transfer a patient.
+    """
+
+    target_department = setup_departments["CONSULT"]
+
+    payload = {
+        "target_department_id": str(target_department.dept_id),
+        "reason": "DEPARTMENT_TRANSFER",
+        "priority": "NORMAL",
+        "notes": "Unauthorized transfer attempt.",
+    }
+
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        json=payload,
+    )
+
+    assert response.status_code in (
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+    )

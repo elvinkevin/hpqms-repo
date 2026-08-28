@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from app.domain.services.patient_service import PatientService
 from app.domain.schemas.schemas import PatientCreate, PatientReconciliation, PatientUpdate,EmergencyPatientCreate
 from app.domain.models.models import RegistrationStatus
+from tests.unit.domain.services.test_queue_service import patient
 
 # NOTE: All @pytest.mark.asyncio decorators have been removed to stop loop deadlocks
 
@@ -348,3 +349,74 @@ async def test_register_emergency_patient_validates_supplied_identity(db):
 
     assert exc_info.value.status_code == 409
     assert "National ID '87654321' already exists" in exc_info.value.detail
+
+
+# ------------------------------------------------------------------------------
+# Test 13 — Deactivate Patient
+# ------------------------------------------------------------------------------
+
+async def test_deactivate_patient(db, patient):
+    service = PatientService(db)
+
+    updated = await service.set_active_status(
+        patient_id=patient.patient_id,
+        is_active=False,
+    )
+
+    assert updated.is_active is False
+
+
+# ------------------------------------------------------------------------------
+# Test 14 — Reactivate Patient
+# ------------------------------------------------------------------------------
+
+async def test_reactivate_patient(db, patient_factory):
+    # Call the factory to create a patient instance
+    patient = await patient_factory()
+    
+    patient.is_active = False
+    await db.flush()
+
+    service = PatientService(db)
+
+    updated = await service.set_active_status(
+        patient_id=patient.patient_id,
+        is_active=True,
+    )
+    
+    assert updated.is_active is True
+
+
+# ------------------------------------------------------------------------------
+# Test 15 — Cannot Deactivate Patient With Active Visit
+# ------------------------------------------------------------------------------
+
+async def test_cannot_deactivate_patient_with_active_visit(
+    db,
+    active_visit,
+):
+    service = PatientService(db)
+
+    with pytest.raises(HTTPException) as exc:
+        await service.set_active_status(
+            patient_id=active_visit.patient_id,
+            is_active=False,
+        )
+    
+    assert exc.value.status_code == 409  # Optional: verify exception status code
+
+
+# ------------------------------------------------------------------------------
+# Test 16 — Deactivate Unknown Patient
+# ------------------------------------------------------------------------------
+
+async def test_set_active_status_unknown_patient(db):
+    service = PatientService(db)
+
+    with pytest.raises(HTTPException) as exc:
+        await service.set_active_status(
+            patient_id=uuid.uuid4(),
+            is_active=False,
+        )
+
+    assert exc.value.status_code == 404

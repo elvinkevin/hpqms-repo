@@ -1,6 +1,12 @@
 /* ==========================================================================
-   HPQMS Staff Dashboard
-   js/staff.js
+   HPQMS Staff Dashboard - OPTION 2: MODAL DRAWER IMPLEMENTATION
+   WORKFLOW: SELECT → CALL → START SERVICE (auto-opens registration drawer if incomplete)
+   
+   Key Features:
+   - Slide-over drawer (right-side panel) for registration
+   - Auto-trigger when START SERVICE clicked on incomplete patient
+   - Keyboard shortcuts: ESC to close, Ctrl/Cmd+Enter to save
+   - Partial background visibility for context
    ========================================================================== */
 
 import {
@@ -16,8 +22,8 @@ import {
     requeueQueueEntry,
     getNextPatient,
     getCurrentUser,
+    completePatientRegistration,  
 } from "./staff-api.js";
-
 
 import {
     connect as connectStaffWebSocket,
@@ -53,6 +59,26 @@ const elements = {
     noShowTable: document.getElementById("no-show-table"),
     noShowBody: document.getElementById("no-show-body"),
     noShowState: document.getElementById("no-show-state"),
+
+    // Drawer elements
+    registrationOverlay: document.getElementById("registration-overlay"),
+    registrationDrawer: document.getElementById("registration-drawer"),
+    drawerCloseButton: document.getElementById("drawer-close-button"),
+    drawerCancelButton: document.getElementById("drawer-cancel-button"),
+    drawerSubmitButton: document.getElementById("drawer-submit-button"),
+    drawerError: document.getElementById("drawer-error"),
+
+    // Registration form fields
+    patientRegistrationForm: document.getElementById("patient-registration-form"),
+    registrationFirstName: document.getElementById("registration-first-name"),
+    registrationLastName: document.getElementById("registration-last-name"),
+    registrationDateOfBirth: document.getElementById("registration-date-of-birth"),
+    registrationGender: document.getElementById("registration-gender"),
+    registrationNationalId: document.getElementById("registration-national-id"),
+    registrationPhone: document.getElementById("registration-phone"),
+    registrationEmail: document.getElementById("registration-email"),
+    registrationBloodType: document.getElementById("registration-blood-type"),
+    registrationAllergies: document.getElementById("registration-allergies"),
 };
 
 let selectedDepartmentId = null;
@@ -60,15 +86,11 @@ let queueEntries = [];
 let noShowEntries = [];
 let selectedQueueEntry = null;
 let currentUser = null;
-
 let staffWebSocketSubscriptions = [];
-
 let websocketConnected = false;
-
 let queueRefreshInProgress = false;
-
 let queueRefreshPending = false;
-
+let drawerOpen = false;
 
 const STAFF_QUEUE_EVENTS = new Set([
     "TOKEN_CALLED",
@@ -80,15 +102,19 @@ const STAFF_QUEUE_EVENTS = new Set([
     "PATIENT_ROUTED",
     "QUEUE_UPDATED",
 ]);
+
 function showElement(element) {
+    if (!element) return;
     element.classList.remove("hidden");
 }
 
 function hideElement(element) {
+    if (!element) return;
     element.classList.add("hidden");
 }
 
 function setText(element, text) {
+    if (!element) return;
     element.textContent = text ?? "";
 }
 
@@ -97,21 +123,25 @@ function setStatus(text) {
 }
 
 function showError(message) {
-    setText(elements.loginError, message);
-    elements.loginError.classList.remove("hidden");
+    if (elements.loginError) {
+        setText(elements.loginError, message);
+        showElement(elements.loginError);
+    }
 
     if (elements.actionError) {
         setText(elements.actionError, message);
-        elements.actionError.classList.remove("hidden");
+        showElement(elements.actionError);
     }
 }
 
 function clearError() {
-    elements.loginError.classList.add("hidden");
-    setText(elements.loginError, "");
+    if (elements.loginError) {
+        hideElement(elements.loginError);
+        setText(elements.loginError, "");
+    }
 
     if (elements.actionError) {
-        elements.actionError.classList.add("hidden");
+        hideElement(elements.actionError);
         setText(elements.actionError, "");
     }
 }
@@ -135,7 +165,6 @@ function getPatientLabel(entry) {
         return fullName;
     }
 
-    // Fallbacks if first/last name fields are empty strings or null
     if (patient.temporary_identifier) return `Temp ID: ${patient.temporary_identifier}`;
     if (patient.national_id) return `ID: ${patient.national_id}`;
 
@@ -143,11 +172,15 @@ function getPatientLabel(entry) {
 }
 
 function renderQueueTable() {
+    if (!elements.queueBody) return;
+    
     elements.queueBody.innerHTML = "";
 
     if (queueEntries.length === 0) {
         hideElement(elements.queueTable);
-        elements.queueState.textContent = "No active queue entries found for this department.";
+        if (elements.queueState) {
+            elements.queueState.textContent = "No active queue entries found for this department.";
+        }
         showElement(elements.queueState);
         return;
     }
@@ -160,10 +193,7 @@ function renderQueueTable() {
         tr.classList.add("queue-row");
         tr.dataset.entryId = entry.queue_entry_id;
 
-        if (
-            selectedQueueEntry &&
-            selectedQueueEntry.queue_entry_id === entry.queue_entry_id
-        ) {
+        if (selectedQueueEntry && selectedQueueEntry.queue_entry_id === entry.queue_entry_id) {
             tr.classList.add("selected");
         }
 
@@ -192,26 +222,13 @@ function getActionStatesForTest(entry, user) {
         };
     }
 
-    const isOwner =
-        user &&
-        String(entry.assigned_staff_id) === String(user.staff_id);
+    const isOwner = user && String(entry.assigned_staff_id) === String(user.staff_id);
 
     return {
-        call:
-            entry.status === "WAITING" &&
-            !entry.assigned_staff_id,
-
-        start:
-            entry.status === "CALLED" &&
-            isOwner,
-
-        noShow:
-            entry.status === "CALLED" &&
-            isOwner,
-
-        complete:
-            entry.status === "IN_PROGRESS" &&
-            isOwner,
+        call: entry.status === "WAITING" && !entry.assigned_staff_id,
+        start: entry.status === "CALLED" && isOwner,
+        noShow: entry.status === "CALLED" && isOwner,
+        complete: entry.status === "IN_PROGRESS" && isOwner,
     };
 }
 
@@ -219,107 +236,22 @@ function getActionStates(entry) {
     return getActionStatesForTest(entry, currentUser);
 }
 
-function registerStaffWebSocketListeners() {
-    if (staffWebSocketSubscriptions.length > 0) {
-        return;
+function isPatientRegistrationComplete(queueEntry) {
+    if (!queueEntry || !queueEntry.visit) {
+        return false;
     }
 
-    const subscriptions = [
-        [
-            "connected",
-            async () => {
-                websocketConnected = true;
-
-                console.log(
-                    "[STAFF WS] Connected"
-                );
-
-                /*
-                 * The connection may have been established after
-                 * the initial queue load, so recover authoritative
-                 * state when connected.
-                 */
-                await refreshQueue();
-            },
-        ],
-
-        [
-            "message",
-            handleStaffWebSocketMessage,
-        ],
-
-        [
-            "disconnected",
-            () => {
-                websocketConnected = false;
-
-                console.warn(
-                    "[STAFF WS] Disconnected"
-                );
-            },
-        ],
-
-        [
-            "reconnecting",
-            (details) => {
-                websocketConnected = false;
-
-                console.warn(
-                    "[STAFF WS] Reconnecting:",
-                    details
-                );
-            },
-        ],
-
-        [
-            "error",
-            (error) => {
-                console.error(
-                    "[STAFF WS] Error:",
-                    error
-                );
-            },
-        ],
-    ];
-
-    for (const [eventName, callback] of subscriptions) {
-        onStaffWebSocket(
-            eventName,
-            callback
-        );
-
-        staffWebSocketSubscriptions.push({
-            eventName,
-            callback,
-        });
-    }
-}
-
-function unregisterStaffWebSocketListeners() {
-    for (const {
-        eventName,
-        callback,
-    } of staffWebSocketSubscriptions) {
-        offStaffWebSocket(
-            eventName,
-            callback
-        );
+    const patient = queueEntry.visit.patient || queueEntry.visit.patient_summary;
+    if (!patient) {
+        return false;
     }
 
-    staffWebSocketSubscriptions = [];
-    websocketConnected = false;
-}
-
-function startStaffWebSocket() {
-    registerStaffWebSocketListeners();
-
-    connectStaffWebSocket();
-}
-
-function stopStaffWebSocket() {
-    disconnectStaffWebSocket();
-
-    unregisterStaffWebSocketListeners();
+    return !!(
+        patient.first_name &&
+        patient.last_name &&
+        patient.date_of_birth &&
+        patient.gender
+    );
 }
 
 function updateCurrentPatientPanel() {
@@ -328,26 +260,47 @@ function updateCurrentPatientPanel() {
         return;
     }
 
-    setText(elements.currentToken, getQueueTokenLabel(selectedQueueEntry));
-    setText(elements.currentStatus, selectedQueueEntry.status);
-    setText(elements.currentPatient, getPatientLabel(selectedQueueEntry));
-    setText(elements.currentPriority, selectedQueueEntry.priority);
+    if (elements.currentToken) {
+        setText(elements.currentToken, getQueueTokenLabel(selectedQueueEntry));
+    }
+    if (elements.currentStatus) {
+        setText(elements.currentStatus, selectedQueueEntry.status);
+    }
+    if (elements.currentPatient) {
+        setText(elements.currentPatient, getPatientLabel(selectedQueueEntry));
+    }
+    if (elements.currentPriority) {
+        setText(elements.currentPriority, selectedQueueEntry.priority);
+    }
+    
     showElement(elements.currentPatientPanel);
-
-    // Update ownership display for the selected entry
     updateOwnershipDisplay(selectedQueueEntry);
 
     const states = getActionStates(selectedQueueEntry);
 
-    elements.callButton.disabled = !states.call;
-    elements.startButton.disabled = !states.start;
-    elements.noShowButton.disabled = !states.noShow;
-    elements.completeButton.disabled = !states.complete;
+    if (elements.callButton) {
+        elements.callButton.disabled = !states.call;
+        elements.callButton.classList.toggle("button-primary", states.call);
+        elements.callButton.classList.toggle("button-disabled", !states.call);
+    }
 
-    elements.callButton.className = states.call ? "button-primary" : "button-disabled";
-    elements.startButton.className = states.start ? "button-secondary" : "button-disabled";
-    elements.noShowButton.className = states.noShow ? "button-danger" : "button-disabled";
-    elements.completeButton.className = states.complete ? "button-danger" : "button-disabled";
+    if (elements.startButton) {
+        elements.startButton.disabled = !states.start;
+        elements.startButton.classList.toggle("button-secondary", states.start);
+        elements.startButton.classList.toggle("button-disabled", !states.start);
+    }
+
+    if (elements.noShowButton) {
+        elements.noShowButton.disabled = !states.noShow;
+        elements.noShowButton.classList.toggle("button-danger", states.noShow);
+        elements.noShowButton.classList.toggle("button-disabled", !states.noShow);
+    }
+
+    if (elements.completeButton) {
+        elements.completeButton.disabled = !states.complete;
+        elements.completeButton.classList.toggle("button-danger", states.complete);
+        elements.completeButton.classList.toggle("button-disabled", !states.complete);
+    }
 }
 
 function updateOwnershipDisplay(entry) {
@@ -380,14 +333,18 @@ function selectQueueEntry(queueEntryId) {
 function renderNoShowTable() {
     showElement(elements.noShowPanel);
 
+    if (!elements.noShowBody) return;
+
     elements.noShowBody.innerHTML = "";
 
     if (noShowEntries.length === 0) {
         hideElement(elements.noShowTable);
         showElement(elements.noShowState);
 
-        elements.noShowState.textContent =
-            "No patients are currently marked as no-show.";
+        if (elements.noShowState) {
+            elements.noShowState.textContent =
+                "No patients are currently marked as no-show.";
+        }
 
         return;
     }
@@ -397,7 +354,6 @@ function renderNoShowTable() {
 
     for (const entry of noShowEntries) {
         const tr = document.createElement("tr");
-
         tr.dataset.entryId = entry.queue_entry_id;
 
         tr.innerHTML = `
@@ -426,40 +382,18 @@ async function refreshNoShowQueue() {
     }
 
     try {
-        noShowEntries = await getDepartmentNoShowQueue(
-            selectedDepartmentId
-        );
-
-        console.log(
-            "No-Show Queue Count:",
-            noShowEntries.length,
-            noShowEntries
-        );
-
+        noShowEntries = await getDepartmentNoShowQueue(selectedDepartmentId);
         renderNoShowTable();
     } catch (error) {
         console.error("Unable to refresh no-show queue:", error);
-
-        setText(
-            elements.noShowState,
-            "Unable to load no-show patients."
-        );
-
-        showElement(elements.noShowState);
     }
 }
-
 
 async function refreshQueue() {
     if (!selectedDepartmentId) {
         return;
     }
 
-    /*
-     * If a refresh is already running, remember that another
-     * refresh was requested rather than starting competing
-     * HTTP requests.
-     */
     if (queueRefreshInProgress) {
         queueRefreshPending = true;
         return;
@@ -495,7 +429,6 @@ async function refreshQueue() {
 
         } catch (error) {
         console.error(error);
-
         showError(
             error.message ||
             "Unable to refresh queue. Please try again."
@@ -505,36 +438,17 @@ async function refreshQueue() {
 
         if (queueRefreshPending) {
             queueRefreshPending = false;
-
-            /*
-             * Run one final refresh so that events received
-             * while the previous request was running are not lost.
-             */
             await refreshQueue();
         }
     }
 }
+
 async function requeueNoShowEntry(queueEntryId) {
     try {
         clearError();
-
         setStatus("Re-queuing patient...");
 
-        const updatedEntry = await requeueQueueEntry(
-            queueEntryId
-        );
-
-        console.log(
-            "[REQUEUE SUCCESS]",
-            updatedEntry
-        );
-
-        /*
-         * Refresh both active and no-show queues.
-         *
-         * The patient should disappear from NO_SHOW
-         * and reappear in the active queue.
-         */
+        const updatedEntry = await requeueQueueEntry(queueEntryId);
         await refreshQueue();
 
         setStatus(
@@ -545,17 +459,197 @@ async function requeueNoShowEntry(queueEntryId) {
         );
 
     } catch (error) {
-        console.error(
-            "[REQUEUE FAILED]",
-            error
-        );
-
-        showError(
-            error.message ||
-            "Unable to re-queue patient."
-        );
+        console.error("[REQUEUE FAILED]", error);
+        showError(error.message || "Unable to re-queue patient.");
     }
 }
+
+/* ============================================================
+   DRAWER MANAGEMENT FUNCTIONS
+   ============================================================ */
+
+function prefillRegistrationForm(queueEntry) {
+    if (!queueEntry || !queueEntry.visit) {
+        return;
+    }
+
+    const patient = queueEntry.visit.patient || queueEntry.visit.patient_summary;
+    if (!patient) {
+        return;
+    }
+
+    if (elements.registrationFirstName && patient.first_name) {
+        elements.registrationFirstName.value = patient.first_name;
+    }
+    if (elements.registrationLastName && patient.last_name) {
+        elements.registrationLastName.value = patient.last_name;
+    }
+    if (elements.registrationDateOfBirth && patient.date_of_birth) {
+        elements.registrationDateOfBirth.value = patient.date_of_birth;
+    }
+    if (elements.registrationGender && patient.gender) {
+        elements.registrationGender.value = patient.gender;
+    }
+    if (elements.registrationNationalId && patient.national_id) {
+        elements.registrationNationalId.value = patient.national_id;
+    }
+    if (elements.registrationPhone && patient.phone) {
+        elements.registrationPhone.value = patient.phone;
+    }
+    if (elements.registrationEmail && patient.email) {
+        elements.registrationEmail.value = patient.email;
+    }
+    if (elements.registrationBloodType && patient.blood_type) {
+        elements.registrationBloodType.value = patient.blood_type;
+    }
+    if (elements.registrationAllergies && patient.allergies) {
+        elements.registrationAllergies.value = patient.allergies;
+    }
+}
+
+function clearRegistrationForm() {
+    if (elements.patientRegistrationForm) {
+        elements.patientRegistrationForm.reset();
+    }
+    if (elements.drawerError) {
+        elements.drawerError.classList.remove("active");
+        elements.drawerError.textContent = "";
+    }
+}
+
+function openRegistrationDrawer() {
+    if (!selectedQueueEntry) {
+        return;
+    }
+
+    drawerOpen = true;
+    clearRegistrationForm();
+    prefillRegistrationForm(selectedQueueEntry);
+
+    if (elements.registrationOverlay) {
+        elements.registrationOverlay.classList.add("active");
+    }
+    if (elements.registrationDrawer) {
+        elements.registrationDrawer.classList.add("active");
+        elements.registrationDrawer.classList.remove("closing");
+    }
+
+    // Focus first field
+    if (elements.registrationFirstName) {
+        elements.registrationFirstName.focus();
+    }
+}
+
+function closeRegistrationDrawer() {
+    drawerOpen = false;
+
+    if (elements.registrationDrawer) {
+        elements.registrationDrawer.classList.add("closing");
+        setTimeout(() => {
+            if (elements.registrationDrawer) {
+                elements.registrationDrawer.classList.remove("active");
+                elements.registrationDrawer.classList.remove("closing");
+            }
+        }, 300);
+    }
+
+    if (elements.registrationOverlay) {
+        elements.registrationOverlay.classList.remove("active");
+    }
+
+    clearRegistrationForm();
+}
+
+async function handleRegistrationSubmit(event) {
+    if (event) {
+        event.preventDefault();
+    }
+
+    if (!selectedQueueEntry || !selectedQueueEntry.visit) {
+        showDrawerError("No patient selected. Please select a patient.");
+        return;
+    }
+
+    const patient = selectedQueueEntry.visit.patient || selectedQueueEntry.visit.patient_summary;
+    if (!patient || !patient.patient_id) {
+        showDrawerError("Unable to identify patient. Please try again.");
+        return;
+    }
+
+    if (elements.drawerSubmitButton) {
+        elements.drawerSubmitButton.disabled = true;
+    }
+
+    try {
+        clearDrawerError();
+        setStatus("Completing patient registration...");
+
+        const registrationData = {
+            first_name: (elements.registrationFirstName?.value || "").trim(),
+            last_name: (elements.registrationLastName?.value || "").trim(),
+            date_of_birth: elements.registrationDateOfBirth?.value || "",
+            gender: elements.registrationGender?.value || "",
+            national_id: (elements.registrationNationalId?.value || "").trim() || null,
+            phone: (elements.registrationPhone?.value || "").trim() || null,
+            email: (elements.registrationEmail?.value || "").trim() || null,
+            blood_type: (elements.registrationBloodType?.value || "").trim() || null,
+            allergies: (elements.registrationAllergies?.value || "").trim() || null,
+        };
+
+        if (!registrationData.first_name) {
+            throw new Error("First name is required.");
+        }
+        if (!registrationData.last_name) {
+            throw new Error("Last name is required.");
+        }
+        if (!registrationData.date_of_birth) {
+            throw new Error("Date of birth is required.");
+        }
+        if (!registrationData.gender) {
+            throw new Error("Gender is required.");
+        }
+
+        const result = await completePatientRegistration(
+            patient.patient_id,
+            registrationData
+        );
+
+        console.log("[REGISTRATION SUCCESS]", result);
+
+        await refreshQueue();
+        closeRegistrationDrawer();
+        setStatus(`Ready — ${getQueueTokenLabel(selectedQueueEntry)}`);
+
+    } catch (error) {
+        console.error("[REGISTRATION ERROR]", error);
+        const message = error.message || "Unable to complete registration. Please try again.";
+        showDrawerError(message);
+        setStatus("Registration failed");
+
+    } finally {
+        if (elements.drawerSubmitButton) {
+            elements.drawerSubmitButton.disabled = false;
+        }
+    }
+}
+
+function showDrawerError(message) {
+    if (elements.drawerError) {
+        elements.drawerError.textContent = message;
+        elements.drawerError.classList.add("active");
+    }
+}
+
+function clearDrawerError() {
+    if (elements.drawerError) {
+        elements.drawerError.classList.remove("active");
+        elements.drawerError.textContent = "";
+    }
+}
+
+/* ============================================================
+   TRANSITION & ACTION HANDLERS
+   ============================================================ */
 
 async function performTransition(action) {
     if (!selectedQueueEntry) {
@@ -566,45 +660,28 @@ async function performTransition(action) {
         setStatus(`Performing ${action}...`);
 
         let updatedEntry = null;
-
         clearError();
 
         if (action === "call") {
-            // CALL must always target the backend-determined next patient.
-            // This guarantees priority ordering is respected even if
-            // another queue row is currently selected.
             const nextEntry = await getNextPatient(selectedDepartmentId);
 
             if (!nextEntry) {
                 throw new Error("No waiting patients in the queue.");
             }
 
-            updatedEntry = await callQueueEntry(
-                nextEntry.queue_entry_id
-            );
-
-            // The patient actually called may be different from the
-            // previously selected queue entry.
+            updatedEntry = await callQueueEntry(nextEntry.queue_entry_id);
             selectedQueueEntry = updatedEntry;
 
         } else if (action === "start") {
-            updatedEntry = await startQueueEntry(
-                selectedQueueEntry.queue_entry_id
-            );
+            updatedEntry = await startQueueEntry(selectedQueueEntry.queue_entry_id);
 
         } else if (action === "noshow") {
-            updatedEntry = await markNoShowQueueEntry(
-                selectedQueueEntry.queue_entry_id
-            );
+            updatedEntry = await markNoShowQueueEntry(selectedQueueEntry.queue_entry_id);
 
         } else if (action === "complete") {
-            updatedEntry = await completeQueueEntry(
-                selectedQueueEntry.queue_entry_id
-            );
+            updatedEntry = await completeQueueEntry(selectedQueueEntry.queue_entry_id);
         }
 
-        // Keep existing visit/patient data if the patch response
-        // returns an unpopulated visit.
         if (updatedEntry) {
             if (
                 !updatedEntry.visit?.patient &&
@@ -616,8 +693,13 @@ async function performTransition(action) {
             selectedQueueEntry = updatedEntry;
         }
 
-        // Re-fetch the entire department queue with fresh selectinloads.
         await refreshQueue();
+
+        // AUTO-TRIGGER DRAWER: Open registration drawer if patient is incomplete after START SERVICE
+        if (action === "start" && !isPatientRegistrationComplete(selectedQueueEntry)) {
+            openRegistrationDrawer();
+            return;
+        }
 
         setStatus(
             `Ready — ${selectedQueueEntry
@@ -629,7 +711,6 @@ async function performTransition(action) {
     } catch (error) {
         console.error(error);
 
-        // Handle common authorization/conflict responses with clear UX
         if (error && error.status === 403) {
             showError("This patient is assigned to another staff member.");
             try {
@@ -659,7 +740,6 @@ async function performTransition(action) {
         }
     }
 }
-
 
 async function identifyDepartment() {
     try {
@@ -698,7 +778,6 @@ async function identifyDepartment() {
         setStatus("Unable to load department");
     }
 }
-
 
 async function handleLogin(event) {
     event.preventDefault();
@@ -741,6 +820,8 @@ function handleLogout() {
     queueRefreshInProgress = false;
     queueRefreshPending = false;
 
+    closeRegistrationDrawer();
+
     hideElement(elements.logoutButton);
     hideElement(elements.currentPatientPanel);
     hideElement(elements.queueTable);
@@ -749,15 +830,86 @@ function handleLogout() {
 
     setStatus("Please sign in to manage the queue");
 
-    elements.queueBody.innerHTML = "";
-    elements.queueState.textContent =
-        "Log in to view department queue entries.";
-
-    showElement(elements.queueState);
+    if (elements.queueBody) {
+        elements.queueBody.innerHTML = "";
+    }
+    if (elements.queueState) {
+        elements.queueState.textContent =
+            "Log in to view department queue entries.";
+        showElement(elements.queueState);
+    }
 
     clearError();
 }
 
+function registerStaffWebSocketListeners() {
+    if (staffWebSocketSubscriptions.length > 0) {
+        return;
+    }
+
+    const subscriptions = [
+        [
+            "connected",
+            async () => {
+                websocketConnected = true;
+                console.log("[STAFF WS] Connected");
+                await refreshQueue();
+            },
+        ],
+
+        [
+            "message",
+            handleStaffWebSocketMessage,
+        ],
+
+        [
+            "disconnected",
+            () => {
+                websocketConnected = false;
+                console.warn("[STAFF WS] Disconnected");
+            },
+        ],
+
+        [
+            "reconnecting",
+            (details) => {
+                websocketConnected = false;
+                console.warn("[STAFF WS] Reconnecting:", details);
+            },
+        ],
+
+        [
+            "error",
+            (error) => {
+                console.error("[STAFF WS] Error:", error);
+            },
+        ],
+    ];
+
+    for (const [eventName, callback] of subscriptions) {
+        onStaffWebSocket(eventName, callback);
+        staffWebSocketSubscriptions.push({ eventName, callback });
+    }
+}
+
+function unregisterStaffWebSocketListeners() {
+    for (const { eventName, callback } of staffWebSocketSubscriptions) {
+        offStaffWebSocket(eventName, callback);
+    }
+
+    staffWebSocketSubscriptions = [];
+    websocketConnected = false;
+}
+
+function startStaffWebSocket() {
+    registerStaffWebSocketListeners();
+    connectStaffWebSocket();
+}
+
+function stopStaffWebSocket() {
+    disconnectStaffWebSocket();
+    unregisterStaffWebSocketListeners();
+}
 
 function eventBelongsToCurrentDepartment(event) {
     if (!event || !selectedDepartmentId) {
@@ -773,13 +925,7 @@ function eventBelongsToCurrentDepartment(event) {
         return true;
     }
 
-    /*
-     * PATIENT_ROUTED contains source and target department IDs
-     * rather than necessarily using department_id.
-     */
-    if (
-        event.event_type === "PATIENT_ROUTED"
-    ) {
+    if (event.event_type === "PATIENT_ROUTED") {
         return (
             String(event.source_department_id) === departmentId ||
             String(event.target_department_id) === departmentId
@@ -812,76 +958,126 @@ async function handleStaffWebSocketMessage(event) {
 }
 
 async function handleRequeue(queueEntryId, buttonElement) {
-    // 1. Prevent duplicate clicks
-    if (buttonElement) {
-        buttonElement.disabled = true;
-    }
+    if (!buttonElement) return;
+    
+    buttonElement.disabled = true;
 
     try {
         clearError();
         setStatus("Re-queuing patient...");
 
-        // 2. Perform API transition & refresh queue state
         await requeueQueueEntry(queueEntryId);
-        const updatedState = await refreshQueue(); 
-
-        // Use updated state or fall back to selectedQueueEntry
-        const currentActive = updatedState?.selectedQueueEntry ?? selectedQueueEntry;
+        await refreshQueue(); 
 
         setStatus(
             `Ready — ${
-                currentActive
-                    ? getQueueTokenLabel(currentActive)
+                selectedQueueEntry
+                    ? getQueueTokenLabel(selectedQueueEntry)
                     : "no current patient"
             }`
         );
 
     } catch (error) {
         console.error("Failed to requeue entry:", error);
-
-        showError(
-            error.message || "Unable to re-queue patient."
-        );
-
-        // 3. Reset status text on failure
+        showError(error.message || "Unable to re-queue patient.");
         setStatus("Ready — no current patient");
+
     } finally {
-        if (buttonElement) {
-            buttonElement.disabled = false;
-        }
+        buttonElement.disabled = false;
     }
 }
 
+/* ============================================================
+   KEYBOARD SHORTCUTS
+   ============================================================ */
 
-function attachEventListeners() {
-    elements.loginForm.addEventListener("submit", handleLogin);
-    elements.logoutButton.addEventListener("click", handleLogout);
-    elements.callButton.addEventListener("click", () => performTransition("call"));
-    elements.startButton.addEventListener("click", () => performTransition("start"));
-    elements.noShowButton.addEventListener("click", () => performTransition("noshow"));
-    elements.completeButton.addEventListener("click", () => performTransition("complete"));
-
-    // Event delegation for dynamically rendered no-show table rows
-    elements.noShowBody.addEventListener("click", (event) => {
-        const button = event.target.closest(".requeue-button");
-
-        if (!button || button.disabled) {
+function setupKeyboardShortcuts() {
+    document.addEventListener("keydown", (event) => {
+        // ESC to close drawer
+        if (event.key === "Escape" && drawerOpen) {
+            event.preventDefault();
+            closeRegistrationDrawer();
             return;
         }
 
-        const { entryId } = button.dataset;
-
-        if (entryId) {
-            handleRequeue(entryId, button);
+        // Ctrl/Cmd + Enter to save and close
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && drawerOpen) {
+            event.preventDefault();
+            handleRegistrationSubmit();
+            return;
         }
     });
 }
 
+function attachEventListeners() {
+    if (elements.loginForm) {
+        elements.loginForm.addEventListener("submit", handleLogin);
+    }
+    if (elements.logoutButton) {
+        elements.logoutButton.addEventListener("click", handleLogout);
+    }
+    if (elements.callButton) {
+        elements.callButton.addEventListener("click", () => performTransition("call"));
+    }
+    if (elements.startButton) {
+        elements.startButton.addEventListener("click", () => performTransition("start"));
+    }
+    if (elements.noShowButton) {
+        elements.noShowButton.addEventListener("click", () => performTransition("noshow"));
+    }
+    if (elements.completeButton) {
+        elements.completeButton.addEventListener("click", () => performTransition("complete"));
+    }
+
+    // Drawer controls
+    if (elements.drawerCloseButton) {
+        elements.drawerCloseButton.addEventListener("click", closeRegistrationDrawer);
+    }
+    if (elements.drawerCancelButton) {
+        elements.drawerCancelButton.addEventListener("click", closeRegistrationDrawer);
+    }
+    if (elements.drawerSubmitButton) {
+        elements.drawerSubmitButton.addEventListener("click", handleRegistrationSubmit);
+    }
+    if (elements.registrationOverlay) {
+        elements.registrationOverlay.addEventListener("click", (event) => {
+            if (event.target === elements.registrationOverlay) {
+                closeRegistrationDrawer();
+            }
+        });
+    }
+
+    // Registration form
+    if (elements.patientRegistrationForm) {
+        elements.patientRegistrationForm.addEventListener("submit", handleRegistrationSubmit);
+    }
+
+    // No-show requeue (event delegation)
+    if (elements.noShowBody) {
+        elements.noShowBody.addEventListener("click", (event) => {
+            const button = event.target.closest(".requeue-button");
+            
+            if (!button || button.disabled) {
+                return;
+            }
+
+            const { entryId } = button.dataset;
+
+            if (entryId) {
+                handleRequeue(entryId, button);
+            }
+        });
+    }
+}
+
 function initialize() {
+    setupKeyboardShortcuts();
     attachEventListeners();
     setStatus("Please sign in to manage the queue");
     showElement(elements.queuePanel);
-    elements.queueBody.innerHTML = "";
+    if (elements.queueBody) {
+        elements.queueBody.innerHTML = "";
+    }
 }
 
 if (document.getElementById("login-form")) {
@@ -898,4 +1094,6 @@ export {
     handleRequeue,
     performTransition,
     getActionStatesForTest,
+    openRegistrationDrawer,
+    closeRegistrationDrawer,
 };

@@ -221,3 +221,84 @@ async def test_complete_unknown_visit_returns_404(db):
         await service.complete_visit(uuid.uuid4())
 
     assert exc.value.status_code == 404
+
+
+# ------------------------------------------------------------------------------
+# Test 17 — Inactive Patient Cannot Start Visit
+# ------------------------------------------------------------------------------
+
+async def test_inactive_patient_cannot_start_visit(db, patient):
+    patient.is_active = False
+    await db.flush()
+
+    service = VisitService(db)
+    service.token_service.generate_token = AsyncMock(
+        return_value="W-001"
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await service.start_visit(
+            VisitCreate(
+                patient_id=patient.patient_id,
+                entry_type=EntryType.WALK_IN,
+                visit_reason="General Consultation",
+            )
+        )
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "Patient record is inactive."
+
+
+# ------------------------------------------------------------------------------
+# Test 18 — Completing Visit Does Not Deactivate Patient
+# ------------------------------------------------------------------------------
+
+async def test_completing_visit_does_not_deactivate_patient(
+    db,
+    patient,
+    active_visit,
+):
+    service = VisitService(db)
+
+    visit = await service.complete_visit(
+        active_visit.visit_id
+    )
+
+    assert visit.stage == VisitStage.COMPLETED
+    assert patient.is_active is True
+
+
+
+
+async def test_patient_can_start_new_visit_after_previous_visit_completed(
+    db,
+    patient,
+):
+    service = VisitService(db)
+
+    service.token_service.generate_token = AsyncMock(
+        side_effect=["W-001", "W-002"]
+    )
+
+    first_visit = await service.start_visit(
+        VisitCreate(
+            patient_id=patient.patient_id,
+            entry_type=EntryType.WALK_IN,
+            visit_reason="First visit",
+        )
+    )
+
+    await service.complete_visit(first_visit.visit_id)
+
+    second_visit = await service.start_visit(
+        VisitCreate(
+            patient_id=patient.patient_id,
+            entry_type=EntryType.WALK_IN,
+            visit_reason="Return visit",
+        )
+    )
+
+    assert first_visit.stage == VisitStage.COMPLETED
+    assert second_visit.stage == VisitStage.ACTIVE
+    assert second_visit.patient_id == patient.patient_id
+    assert second_visit.token_number == "W-002"

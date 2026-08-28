@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.domain.models.models import Staff, StaffRole
+from app.domain.models.models import Patient, Staff, StaffRole
 from app.domain.schemas.schemas import (
+    PatientActiveStatusUpdate,
     PatientCreate,
     PatientRead,
     PatientUpdate,
@@ -133,18 +134,16 @@ async def complete_patient_registration(
     data: CompletePatientRegistration,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Completes registration for an existing incomplete patient.
-
-    Used by Reception after a kiosk patient arrives and provides
-    the remaining required administrative information.
-    """
     service = PatientService(db)
 
-    return await service.complete_patient_registration(
+    patient = await service.complete_patient_registration(
         patient_id=patient_id,
         data=data,
     )
+
+    await db.commit()
+
+    return patient
 # ------------------------------------------------------------------
 # SEARCH PATIENTS
 # ------------------------------------------------------------------
@@ -235,3 +234,40 @@ async def update_patient(
         patient_id,
         data,
     )
+
+
+@router.patch(
+    "/{patient_id}/active-status",
+    response_model=PatientRead,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.ADMIN,
+            )
+        )
+    ],
+)
+async def update_patient_active_status(
+    patient_id: UUID,
+    data: PatientActiveStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Activates or deactivates a patient record.
+
+    Only administrators may change the operational status
+    of a patient record.
+    """
+
+    service = PatientService(db)
+
+    patient = await service.set_active_status(
+        patient_id=patient_id,
+        is_active=data.is_active,
+    )
+
+    await db.commit()
+
+    return patient
+
