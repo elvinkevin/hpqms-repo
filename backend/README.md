@@ -580,7 +580,7 @@ Conceptually:
   },
   "queue": {
     "queue_entry_id": "...",
-    "department_id": "...",
+    "dept_id": "...",
     "status": "WAITING",
     "priority": "NORMAL"
   }

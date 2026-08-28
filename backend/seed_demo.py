@@ -235,7 +235,7 @@ async def create_fresh_demo_patient(
 
     queue_entry = await queue_service.create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=department.dept_id,
+        dept_id=department.dept_id,
         priority=seed.priority,
         notes="Created for queue priority matrix test",
     )

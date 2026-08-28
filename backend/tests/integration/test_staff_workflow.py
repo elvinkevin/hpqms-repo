@@ -24,7 +24,7 @@ async def test_staff_can_view_department_queue(
         queue_entry.queue_entry_id
     )
 
-    assert data[0]["department_id"] == str(
+    assert data[0]["dept_id"] == str(
         department.dept_id
     )
 

@@ -347,7 +347,7 @@ describe("incoming messages", () => {
             event_id: "event-1",
             event_type: "TOKEN_CALLED",
             token_number: "W-101",
-            department_id: "dept-1",
+            dept_id: "dept-1",
             department_name: "Reception",
             priority: "HIGH",
             service_point: "Room 1",
@@ -915,7 +915,7 @@ it("forwards different queue events without interpreting them", () => {
         },
         {
             event_type: "QUEUE_UPDATED",
-            department_id: "dept-001",
+            dept_id: "dept-001",
         },
     ];
 

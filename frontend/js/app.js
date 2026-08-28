@@ -317,7 +317,7 @@ function playAlertSound() {
 
 
 function maybeFocusDepartment(event) {
-    if (!event?.department_id) {
+    if (!event?.dept_id) {
         return;
     }
 
@@ -327,7 +327,7 @@ function maybeFocusDepartment(event) {
         event.priority === "CRITICAL"
     ) {
         const focused =
-            focusDepartment(event.department_id);
+            focusDepartment(event.dept_id);
 
         if (focused) {
             renderCurrentDepartment();

@@ -159,7 +159,7 @@ async def reception_queue_entry(db, reception_context, patient_factory):
 
     entry = QueueEntry(
         visit_id=visit.visit_id,
-        department_id=reception_dept.dept_id,
+        dept_id=reception_dept.dept_id,
         sequence_number=1,
         priority=QueuePriority.NORMAL,
         status=QueueEntryStatus.WAITING,
@@ -179,10 +179,10 @@ def create_queue_entry(db):
     Factory fixture allowing tests to manually generate queue entries 
     for any given department and visit context.
     """
-    async def _create(visit_id, department_id, priority=QueuePriority.NORMAL):
+    async def _create(visit_id, dept_id, priority=QueuePriority.NORMAL):
         entry = QueueEntry(
             visit_id=visit_id,
-            department_id=department_id,
+            dept_id=dept_id,
             sequence_number=1,
             priority=priority,
             status=QueueEntryStatus.WAITING,
@@ -219,7 +219,7 @@ async def triage_queue_entry(db, reception_context, patient_factory):
     # 3. Create Queue Entry in Triage Department
     entry = QueueEntry(
         visit_id=visit.visit_id,
-        department_id=triage_dept.dept_id,
+        dept_id=triage_dept.dept_id,
         sequence_number=1,
         priority=QueuePriority.NORMAL,
         status=QueueEntryStatus.WAITING,
@@ -291,7 +291,7 @@ async def create_no_show_entry(
 
         entry = QueueEntry(
             visit_id=visit.visit_id,
-            department_id=reception_dept.dept_id,
+            dept_id=reception_dept.dept_id,
             assigned_staff_id=assigned_staff_id,
             sequence_number=1,
             priority=priority,

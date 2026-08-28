@@ -235,7 +235,7 @@ async def test_dispatch_walkin_routes_to_reception(
 
     reception_dept = setup_departments["RECEPTION"]
     data = response.json()
-    assert data["department_id"] == str(reception_dept.dept_id)
+    assert data["dept_id"] == str(reception_dept.dept_id)
 
 
 
@@ -265,7 +265,7 @@ async def test_dispatch_appointment_routes_to_triage(
 
     assert data["visit_id"] == str(active_visit.visit_id)
 
-    assert data["department_id"] == str(
+    assert data["dept_id"] == str(
         setup_departments["TRIAGE"].dept_id
     )
 
@@ -296,7 +296,7 @@ async def test_dispatch_emergency_routes_to_emergency(
 
     assert data["visit_id"] == str(active_visit.visit_id)
 
-    assert data["department_id"] == str(
+    assert data["dept_id"] == str(
         setup_departments["EMERGENCY"].dept_id
     )
 
@@ -325,7 +325,7 @@ async def test_dispatch_referral_routes_to_reception(
 
     assert data["visit_id"] == str(active_visit.visit_id)
 
-    assert data["department_id"] == str(
+    assert data["dept_id"] == str(
         setup_departments["RECEPTION"].dept_id
     )
 
@@ -342,7 +342,7 @@ async def test_dispatch_referral_routes_to_reception(
 
     reception_dept = setup_departments["RECEPTION"]
     data = response.json()
-    assert data["department_id"] == str(reception_dept.dept_id)
+    assert data["dept_id"] == str(reception_dept.dept_id)
 
 
 async def test_dispatch_visit_not_found(client: AsyncClient, setup_departments):
@@ -399,7 +399,7 @@ async def test_move_patient_success(
     target_dept = setup_departments["TRIAGE"]
 
     payload = {
-        "target_department_id": str(target_dept.dept_id),
+        "target_dept_id": str(target_dept.dept_id),
         "priority": "NORMAL",
         "notes": "Transferring to triage",
     }
@@ -414,7 +414,7 @@ async def test_move_patient_success(
 
     data = response.json()
 
-    assert data["department_id"] == str(target_dept.dept_id)
+    assert data["dept_id"] == str(target_dept.dept_id)
     assert data["visit_id"] == str(active_visit.visit_id)
     assert data["status"] == "WAITING"
     assert data["priority"] == "NORMAL"
@@ -432,7 +432,7 @@ async def test_move_patient_inactive_department(
     target_dept.is_active = False
     await db.commit()
 
-    payload = {"target_department_id": str(target_dept.dept_id)}
+    payload = {"target_dept_id": str(target_dept.dept_id)}
 
     response = await client.post(
         f"/api/routing/move/{active_visit.visit_id}", json=payload, headers=doctor_token_headers
@@ -445,7 +445,7 @@ async def test_move_patient_visit_not_found(
 ):
     """POST /api/routing/move/{visit_id} - 404 for unknown visit_id."""
     target_dept = setup_departments["TRIAGE"]
-    payload = {"target_department_id": str(target_dept.dept_id)}
+    payload = {"target_dept_id": str(target_dept.dept_id)}
 
     response = await client.post(
         f"/api/routing/move/{uuid4()}", json=payload, headers=doctor_token_headers
@@ -481,7 +481,7 @@ async def test_move_patient_token_preservation_regression(
 
     response = await client.post(
         f"/api/routing/move/{active_visit.visit_id}",
-        json={"target_department_id": str(target_dept.dept_id)},
+        json={"target_dept_id": str(target_dept.dept_id)},
         headers=doctor_token_headers,
     )
 
@@ -501,7 +501,7 @@ async def test_move_patient_forbidden_role(
     target = setup_departments["TRIAGE"]
 
     payload = {
-        "target_department_id": str(target.dept_id)
+        "target_dept_id": str(target.dept_id)
     }
 
     response = await client.post(
@@ -568,7 +568,7 @@ async def test_get_current_location_no_active_queue(
     assert data["visit_stage"] == VisitStage.ACTIVE.value
 
     assert data["current_queue_entry_id"] is None
-    assert data["current_department_id"] is None
+    assert data["current_dept_id"] is None
     assert data["current_department_name"] is None
 
     assert data["status"] is None
@@ -747,7 +747,7 @@ async def test_get_patient_history_response_schema(
     expected_fields = {
         "queue_entry_id",
         "visit_id",
-        "department_id",
+        "dept_id",
         "status",
         "priority",
         "entered_at",
@@ -795,7 +795,7 @@ async def test_transfer_patient_success(
     target_department = setup_departments["CONSULT"]
 
     payload = {
-        "target_department_id": str(target_department.dept_id),
+        "target_dept_id": str(target_department.dept_id),
         "reason": "DEPARTMENT_TRANSFER",
         "priority": "NORMAL",
         "notes": "Patient requires further clinical assessment.",
@@ -813,7 +813,7 @@ async def test_transfer_patient_success(
 
     data = response.json()
     assert data["visit_id"] == str(active_visit.visit_id)
-    assert data["department_id"] == str(target_department.dept_id)
+    assert data["dept_id"] == str(target_department.dept_id)
     assert data["status"] == QueueEntryStatus.WAITING.value
 
     # 6. Assert current queue entry was marked COMPLETED
@@ -828,7 +828,7 @@ async def test_transfer_patient_success(
     result = await db.execute(
         select(QueueEntry).where(
             QueueEntry.visit_id == active_visit.visit_id,
-            QueueEntry.department_id == target_department.dept_id,
+            QueueEntry.dept_id == target_department.dept_id,
         )
     )
     new_entry = result.scalar_one()
@@ -862,7 +862,7 @@ async def test_transfer_waiting_patient_rejected(
     target_department = setup_departments["CONSULT"]
 
     payload = {
-        "target_department_id": str(target_department.dept_id),
+        "target_dept_id": str(target_department.dept_id),
         "reason": "DEPARTMENT_TRANSFER",
         "priority": "NORMAL",
         "notes": "Transfer attempt.",
@@ -910,7 +910,7 @@ async def test_transfer_to_same_department_rejected(
 
     # 3. Payload targeting the same department
     payload = {
-        "target_department_id": str(current_entry.department_id),
+        "target_dept_id": str(current_entry.dept_id),
         "reason": "DEPARTMENT_TRANSFER",
         "priority": "NORMAL",
         "notes": "Invalid same-department transfer.",
@@ -958,7 +958,7 @@ async def test_transfer_to_inactive_department_rejected(
     await db.commit()
 
     payload = {
-        "target_department_id": str(target_department.dept_id),
+        "target_dept_id": str(target_department.dept_id),
         "reason": "DEPARTMENT_TRANSFER",
         "priority": "NORMAL",
         "notes": "Transfer to inactive department.",
@@ -989,7 +989,7 @@ async def test_transfer_requires_authentication(
     target_department = setup_departments["CONSULT"]
 
     payload = {
-        "target_department_id": str(target_department.dept_id),
+        "target_dept_id": str(target_department.dept_id),
         "reason": "DEPARTMENT_TRANSFER",
         "priority": "NORMAL",
         "notes": "Unauthorized transfer attempt.",

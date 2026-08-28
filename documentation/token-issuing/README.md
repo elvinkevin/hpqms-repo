@@ -6,7 +6,7 @@ backend/app/domain/services/audit_service.py
 backend/app/domain/services/auth_service.py
 backend/app/db/session.py
 
-1. Receptionist/admin sends patient_id and department_id.
+1. Receptionist/admin sends patient_id and dept_id.
 2. Backend checks the user is logged in.
 3. Backend checks the user is RECEPTIONIST or ADMIN.
 4. Backend confirms the patient exists.

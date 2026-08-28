@@ -17,15 +17,15 @@ class WebSocketManager:
 
     async def connect_display(
         self,
-        department_id: Optional[str],
+        dept_id: Optional[str],
         websocket: WebSocket,
     ) -> None:
         await websocket.accept()
-        key = department_id or "__all__"
+        key = dept_id or "__all__"
         self._display_connections.setdefault(key, []).append(websocket)
         logger.info(
             "Display websocket connected for department %s (total=%d)",
-            department_id or "all",
+            dept_id or "all",
             len(self._display_connections[key]),
         )
 
@@ -34,7 +34,7 @@ class WebSocketManager:
                 "event_id": str(uuid4()),
                 "event_type": "CONNECTION_ESTABLISHED",
                 "priority": "NORMAL",
-                "department_id": department_id,
+                "dept_id": dept_id,
                 "department_name": None,
                 "message": "Connected to the HPQMS public display stream",
                 "occurred_at": datetime.now(timezone.utc).isoformat(),
@@ -43,10 +43,10 @@ class WebSocketManager:
 
     def disconnect_display(
         self,
-        department_id: Optional[str],
+        dept_id: Optional[str],
         websocket: WebSocket,
     ) -> None:
-        key = department_id or "__all__"
+        key = dept_id or "__all__"
         connections = self._display_connections.get(key, [])
         if websocket in connections:
             connections.remove(websocket)
@@ -56,22 +56,22 @@ class WebSocketManager:
     async def broadcast_display(
         self,
         payload: dict[str, Any],
-        department_id: Optional[str] = None,
+        dept_id: Optional[str] = None,
     ) -> int:
         """
         Broadcast a display event.
 
-        If department_id is provided:
+        If dept_id is provided:
             - Send to displays subscribed to that department.
             - Send to global displays.
 
-        If department_id is None:
+        If dept_id is None:
             - Send to every connected display.
         """
 
-        if department_id is not None:
+        if dept_id is not None:
             keys = [
-                department_id,
+                dept_id,
                 "__all__",
             ]
         else:
@@ -127,7 +127,7 @@ class WebSocketManager:
 
     async def broadcast_token_called(
         self,
-        department_id: str,
+        dept_id: str,
         token_number: str,
         service_point: Optional[str] = None,
         occurred_at: Optional[datetime] = None,
@@ -139,7 +139,7 @@ class WebSocketManager:
             "event_id": str(uuid4()),
             "event_type": "TOKEN_CALLED",
             "priority": priority,
-            "department_id": department_id,
+            "dept_id": dept_id,
             "department_name": department_name,
             "token_number": token_number,
             "service_point": service_point,
@@ -148,11 +148,11 @@ class WebSocketManager:
                 occurred_at.isoformat() if occurred_at else datetime.now(timezone.utc).isoformat()
             ),
         }
-        return await self.broadcast_display(payload, department_id=department_id)
+        return await self.broadcast_display(payload, dept_id=dept_id)
 
     async def broadcast_queue_updated(
         self,
-        department_id: Optional[str] = None,
+        dept_id: Optional[str] = None,
         message: Optional[str] = None,
         department_name: Optional[str] = None,
         priority: str = "NORMAL",
@@ -161,16 +161,16 @@ class WebSocketManager:
             "event_id": str(uuid4()),
             "event_type": "QUEUE_UPDATED",
             "priority": priority,
-            "department_id": department_id,
+            "dept_id": dept_id,
             "department_name": department_name,
             "message": message,
             "occurred_at": datetime.now(timezone.utc).isoformat(),
         }
-        return await self.broadcast_display(payload, department_id=department_id)
+        return await self.broadcast_display(payload, dept_id=dept_id)
 
     async def broadcast_token_completed(
         self,
-        department_id: str,
+        dept_id: str,
         token_number: str,
         occurred_at: Optional[datetime] = None,
         department_name: Optional[str] = None,
@@ -181,7 +181,7 @@ class WebSocketManager:
             "event_id": str(uuid4()),
             "event_type": "TOKEN_COMPLETED",
             "priority": priority,
-            "department_id": department_id,
+            "dept_id": dept_id,
             "department_name": department_name,
             "token_number": token_number,
             "message": message or f"Token {token_number} completed",
@@ -189,11 +189,11 @@ class WebSocketManager:
                 occurred_at.isoformat() if occurred_at else datetime.now(timezone.utc).isoformat()
             ),
         }
-        return await self.broadcast_display(payload, department_id=department_id)
+        return await self.broadcast_display(payload, dept_id=dept_id)
 
     async def broadcast_token_cancelled(
         self,
-        department_id: str,
+        dept_id: str,
         token_number: str,
         occurred_at: Optional[datetime] = None,
         department_name: Optional[str] = None,
@@ -204,7 +204,7 @@ class WebSocketManager:
             "event_id": str(uuid4()),
             "event_type": "TOKEN_CANCELLED",
             "priority": priority,
-            "department_id": department_id,
+            "dept_id": dept_id,
             "department_name": department_name,
             "token_number": token_number,
             "message": message or f"Token {token_number} cancelled",
@@ -212,7 +212,7 @@ class WebSocketManager:
                 occurred_at.isoformat() if occurred_at else datetime.now(timezone.utc).isoformat()
             ),
         }
-        return await self.broadcast_display(payload, department_id=department_id)
+        return await self.broadcast_display(payload, dept_id=dept_id)
 
     async def broadcast_announcement_created(
         self,
@@ -239,7 +239,7 @@ class WebSocketManager:
     async def broadcast_department(
         self,
         payload: dict[str, Any],
-        department_id: Optional[str] = None,
+        dept_id: Optional[str] = None,
     ) -> int:
         """
         Broadcast an event to staff connections or display fallback connections
@@ -262,7 +262,7 @@ class WebSocketManager:
         # Also forward to display channels for public/department tracking
         display_delivered = await self.broadcast_display(
             payload,
-            department_id=department_id,
+            dept_id=dept_id,
         )
 
         return delivered + display_delivered

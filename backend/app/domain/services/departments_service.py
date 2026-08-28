@@ -68,12 +68,12 @@ class DepartmentService:
 
     async def get_by_id(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> Department:
 
         department = await self.db.get(
             Department,
-            department_id,
+            dept_id,
         )
 
         if not department:
@@ -130,12 +130,12 @@ class DepartmentService:
 
     async def department_exists(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> bool:
 
         result = await self.db.execute(
             select(Department.dept_id).where(
-                Department.dept_id == department_id
+                Department.dept_id == dept_id
             )
         )
 
@@ -147,11 +147,11 @@ class DepartmentService:
 
     async def update_department(
         self,
-        department_id: UUID,
+        dept_id: UUID,
         data: DepartmentUpdate,
     ) -> Department:
 
-        department = await self.get_by_id(department_id)
+        department = await self.get_by_id(dept_id)
 
         updates = data.model_dump(exclude_unset=True)
 
@@ -178,10 +178,10 @@ class DepartmentService:
 
     async def deactivate_department(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> Department:
 
-        department = await self.get_by_id(department_id)
+        department = await self.get_by_id(dept_id)
 
         department.is_active = False
 
@@ -192,10 +192,10 @@ class DepartmentService:
 
     async def activate_department(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> Department:
 
-        department = await self.get_by_id(department_id)
+        department = await self.get_by_id(dept_id)
 
         department.is_active = True
 

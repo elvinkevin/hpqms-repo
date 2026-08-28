@@ -200,7 +200,7 @@ export function applyEvent(event) {
             } else if (queue_entry_id) {
                 updateOrInsertQueueEntry(queue_entry_id, {
                     status: "WAITING",
-                    department_id: event.department_id,
+                    dept_id: event.dept_id,
                 });
             }
             break;

@@ -319,7 +319,7 @@ class TestEmergencyPriority:
         assert emergency_queue.priority == QueuePriority.CRITICAL
 
         assert (
-            emergency_queue.department_id
+            emergency_queue.dept_id
             == routing_departments["emergency"].dept_id
         )
 
@@ -619,7 +619,7 @@ class TestQueueHistory:
 
         triage = await QueueService.move_patient(
             visit_id=visit.visit_id,
-            target_department_id=routing_departments["triage"].dept_id,
+            target_dept_id=routing_departments["triage"].dept_id,
             priority=QueuePriority.NORMAL,
             notes="Transferred to triage",
         )
@@ -641,14 +641,14 @@ class TestQueueHistory:
         reception_history = next(
             e
             for e in history
-            if e.department_id
+            if e.dept_id
             == routing_departments["reception"].dept_id
         )
 
         triage_history = next(
             e
             for e in history
-            if e.department_id
+            if e.dept_id
             == routing_departments["triage"].dept_id
         )
 

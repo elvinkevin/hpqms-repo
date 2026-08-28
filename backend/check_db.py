@@ -94,7 +94,7 @@ async def main():
                     queue_entry_id,
                     status,
                     priority,
-                    department_id,
+                    dept_id,
                     visit_id
                 FROM queue_entries
                 ORDER BY entered_at
@@ -110,7 +110,7 @@ async def main():
                         f"  {entry['queue_entry_id']} | "
                         f"status={entry['status']} | "
                         f"priority={entry['priority']} | "
-                        f"department={entry['department_id']} | "
+                        f"department={entry['dept_id']} | "
                         f"visit={entry['visit_id']}"
                     )
 

@@ -128,18 +128,18 @@ class TestReferralRouting:
 
         # Must go to Reception
         assert (
-            queue_entry.department_id
+            queue_entry.dept_id
             == routing_departments["reception"].dept_id
         )
 
         # Must not bypass Reception
         assert (
-            queue_entry.department_id
+            queue_entry.dept_id
             != routing_departments["triage"].dept_id
         )
 
         assert (
-            queue_entry.department_id
+            queue_entry.dept_id
             != routing_departments["emergency"].dept_id
         )
 

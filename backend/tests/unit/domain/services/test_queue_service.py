@@ -174,13 +174,13 @@ async def test_create_queue_entry(queue_service, active_visit, department):
     """Verifies successful creation of a new queue entry in WAITING status."""
     entry = await queue_service.create_queue_entry(
         visit_id=active_visit.visit_id,
-        department_id=department.dept_id,
+        dept_id=department.dept_id,
         priority=QueuePriority.NORMAL,
         notes="Standard triage check",
     )
 
     assert entry.visit_id == active_visit.visit_id
-    assert entry.department_id == department.dept_id
+    assert entry.dept_id == department.dept_id
     assert entry.status == QueueEntryStatus.WAITING
     assert entry.sequence_number == 1
     assert entry.notes == "Standard triage check"
@@ -191,13 +191,13 @@ async def test_duplicate_active_queue(queue_service, active_visit, department):
     """Ensures duplicate active queue entries on the same visit trigger a unique constraint error."""
     await queue_service.create_queue_entry(
         visit_id=active_visit.visit_id,
-        department_id=department.dept_id,
+        dept_id=department.dept_id,
     )
 
     with pytest.raises((HTTPException, IntegrityError)):
         await queue_service.create_queue_entry(
             visit_id=active_visit.visit_id,
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
         )
 
 
@@ -207,7 +207,7 @@ async def test_unknown_visit(queue_service, department):
     with pytest.raises((HTTPException, IntegrityError)):
         await queue_service.create_queue_entry(
             visit_id=uuid.uuid4(),
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
         )
 
 
@@ -217,7 +217,7 @@ async def test_unknown_department(queue_service, active_visit):
     with pytest.raises((HTTPException, IntegrityError)):
         await queue_service.create_queue_entry(
             visit_id=active_visit.visit_id,
-            department_id=uuid.uuid4(),
+            dept_id=uuid.uuid4(),
         )
 
 
@@ -230,7 +230,7 @@ async def test_get_queue_entry(queue_service, active_visit, department):
     """Validates fetching a single queue entry by primary key with joined models loaded."""
     created = await queue_service.create_queue_entry(
         visit_id=active_visit.visit_id,
-        department_id=department.dept_id,
+        dept_id=department.dept_id,
     )
 
     retrieved = await queue_service.get_queue_entry(created.queue_entry_id)
@@ -255,8 +255,8 @@ async def test_get_department_queue(queue_service, db, patient, active_visit, de
     v1 = active_visit
     v2 = await create_helper_visit(db, patient, "W-102")
 
-    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, department_id=department.dept_id)
-    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, department_id=department.dept_id)
+    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id)
+    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id)
 
     queue = await queue_service.get_department_queue(department.dept_id)
 
@@ -268,7 +268,7 @@ async def test_get_department_queue(queue_service, db, patient, active_visit, de
 @pytest.mark.asyncio
 async def test_get_next_patient(queue_service, db, patient, active_visit, department):
     """Validates fetching the next waiting patient in line based on priority and sequence."""
-    e1 = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    e1 = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
     next_up = await queue_service.get_next_patient(department.dept_id)
 
@@ -285,7 +285,7 @@ async def test_get_next_patient(queue_service, db, patient, active_visit, depart
 @pytest.mark.asyncio
 async def test_cancel_queue_entry(queue_service, active_visit, department):
     """Verifies cancelling an active entry at any valid stage."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
     cancelled = await queue_service.cancel_queue_entry(entry.queue_entry_id, notes="Patient requested cancellation")
 
@@ -304,8 +304,8 @@ async def test_fifo_order(queue_service, db, patient, active_visit, department):
     v1 = active_visit
     v2 = await create_helper_visit(db, patient, "W-102")
 
-    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, department_id=department.dept_id, priority=QueuePriority.NORMAL)
-    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, department_id=department.dept_id, priority=QueuePriority.NORMAL)
+    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id, priority=QueuePriority.NORMAL)
+    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id, priority=QueuePriority.NORMAL)
 
     first = await queue_service.get_next_patient(department.dept_id)
     assert first.queue_entry_id == e1.queue_entry_id
@@ -318,9 +318,9 @@ async def test_priority_order(queue_service, db, patient, active_visit, departme
     v2 = await create_helper_visit(db, patient, "E-101")
 
     # Lower priority first
-    await queue_service.create_queue_entry(visit_id=v1.visit_id, department_id=department.dept_id, priority=QueuePriority.NORMAL)
+    await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id, priority=QueuePriority.NORMAL)
     # Critical priority second
-    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, department_id=department.dept_id, priority=QueuePriority.CRITICAL)
+    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id, priority=QueuePriority.CRITICAL)
 
     next_up = await queue_service.get_next_patient(department.dept_id)
     assert next_up.queue_entry_id == e2.queue_entry_id
@@ -343,7 +343,7 @@ async def test_empty_queue(queue_service, department):
 @pytest.mark.asyncio
 async def test_first_sequence(queue_service, active_visit, department):
     """Verifies the first ticket of the day in a department gets sequence number 1."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     assert entry.sequence_number == 1
 
 
@@ -353,8 +353,8 @@ async def test_increment_sequence(queue_service, db, patient, active_visit, depa
     v1 = active_visit
     v2 = await create_helper_visit(db, patient, "W-102")
 
-    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, department_id=department.dept_id)
-    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, department_id=department.dept_id)
+    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id)
+    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id)
 
     assert e1.sequence_number == 1
     assert e2.sequence_number == 2
@@ -366,8 +366,8 @@ async def test_independent_departments(queue_service, db, patient, active_visit,
     v1 = active_visit
     v2 = await create_helper_visit(db, patient, "W-102")
 
-    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, department_id=department.dept_id)
-    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, department_id=secondary_department.dept_id)
+    e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id)
+    e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=secondary_department.dept_id)
 
     assert e1.sequence_number == 1
     assert e2.sequence_number == 1
@@ -380,7 +380,7 @@ async def test_independent_departments(queue_service, db, patient, active_visit,
 @pytest.mark.asyncio
 async def test_visit_updated(queue_service, active_visit, department):
     """Verifies active entry resolution correctly maps to the corresponding visit entity."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
     active_entry = await queue_service.get_active_queue_entry(active_visit.visit_id)
     assert active_entry is not None
@@ -390,7 +390,7 @@ async def test_visit_updated(queue_service, active_visit, department):
 @pytest.mark.asyncio
 async def test_visit_cleared(queue_service, active_visit, department):
     """Ensures completing or cancelling a ticket clears active visit status lookup."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.cancel_queue_entry(entry.queue_entry_id)
 
     active_entry = await queue_service.get_active_queue_entry(active_visit.visit_id)
@@ -404,7 +404,7 @@ async def test_visit_cleared(queue_service, active_visit, department):
 @pytest.mark.asyncio
 async def test_invalid_transition(queue_service, active_visit, department):
     """Ensures illegal state moves (e.g. WAITING directly to IN_PROGRESS) raise 422 HTTP exception."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
     with pytest.raises(HTTPException) as exc:
         await queue_service.transition_entry_status(entry.queue_entry_id, QueueEntryStatus.IN_PROGRESS)
@@ -415,16 +415,16 @@ async def test_invalid_transition(queue_service, active_visit, department):
 @pytest.mark.asyncio
 async def test_duplicate_queue(queue_service, active_visit, department):
     """Re-verifies active duplicate entry guardrails on the same visit encounter."""
-    await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
     with pytest.raises((HTTPException, IntegrityError)):
-        await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+        await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
 
 @pytest.mark.asyncio
 async def test_cancelled_entry(queue_service, active_visit, department):
     """Confirms cancelled terminal state prevents any further state transitions."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.cancel_queue_entry(entry.queue_entry_id)
 
     with pytest.raises(HTTPException) as exc:
@@ -436,7 +436,7 @@ async def test_cancelled_entry(queue_service, active_visit, department):
 @pytest.mark.asyncio
 async def test_call_patient(queue_service, active_visit, department, staff_member):
     """Verifies transitioning status from WAITING -> CALLED and setting timestamp."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
     called = await queue_service.transition_entry_status(
         queue_entry_id=entry.queue_entry_id,
@@ -451,7 +451,7 @@ async def test_call_patient(queue_service, active_visit, department, staff_membe
 @pytest.mark.asyncio
 async def test_start_consultation(queue_service, active_visit, department, staff_member):
     """Verifies transitioning status from CALLED -> IN_PROGRESS and setting started_at timestamp."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.transition_entry_status(
         queue_entry_id=entry.queue_entry_id,
         new_status=QueueEntryStatus.CALLED,
@@ -471,7 +471,7 @@ async def test_start_consultation(queue_service, active_visit, department, staff
 @pytest.mark.asyncio
 async def test_complete_queue_entry(queue_service, active_visit, department, staff_member):
     """Verifies transitioning status from IN_PROGRESS -> COMPLETED."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.transition_entry_status(
         queue_entry_id=entry.queue_entry_id,
         new_status=QueueEntryStatus.CALLED,
@@ -497,7 +497,7 @@ async def test_complete_queue_entry(queue_service, active_visit, department, sta
 @pytest.mark.asyncio
 async def test_mark_no_show(queue_service, active_visit, department, staff_member):
     """Verifies transitioning CALLED -> NO_SHOW."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.transition_entry_status(
         queue_entry_id=entry.queue_entry_id,
         new_status=QueueEntryStatus.CALLED,
@@ -518,7 +518,7 @@ async def test_mark_no_show(queue_service, active_visit, department, staff_membe
 @pytest.mark.asyncio
 async def test_completed_not_returned(queue_service, active_visit, department, staff_member):
     """Ensures completed tickets are excluded from active department queue calls."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.transition_entry_status(
         queue_entry_id=entry.queue_entry_id,
         new_status=QueueEntryStatus.CALLED,
@@ -541,7 +541,7 @@ async def test_completed_not_returned(queue_service, active_visit, department, s
 @pytest.mark.asyncio
 async def test_completed_entry(queue_service, active_visit, department, staff_member):
     """Confirms completed terminal state prevents any further state transitions."""
-    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, department_id=department.dept_id)
+    entry = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
     await queue_service.transition_entry_status(
         queue_entry_id=entry.queue_entry_id,
         new_status=QueueEntryStatus.CALLED,

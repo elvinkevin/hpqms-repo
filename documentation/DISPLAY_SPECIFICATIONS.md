@@ -247,7 +247,7 @@ export const DISPLAY_CONFIG = {
 
   // 3. Department & Service Point Scoping
   // Empty array [] = Unfiltered / All Departments
-  department_ids: [],
+  dept_ids: [],
   service_point_ids: [],      // e.g. ["ROOM_03"] for DOOR role
 
   // 4. Pagination & Rotation Engine

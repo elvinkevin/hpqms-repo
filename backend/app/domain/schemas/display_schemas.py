@@ -32,7 +32,7 @@ class RecentTokenDisplay(BaseModel):
 
 class DepartmentDisplay(BaseModel):
     """Aggregated display view for a single department queue state."""
-    department_id: UUID
+    dept_id: UUID
     department_name: str
 
     active_tokens: list[ActiveTokenDisplay] = Field(

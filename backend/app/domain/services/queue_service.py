@@ -72,7 +72,7 @@ class QueueService:
     async def create_queue_entry(
         self,
         visit_id: UUID,
-        department_id: UUID,
+        dept_id: UUID,
         priority: QueuePriority = QueuePriority.NORMAL,
         notes: Optional[str] = None,
     ) -> QueueEntry:
@@ -86,11 +86,11 @@ class QueueService:
             )
 
         # 2. Validate Department exists
-        department = await self.db.get(Department, department_id)
+        department = await self.db.get(Department, dept_id)
         if not department:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Department {department_id} not found.",
+                detail=f"Department {dept_id} not found.",
             )
 
         # 3. Check for active queue entry on this visit
@@ -107,7 +107,7 @@ class QueueService:
         stmt = (
             insert(DepartmentQueueCounter)
             .values(
-                department_id=department_id,
+                dept_id=dept_id,
                 queue_date=today_local,
                 last_sequence=1,
             )
@@ -126,7 +126,7 @@ class QueueService:
         # 5. Insert queue entry
         new_entry = QueueEntry(
             visit_id=visit_id,
-            department_id=department_id,
+            dept_id=dept_id,
             sequence_number=assigned_sequence,
             priority=priority,
             status=QueueEntryStatus.WAITING,
@@ -151,7 +151,7 @@ class QueueService:
 
     async def get_department_queue(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> List[QueueEntry]:
         """Retrieves active queue records for a department for today."""
 
@@ -165,7 +165,7 @@ class QueueService:
             )
             .where(
                 and_(
-                    QueueEntry.department_id == department_id,
+                    QueueEntry.dept_id == dept_id,
                     QueueEntry.status.in_(ACTIVE_STATUSES),
                     func.cast(QueueEntry.entered_at, Date) == today_local,
                 )
@@ -221,7 +221,7 @@ class QueueService:
 
     async def get_next_patient(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> QueueEntry | None:
         """Returns the highest-priority waiting patient in a department."""
 
@@ -233,7 +233,7 @@ class QueueService:
             )
             .where(
                 and_(
-                    QueueEntry.department_id == department_id,
+                    QueueEntry.dept_id == dept_id,
                     QueueEntry.status == QueueEntryStatus.WAITING,
                 )
             )
@@ -289,7 +289,7 @@ class QueueService:
             acting_staff = staff_result.scalar_one_or_none()
 
             if acting_staff and acting_staff.role != StaffRole.ADMIN:
-                if acting_staff.dept_id != entry.department_id:
+                if acting_staff.dept_id != entry.dept_id:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Cannot operate on queue entries outside your assigned department.",
@@ -479,7 +479,7 @@ class QueueService:
         if new_status is None:
             return
 
-        department_id = str(entry.department_id)
+        dept_id = str(entry.dept_id)
 
         token_number = (
             entry.visit.token_number
@@ -574,7 +574,7 @@ class QueueService:
             "priority": event_priority,
 
             "queue_entry_id": str(entry.queue_entry_id),
-            "department_id": department_id,
+            "dept_id": dept_id,
             "department_name": department_name,
 
             "token_number": token_number,
@@ -590,7 +590,7 @@ class QueueService:
 
         await ws_manager.broadcast_display(
             payload,
-            department_id=department_id,
+            dept_id=dept_id,
         )
 
     # --- Specific Transition Callables ---
@@ -688,7 +688,7 @@ class QueueService:
             select(func.count(QueueEntry.queue_entry_id))
             .where(
                 and_(
-                    QueueEntry.department_id == target.department_id,
+                    QueueEntry.dept_id == target.dept_id,
                     QueueEntry.status.in_(ACTIVE_STATUSES),
                     or_(
                         PRIORITY_DB_ORDER < target_priority_val,
@@ -710,7 +710,7 @@ class QueueService:
 
     async def get_department_no_show_queue(
         self,
-        department_id: UUID,
+        dept_id: UUID,
         staff_id: UUID,
     ) -> List[QueueEntry]:
         """Returns NO_SHOW entries assigned to the authenticated staff member."""
@@ -723,7 +723,7 @@ class QueueService:
             )
             .where(
                 and_(
-                    QueueEntry.department_id == department_id,
+                    QueueEntry.dept_id == dept_id,
                     QueueEntry.status == QueueEntryStatus.NO_SHOW,
                     QueueEntry.assigned_staff_id == staff_id,
                 )
@@ -787,7 +787,7 @@ class QueueService:
         event_type: str,
         extra_payload: Mapping[str, Any] | None = None,
     ) -> None:
-        department_id = str(entry.department_id)
+        dept_id = str(entry.dept_id)
 
         # Extract relationship attributes safely with fallbacks
         token_number = (
@@ -819,7 +819,7 @@ class QueueService:
             "event_type": event_type,
             "priority": "NORMAL",
             "queue_entry_id": str(entry.queue_entry_id),
-            "department_id": department_id,
+            "dept_id": dept_id,
             "department_name": department_name,
             "token_number": token_number,
             "status": status_val,
@@ -837,5 +837,5 @@ class QueueService:
 
         await ws_manager.broadcast_department(
             payload,
-            department_id=department_id,
+            dept_id=dept_id,
         )

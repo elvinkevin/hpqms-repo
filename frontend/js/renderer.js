@@ -320,7 +320,7 @@ function renderDepartment(department) {
 
     container.dataset.departmentId =
         displayValue(
-            department.department_id,
+            department.dept_id,
             ""
         );
 

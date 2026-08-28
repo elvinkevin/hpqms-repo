@@ -298,14 +298,14 @@ async def test_department_subscriber_receives_matching_event():
     service.subscribe(
         NotificationTarget.PUBLIC_DISPLAY,
         handler,
-        department_id=pharmacy_id,
+        dept_id=pharmacy_id,
     )
 
     event = NotificationEvent(
         event_type=NotificationEventType.TOKEN_CALLED,
         priority=NotificationPriority.HIGH,
         token_number="P-014",
-        department_id=pharmacy_id,
+        dept_id=pharmacy_id,
         targets=[
             NotificationTarget.PUBLIC_DISPLAY,
         ],
@@ -331,14 +331,14 @@ async def test_department_subscriber_ignores_other_department():
     service.subscribe(
         NotificationTarget.PUBLIC_DISPLAY,
         handler,
-        department_id=pharmacy_id,
+        dept_id=pharmacy_id,
     )
 
     event = NotificationEvent(
         event_type=NotificationEventType.TOKEN_CALLED,
         priority=NotificationPriority.HIGH,
         token_number="A-028",
-        department_id=reception_id,
+        dept_id=reception_id,
         targets=[
             NotificationTarget.PUBLIC_DISPLAY,
         ],
@@ -367,7 +367,7 @@ async def test_global_subscriber_receives_all_departments():
         event_type=NotificationEventType.TOKEN_CALLED,
         priority=NotificationPriority.HIGH,
         token_number="P-014",
-        department_id=uuid4(),
+        dept_id=uuid4(),
         targets=[
             NotificationTarget.PUBLIC_DISPLAY,
         ],
@@ -401,14 +401,14 @@ async def test_global_and_department_subscribers_can_coexist():
     service.subscribe(
         NotificationTarget.PUBLIC_DISPLAY,
         pharmacy_handler,
-        department_id=pharmacy_id,
+        dept_id=pharmacy_id,
     )
 
     event = NotificationEvent(
         event_type=NotificationEventType.TOKEN_CALLED,
         priority=NotificationPriority.HIGH,
         token_number="P-014",
-        department_id=pharmacy_id,
+        dept_id=pharmacy_id,
         targets=[
             NotificationTarget.PUBLIC_DISPLAY,
         ],
@@ -435,14 +435,14 @@ async def test_department_subscriber_does_not_receive_other_department_events():
     service.subscribe(
         NotificationTarget.PUBLIC_DISPLAY,
         pharmacy_handler,
-        department_id=pharmacy_id,
+        dept_id=pharmacy_id,
     )
 
     reception_event = NotificationEvent(
         event_type=NotificationEventType.TOKEN_CALLED,
         priority=NotificationPriority.HIGH,
         token_number="A-028",
-        department_id=reception_id,
+        dept_id=reception_id,
         targets=[
             NotificationTarget.PUBLIC_DISPLAY,
         ],
@@ -561,7 +561,7 @@ class TestNotificationHistory:
             event_type=NotificationEventType.TOKEN_CALLED,
             priority=NotificationPriority.HIGH,
             token_number="P-014",
-            department_id=pharmacy_id,
+            dept_id=pharmacy_id,
             targets=[
                 NotificationTarget.PUBLIC_DISPLAY,
             ],
@@ -571,7 +571,7 @@ class TestNotificationHistory:
             event_type=NotificationEventType.TOKEN_CALLED,
             priority=NotificationPriority.HIGH,
             token_number="A-028",
-            department_id=reception_id,
+            dept_id=reception_id,
             targets=[
                 NotificationTarget.PUBLIC_DISPLAY,
             ],

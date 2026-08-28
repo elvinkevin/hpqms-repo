@@ -32,7 +32,7 @@ function createSnapshot(overrides = {}) {
 
         departments: [
             {
-                department_id: DEPARTMENT_A,
+                dept_id: DEPARTMENT_A,
                 department_name: "Reception",
 
                 active_tokens: [],
@@ -51,7 +51,7 @@ function createSnapshot(overrides = {}) {
             },
 
             {
-                department_id: DEPARTMENT_B,
+                dept_id: DEPARTMENT_B,
                 department_name: "Triage",
 
                 active_tokens: [],
@@ -89,16 +89,16 @@ function createEvent(overrides = {}) {
 
         queue_entry_id: null,
 
-        department_id: DEPARTMENT_A,
+        dept_id: DEPARTMENT_A,
 
         department_name: "Reception",
 
         service_point: "Counter 1",
 
-        source_department_id: null,
+        source_dept_id: null,
         source_department_name: null,
 
-        target_department_id: null,
+        target_dept_id: null,
         target_department_name: null,
 
         announcement_id: null,
@@ -268,7 +268,7 @@ describe("getState()", () => {
 
         state.snapshot.facility_name = "HACKED";
         state.snapshot.departments.push({
-            department_id: "malicious",
+            dept_id: "malicious",
         });
 
         const actualState = getState();
@@ -691,7 +691,7 @@ describe("PATIENT_ROUTED", () => {
         applyEvent(
             createEvent({
                 event_type: EVENT_TYPE.TOKEN_CALLED,
-                department_id: DEPARTMENT_A,
+                dept_id: DEPARTMENT_A,
             })
         );
 
@@ -701,10 +701,10 @@ describe("PATIENT_ROUTED", () => {
 
                 token_number: TOKEN_A,
 
-                source_department_id: DEPARTMENT_A,
+                source_dept_id: DEPARTMENT_A,
                 source_department_name: "Reception",
 
-                target_department_id: DEPARTMENT_B,
+                target_dept_id: DEPARTMENT_B,
                 target_department_name: "Triage",
             })
         );
@@ -739,8 +739,8 @@ describe("PATIENT_ROUTED", () => {
         const event = createEvent({
             event_type: EVENT_TYPE.PATIENT_ROUTED,
 
-            source_department_id: DEPARTMENT_A,
-            target_department_id: DEPARTMENT_B,
+            source_dept_id: DEPARTMENT_A,
+            target_dept_id: DEPARTMENT_B,
         });
 
         applyEvent(event);
@@ -769,8 +769,8 @@ describe("PATIENT_ROUTED", () => {
             createEvent({
                 event_type: EVENT_TYPE.PATIENT_ROUTED,
 
-                source_department_id: null,
-                target_department_id: null,
+                source_dept_id: null,
+                target_dept_id: null,
             })
         );
 
@@ -1024,7 +1024,7 @@ describe("defensive behavior", () => {
         expect(() => {
             applyEvent(
                 createEvent({
-                    department_id:
+                    dept_id:
                         "99999999-9999-9999-9999-999999999999",
                 })
             );

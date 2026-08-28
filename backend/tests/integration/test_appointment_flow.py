@@ -117,12 +117,12 @@
 #         await db.refresh(visit)
 
 #         assert (
-#             queue_entry.department_id
+#             queue_entry.dept_id
 #             == routing_departments["triage"].dept_id
 #         )
 
 #         assert (
-#             queue_entry.department_id
+#             queue_entry.dept_id
 #             != routing_departments["reception"].dept_id
 #         )
 

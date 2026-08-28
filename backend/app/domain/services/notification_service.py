@@ -17,7 +17,7 @@ NotificationHandler = Callable[
 @dataclass(frozen=True)
 class NotificationSubscription:
     handler: NotificationHandler
-    department_id: UUID | None = None
+    dept_id: UUID | None = None
 
 
 class NotificationService:
@@ -62,18 +62,18 @@ class NotificationService:
         target: NotificationTarget,
         handler: NotificationHandler,
         *,
-        department_id: UUID | None = None,
+        dept_id: UUID | None = None,
     ) -> None:
         """
         Register a notification handler.
 
-        If department_id is supplied, the handler only receives
+        If dept_id is supplied, the handler only receives
         events belonging to that department.
         """
 
         subscription = NotificationSubscription(
             handler=handler,
-            department_id=department_id,
+            dept_id=dept_id,
         )
 
         if subscription not in self._subscribers[target]:
@@ -84,7 +84,7 @@ class NotificationService:
         target: NotificationTarget,
         handler: NotificationHandler,
         *,
-        department_id: UUID | None = None,
+        dept_id: UUID | None = None,
     ) -> None:
         """
         Remove a previously registered handler for a specific target and scope.
@@ -92,7 +92,7 @@ class NotificationService:
 
         subscription = NotificationSubscription(
             handler=handler,
-            department_id=department_id,
+            dept_id=dept_id,
         )
 
         if subscription in self._subscribers[target]:
@@ -125,11 +125,11 @@ class NotificationService:
 
         for subscription in unique_subscriptions:
 
-            if subscription.department_id is None:
+            if subscription.dept_id is None:
                 await subscription.handler(event)
                 continue
 
-            if event.department_id == subscription.department_id:
+            if event.dept_id == subscription.dept_id:
                 await subscription.handler(event)
 
     # ---------------------------------------------------------
@@ -186,7 +186,7 @@ class NotificationService:
 
     def get_history_for_department(
         self,
-        department_id: UUID,
+        dept_id: UUID,
         *,
         limit: int | None = None,
     ) -> list[NotificationEvent]:
@@ -197,7 +197,7 @@ class NotificationService:
         events = [
             event
             for event in reversed(self._history)
-            if event.department_id == department_id
+            if event.dept_id == dept_id
         ]
 
         if limit is None:

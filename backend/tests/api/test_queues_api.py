@@ -13,7 +13,7 @@ pytestmark = pytest.mark.asyncio
 async def test_get_department_queue_success(
     client: AsyncClient, doctor_token_headers: dict, department, queue_entry
 ):
-    """GET /api/queue/department/{department_id} - Returns list of QueueEntryRead"""
+    """GET /api/queue/department/{dept_id} - Returns list of QueueEntryRead"""
     response = await client.get(
         f"/api/queue/department/{department.dept_id}",
         headers=doctor_token_headers,
@@ -26,14 +26,14 @@ async def test_get_department_queue_success(
     # Schema assertions (QueueEntryRead)
     entry_data = data[0]
     assert entry_data["queue_entry_id"] == str(queue_entry.queue_entry_id)
-    assert entry_data["department_id"] == str(department.dept_id)
+    assert entry_data["dept_id"] == str(department.dept_id)
     assert entry_data["priority"] == queue_entry.priority.value
 
 
 async def test_get_department_queue_empty(
     client: AsyncClient, doctor_token_headers: dict
 ):
-    """GET /api/queue/department/{department_id} - Handles non-existent department or empty queue"""
+    """GET /api/queue/department/{dept_id} - Handles non-existent department or empty queue"""
     empty_dept_id = uuid4()
     response = await client.get(
         f"/api/queue/department/{empty_dept_id}",
@@ -85,7 +85,7 @@ async def test_get_visit_queue_success(
 async def test_get_next_patient_success(
     client: AsyncClient, doctor_token_headers: dict, department, queue_entry
 ):
-    """GET /api/queue/department/{department_id}/next - Returns next waiting QueueEntryRead"""
+    """GET /api/queue/department/{dept_id}/next - Returns next waiting QueueEntryRead"""
     response = await client.get(
         f"/api/queue/department/{department.dept_id}/next",
         headers=doctor_token_headers,

@@ -121,7 +121,7 @@ async def transfer_patient(
 
     queue_entry = await routing_service.transfer_patient(
         visit_id=visit_id,
-        target_department_id=payload.target_department_id,
+        target_dept_id=payload.target_dept_id,
         reason=payload.reason,
         priority=payload.priority,
         notes=payload.notes,

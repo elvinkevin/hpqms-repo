@@ -131,7 +131,7 @@ async def test_department_specific_event_reaches_matching_department_only(
     )
 
     delivered = await manager.broadcast_token_called(
-        department_id="dept-opd",
+        dept_id="dept-opd",
         token_number="P-014",
         service_point="Counter 2",
         department_name="Outpatient",
@@ -168,7 +168,7 @@ async def test_department_event_reaches_department_and_global_displays(
     )
 
     delivered = await manager.broadcast_token_called(
-        department_id="dept-opd",
+        dept_id="dept-opd",
         token_number="A-001",
         service_point="Room 1",
     )
@@ -256,7 +256,7 @@ async def test_multiple_connections_same_department_receive_event(
     )
 
     delivered = await manager.broadcast_queue_updated(
-        department_id="dept-opd",
+        dept_id="dept-opd",
         message="Queue updated",
         department_name="Outpatient",
     )
@@ -338,7 +338,7 @@ async def test_dead_connection_does_not_prevent_healthy_connections_from_receivi
     broken_socket.send_json = fail_send
 
     delivered = await manager.broadcast_queue_updated(
-        department_id="dept-opd",
+        dept_id="dept-opd",
         message="Queue updated",
     )
 
@@ -369,7 +369,7 @@ async def test_token_called_payload_contains_expected_fields(
     )
 
     await manager.broadcast_token_called(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         token_number="P-014",
         service_point="Counter 2",
         department_name="Pharmacy",
@@ -383,7 +383,7 @@ async def test_token_called_payload_contains_expected_fields(
     assert payload["event_type"] == "TOKEN_CALLED"
     assert payload["priority"] == "HIGH"
 
-    assert payload["department_id"] == "dept-pharmacy"
+    assert payload["dept_id"] == "dept-pharmacy"
     assert payload["department_name"] == "Pharmacy"
 
     assert payload["token_number"] == "P-014"
@@ -408,7 +408,7 @@ async def test_token_called_generates_default_message(
     )
 
     await manager.broadcast_token_called(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         token_number="P-014",
         service_point="Counter 2",
     )
@@ -436,7 +436,7 @@ async def test_queue_updated_payload_contains_expected_fields(
     )
 
     await manager.broadcast_queue_updated(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         message="Queue updated",
         department_name="Pharmacy",
         priority="NORMAL",
@@ -448,7 +448,7 @@ async def test_queue_updated_payload_contains_expected_fields(
     assert payload["event_type"] == "QUEUE_UPDATED"
     assert payload["priority"] == "NORMAL"
 
-    assert payload["department_id"] == "dept-pharmacy"
+    assert payload["dept_id"] == "dept-pharmacy"
     assert payload["department_name"] == "Pharmacy"
 
     assert payload["message"] == "Queue updated"
@@ -471,7 +471,7 @@ async def test_token_completed_payload_contains_expected_fields(
     )
 
     await manager.broadcast_token_completed(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         token_number="P-014",
         department_name="Pharmacy",
         message="Token P-014 completed",
@@ -483,7 +483,7 @@ async def test_token_completed_payload_contains_expected_fields(
     assert payload["event_id"]
     assert payload["event_type"] == "TOKEN_COMPLETED"
 
-    assert payload["department_id"] == "dept-pharmacy"
+    assert payload["dept_id"] == "dept-pharmacy"
     assert payload["department_name"] == "Pharmacy"
 
     assert payload["token_number"] == "P-014"
@@ -508,7 +508,7 @@ async def test_token_completed_generates_default_message(
     )
 
     await manager.broadcast_token_completed(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         token_number="P-014",
     )
 
@@ -535,7 +535,7 @@ async def test_token_cancelled_payload_contains_expected_fields(
     )
 
     await manager.broadcast_token_cancelled(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         token_number="P-014",
         department_name="Pharmacy",
         message="Token P-014 cancelled",
@@ -547,7 +547,7 @@ async def test_token_cancelled_payload_contains_expected_fields(
     assert payload["event_id"]
     assert payload["event_type"] == "TOKEN_CANCELLED"
 
-    assert payload["department_id"] == "dept-pharmacy"
+    assert payload["dept_id"] == "dept-pharmacy"
     assert payload["department_name"] == "Pharmacy"
 
     assert payload["token_number"] == "P-014"
@@ -572,7 +572,7 @@ async def test_token_cancelled_generates_default_message(
     )
 
     await manager.broadcast_token_cancelled(
-        department_id="dept-pharmacy",
+        dept_id="dept-pharmacy",
         token_number="P-014",
     )
 

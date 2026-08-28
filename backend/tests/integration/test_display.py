@@ -62,7 +62,7 @@ def test_display_broadcast_reaches_connected_display():
 
             asyncio.run(
                 ws_manager.broadcast_queue_updated(
-                    department_id=None,
+                    dept_id=None,
                     message="Queue updated",
                     department_name="Global",
                 )

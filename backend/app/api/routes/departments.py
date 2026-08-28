@@ -86,12 +86,12 @@ async def get_active_departments(
 
 
 @router.get(
-    "/{department_id}",
+    "/{dept_id}",
     response_model=DepartmentRead,
     dependencies=[Depends(get_current_user)]
 )
 async def get_department(
-    department_id: UUID,
+    dept_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -99,7 +99,7 @@ async def get_department(
     """
     service = DepartmentService(db)
 
-    return await service.get_by_id(department_id)
+    return await service.get_by_id(dept_id)
 
 
 # ---------------------------------------------------------------------
@@ -107,12 +107,12 @@ async def get_department(
 # ---------------------------------------------------------------------
 
 @router.patch(
-    "/{department_id}",
+    "/{dept_id}",
     response_model=DepartmentRead,
     dependencies=[Depends(require_role(StaffRole.ADMIN))]
 )
 async def update_department(
-    department_id: UUID,
+    dept_id: UUID,
     data: DepartmentUpdate,
     db: AsyncSession = Depends(get_db),
 ):
@@ -122,7 +122,7 @@ async def update_department(
     service = DepartmentService(db)
 
     department = await service.update_department(
-        department_id,
+        dept_id,
         data,
     )
 
@@ -136,12 +136,12 @@ async def update_department(
 # ---------------------------------------------------------------------
 
 @router.patch(
-    "/{department_id}/activate",
+    "/{dept_id}/activate",
     response_model=DepartmentRead,
     dependencies=[Depends(require_role(StaffRole.ADMIN))]
 )
 async def activate_department(
-    department_id: UUID,
+    dept_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -150,7 +150,7 @@ async def activate_department(
     service = DepartmentService(db)
 
     department = await service.activate_department(
-        department_id
+        dept_id
     )
 
     await db.commit()
@@ -163,12 +163,12 @@ async def activate_department(
 # ---------------------------------------------------------------------
 
 @router.patch(
-    "/{department_id}/deactivate",
+    "/{dept_id}/deactivate",
     response_model=DepartmentRead,
     dependencies=[Depends(require_role(StaffRole.ADMIN))]
 )
 async def deactivate_department(
-    department_id: UUID,
+    dept_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -177,7 +177,7 @@ async def deactivate_department(
     service = DepartmentService(db)
 
     department = await service.deactivate_department(
-        department_id
+        dept_id
     )
 
     await db.commit()

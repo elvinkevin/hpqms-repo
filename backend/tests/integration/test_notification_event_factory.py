@@ -15,13 +15,13 @@ class TestTokenCalledEvent:
     def test_token_called_creates_correct_event(self):
         visit_id = uuid4()
         queue_entry_id = uuid4()
-        department_id = uuid4()
+        dept_id = uuid4()
 
         event = NotificationEventFactory.token_called(
             token_number="A-028",
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
-            department_id=department_id,
+            dept_id=dept_id,
             department_name="Reception",
             service_point="Counter 1",
         )
@@ -32,7 +32,7 @@ class TestTokenCalledEvent:
         assert event.token_number == "A-028"
         assert event.visit_id == visit_id
         assert event.queue_entry_id == queue_entry_id
-        assert event.department_id == department_id
+        assert event.dept_id == dept_id
 
         assert event.department_name == "Reception"
         assert event.service_point == "Counter 1"
@@ -97,13 +97,13 @@ class TestPatientRoutedEvent:
     def test_patient_routed_creates_correct_event(self):
         visit_id = uuid4()
         queue_entry_id = uuid4()
-        department_id = uuid4()
+        dept_id = uuid4()
 
         event = NotificationEventFactory.patient_routed(
             token_number="A-028",
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
-            department_id=department_id,
+            dept_id=dept_id,
             department_name="Triage",
         )
 

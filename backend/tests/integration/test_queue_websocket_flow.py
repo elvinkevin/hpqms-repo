@@ -68,7 +68,7 @@ async def _create_queue_entry(
 
     entry = await service.create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=department.dept_id,
+        dept_id=department.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
@@ -136,7 +136,7 @@ async def test_calling_token_commits_before_broadcasting_token_called(
 
     assert payload["event_type"] == "TOKEN_CALLED"
     assert payload["token_number"] == "A-001"
-    assert payload["department_id"] == str(
+    assert payload["dept_id"] == str(
         department.dept_id
     )
 
@@ -287,7 +287,7 @@ async def test_queue_change_commits_before_broadcasting_token_service_started(
     payload = websocket.sent_messages[-1]
 
     assert payload["event_type"] == "TOKEN_SERVICE_STARTED"
-    assert payload["department_id"] == str(
+    assert payload["dept_id"] == str(
         department.dept_id
     )
 
@@ -513,7 +513,7 @@ async def test_starting_token_broadcasts_token_service_started(
 
     assert payload["event_type"] == "TOKEN_SERVICE_STARTED"
     assert payload["token_number"] == "A-002"
-    assert payload["department_id"] == str(department.dept_id)
+    assert payload["dept_id"] == str(department.dept_id)
 
     assert payload["queue_entry_id"] == str(entry.queue_entry_id)
     assert payload["department_name"] == department.name
@@ -574,7 +574,7 @@ async def test_completing_token_broadcasts_token_completed(
 
     assert payload["event_type"] == "TOKEN_COMPLETED"
     assert payload["token_number"] == "A-003"
-    assert payload["department_id"] == str(department.dept_id)
+    assert payload["dept_id"] == str(department.dept_id)
 
     assert payload["queue_entry_id"] == str(entry.queue_entry_id)
     assert payload["department_name"] == department.name
@@ -627,7 +627,7 @@ async def test_cancelling_token_broadcasts_token_cancelled(
 
     assert payload["event_type"] == "TOKEN_CANCELLED"
     assert payload["token_number"] == "A-004"
-    assert payload["department_id"] == str(department.dept_id)
+    assert payload["dept_id"] == str(department.dept_id)
 
     assert payload["queue_entry_id"] == str(entry.queue_entry_id)
     assert payload["department_name"] == department.name
@@ -683,7 +683,7 @@ async def test_marking_token_no_show_broadcasts_token_no_show(
 
     assert payload["event_type"] == "TOKEN_NO_SHOW"
     assert payload["token_number"] == "A-005"
-    assert payload["department_id"] == str(department.dept_id)
+    assert payload["dept_id"] == str(department.dept_id)
 
     assert payload["queue_entry_id"] == str(entry.queue_entry_id)
     assert payload["department_name"] == department.name
@@ -753,7 +753,7 @@ async def test_requeue_broadcasts_token_requeued(
 
     assert payload["event_type"] == "TOKEN_REQUEUED"
     assert payload["token_number"] == "A-006"
-    assert payload["department_id"] == str(department.dept_id)
+    assert payload["dept_id"] == str(department.dept_id)
 
     assert payload["queue_entry_id"] == str(entry.queue_entry_id)
     assert payload["department_name"] == department.name

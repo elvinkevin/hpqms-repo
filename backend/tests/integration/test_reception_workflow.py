@@ -81,7 +81,7 @@ async def test_walk_in_patient_registration_workflow(
 
     # Routing decision checks: INCOMPLETE status forces route to Reception
     assert queue_entry.visit_id == visit.visit_id
-    assert queue_entry.department_id == routing_departments["reception"].dept_id
+    assert queue_entry.dept_id == routing_departments["reception"].dept_id
     assert queue_entry.status == QueueEntryStatus.WAITING
 
     # Relational Database State Verification
@@ -138,7 +138,7 @@ async def test_existing_patient_walk_in_workflow(
     # Routed to reception (COMPLETE + WALK_IN)
     assert queue_entry.visit_id == visit.visit_id
     assert (
-        queue_entry.department_id == routing_departments["reception"].dept_id
+        queue_entry.dept_id == routing_departments["reception"].dept_id
     )
     assert queue_entry.status == QueueEntryStatus.WAITING
 
@@ -602,13 +602,13 @@ async def test_requeued_patient_respects_priority_ordering(
 
     normal_entry = await queue_service.create_queue_entry(
         visit_id=normal_visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
     urgent_entry = await queue_service.create_queue_entry(
         visit_id=urgent_visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.URGENT,
     )
 
@@ -776,7 +776,7 @@ async def test_requeued_critical_patient_restores_priority_order(
 
         entry = await queue_service.create_queue_entry(
             visit_id=visit.visit_id,
-            department_id=reception.dept_id,
+            dept_id=reception.dept_id,
             priority=priority,
         )
 
@@ -929,7 +929,7 @@ async def test_no_show_requeue_preserves_priority_order(
 
     normal_entry = await queue_service.create_queue_entry(
         visit_id=normal_visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
@@ -952,7 +952,7 @@ async def test_no_show_requeue_preserves_priority_order(
 
     urgent_entry = await queue_service.create_queue_entry(
         visit_id=urgent_visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.URGENT,
     )
 
@@ -1070,7 +1070,7 @@ async def test_waiting_patient_cannot_be_completed(
 
     entry = await queue_service.create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
@@ -1118,7 +1118,7 @@ async def test_waiting_patient_rejects_invalid_transitions(
 
     entry = await queue_service.create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
@@ -1171,7 +1171,7 @@ async def test_called_patient_cannot_skip_to_completed(
 
     entry = await queue_service.create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
@@ -1227,7 +1227,7 @@ async def test_terminal_queue_states_cannot_be_reactivated(
 
     completed_entry = await queue_service.create_queue_entry(
         visit_id=completed_visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 
@@ -1284,7 +1284,7 @@ async def test_terminal_queue_states_cannot_be_reactivated(
 
     cancelled_entry = await queue_service.create_queue_entry(
         visit_id=cancelled_visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
         priority=QueuePriority.NORMAL,
     )
 

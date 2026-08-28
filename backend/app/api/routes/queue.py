@@ -27,35 +27,35 @@ router = APIRouter(
 # ==========================================
 
 @router.get(
-    "/department/{department_id}",
+    "/department/{dept_id}",
     response_model=list[QueueEntryRead],
 )
 async def get_department_queue(
-    department_id: UUID,
+    dept_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Returns the active queue for the staff member's department."""
-    ensure_department_access(current_user, department_id)
+    ensure_department_access(current_user, dept_id)
 
     service = QueueService(db)
-    return await service.get_department_queue(department_id)
+    return await service.get_department_queue(dept_id)
 
 
 @router.get(
-    "/department/{department_id}/next",
+    "/department/{dept_id}/next",
     response_model=QueueEntryRead | None,
 )
 async def get_next_patient(
-    department_id: UUID,
+    dept_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Returns the next patient waiting in a department according to priority and arrival order."""
-    ensure_department_access(current_user, department_id)
+    ensure_department_access(current_user, dept_id)
 
     service = QueueService(db)
-    return await service.get_next_patient(department_id)
+    return await service.get_next_patient(dept_id)
 
 
 @router.get(
@@ -76,7 +76,7 @@ async def get_queue_entry(
             detail="Queue entry not found.",
         )
 
-    ensure_department_access(current_user, entry.department_id)
+    ensure_department_access(current_user, entry.dept_id)
     return entry
 
 
@@ -93,7 +93,7 @@ async def get_visit_queue(
     entry = await service.get_active_queue_entry(visit_id)
     
     if entry:
-        ensure_department_access(current_user, entry.department_id)
+        ensure_department_access(current_user, entry.dept_id)
         
     return entry
 
@@ -222,7 +222,7 @@ async def cancel_queue_step(
             detail="Queue entry not found.",
         )
 
-    ensure_department_access(current_user, entry.department_id)
+    ensure_department_access(current_user, entry.dept_id)
 
     entry = await service.cancel_queue_entry(queue_entry_id)
 
@@ -232,18 +232,18 @@ async def cancel_queue_step(
 
 
 @router.get(
-    "/department/{department_id}/no-show",
+    "/department/{dept_id}/no-show",
     response_model=List[QueueEntryRead],
 )
 async def get_department_no_show_queue(
-    department_id: UUID,
+    dept_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     service = QueueService(db)
 
     return await service.get_department_no_show_queue(
-        department_id,
+        dept_id,
         staff_id=current_user.staff_id,
     )
 
@@ -340,7 +340,7 @@ async def get_position(
             detail="Queue entry not found.",
         )
 
-    ensure_department_access(current_user, entry.department_id)
+    ensure_department_access(current_user, entry.dept_id)
     return await service.get_patient_position(queue_entry_id)
 
 
@@ -362,7 +362,7 @@ async def get_wait_time(
             detail="Queue entry not found.",
         )
 
-    ensure_department_access(current_user, entry.department_id)
+    ensure_department_access(current_user, entry.dept_id)
     return await service.get_estimated_wait_time(queue_entry_id)
 
 

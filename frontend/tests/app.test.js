@@ -288,7 +288,7 @@ const snapshot = {
 
     departments: [
         {
-            department_id:
+            dept_id:
                 "00000000-0000-0000-0000-000000000001",
 
             department_name: "Outpatient",
@@ -328,7 +328,7 @@ const notificationEvent = {
     queue_entry_id:
         "00000000-0000-0000-0000-000000000012",
 
-    department_id:
+    dept_id:
         "00000000-0000-0000-0000-000000000001",
 
     department_name: "Outpatient",
@@ -851,7 +851,7 @@ describe("handleMessage()", () => {
     const event = {
         event_type: "TOKEN_CALLED",
         token_number: "W-109",
-        department_id: "department-001",
+        dept_id: "department-001",
     };
 
     handleMessage(event);
@@ -866,7 +866,7 @@ describe("handleMessage()", () => {
         const event = {
             event_type: "TOKEN_SERVICE_STARTED",
             token_number: "W-109",
-            department_id: "department-001",
+            dept_id: "department-001",
         };
 
         handleMessage(event);
@@ -881,7 +881,7 @@ describe("handleMessage()", () => {
         const event = {
             event_type: "TOKEN_REQUEUED",
             token_number: "W-109",
-            department_id: "department-001",
+            dept_id: "department-001",
         };
 
         handleMessage(event);
@@ -900,7 +900,7 @@ describe("handleMessage()", () => {
         const event = {
             event_type: "TOKEN_COMPLETED",
             token_number: "W-109",
-            department_id: "department-001",
+            dept_id: "department-001",
         };
 
         handleMessage(event);
@@ -915,7 +915,7 @@ describe("handleMessage()", () => {
         const event = {
             event_type: "TOKEN_NO_SHOW",
             token_number: "W-109",
-            department_id: "department-001",
+            dept_id: "department-001",
         };
 
         handleMessage(event);
@@ -930,7 +930,7 @@ describe("handleMessage()", () => {
         const event = {
             event_type: "TOKEN_CANCELLED",
             token_number: "W-109",
-            department_id: "department-001",
+            dept_id: "department-001",
         };
 
         handleMessage(event);
@@ -945,7 +945,7 @@ describe("handleMessage()", () => {
         const event = {
             event_type: "PATIENT_ROUTED",
             token_number: "W-109",
-            department_id: "department-002",
+            dept_id: "department-002",
         };
 
         handleMessage(event);
@@ -959,7 +959,7 @@ describe("handleMessage()", () => {
     it("handles QUEUE_UPDATED events", () => {
         const event = {
             event_type: "QUEUE_UPDATED",
-            department_id: "department-001",
+            dept_id: "department-001",
         };
 
         handleMessage(event);

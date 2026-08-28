@@ -130,8 +130,8 @@ async def test_calling_queue_entry_broadcasts_token_called_to_display(
 
                 assert event["event_type"] == "TOKEN_CALLED"
                 assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
 
     finally:
@@ -231,8 +231,8 @@ async def test_starting_called_queue_entry_updates_display(
                     "TOKEN_SERVICE_STARTED"
                 )
                 assert update_event["token_number"] == "W-101"
-                assert update_event["department_id"] == str(
-                    queue_entry.department_id
+                assert update_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert update_event["status"] == "IN_PROGRESS"
 
@@ -325,8 +325,8 @@ async def test_completing_in_progress_queue_entry_updates_display(
                     "TOKEN_SERVICE_STARTED"
                 )
                 assert started_event["token_number"] == "W-101"
-                assert started_event["department_id"] == str(
-                    queue_entry.department_id
+                assert started_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert started_event["status"] == "IN_PROGRESS"
 
@@ -356,8 +356,8 @@ async def test_completing_in_progress_queue_entry_updates_display(
                     "TOKEN_COMPLETED"
                 )
                 assert completed_event["token_number"] == "W-101"
-                assert completed_event["department_id"] == str(
-                    queue_entry.department_id
+                assert completed_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert completed_event["status"] == "COMPLETED"
 
@@ -424,8 +424,8 @@ async def test_cancelling_queue_entry_updates_display(
 
                 assert event["event_type"] == "TOKEN_CANCELLED"
                 assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
 
     finally:
@@ -498,8 +498,8 @@ async def test_cancelling_queue_entry_broadcasts_token_cancelled_to_display(
 
                 assert event["event_type"] == "TOKEN_CANCELLED"
                 assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
 
     finally:
@@ -590,8 +590,8 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                     "TOKEN_SERVICE_STARTED"
                 )
                 assert started_event["token_number"] == "W-101"
-                assert started_event["department_id"] == str(
-                    queue_entry.department_id
+                assert started_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert started_event["status"] == "IN_PROGRESS"
 
@@ -621,8 +621,8 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                     "TOKEN_COMPLETED"
                 )
                 assert completed_event["token_number"] == "W-101"
-                assert completed_event["department_id"] == str(
-                    queue_entry.department_id
+                assert completed_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert completed_event["status"] == "COMPLETED"
 
@@ -681,8 +681,8 @@ async def test_cancelling_queue_entry_broadcasts_token_cancelled_to_display(
 
                 assert event["event_type"] == "TOKEN_CANCELLED"
                 assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
 
     finally:
@@ -769,8 +769,8 @@ async def test_queue_change_broadcasts_token_service_started_to_display(
                 assert event["event_type"] == (
                     "TOKEN_SERVICE_STARTED"
                 )
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert event["token_number"] == "W-101"
                 assert event["status"] == "IN_PROGRESS"
@@ -806,7 +806,7 @@ async def test_event_reaches_only_correct_department_display(
     await db.refresh(other_department)
 
     # Convert UUIDs to strings explicitly
-    target_dept_str = str(queue_entry.department_id)
+    target_dept_str = str(queue_entry.dept_id)
     other_dept_str = str(other_department.dept_id)
 
     # 2. Bind FastAPI's get_db to a fresh session per request
@@ -821,7 +821,7 @@ async def test_event_reaches_only_correct_department_display(
 
             # Connect target department display
             with test_client.websocket_connect(
-                f"/ws/display?department_id={target_dept_str}"
+                f"/ws/display?dept_id={target_dept_str}"
             ) as department_socket:
 
                 department_handshake = department_socket.receive_json()
@@ -829,7 +829,7 @@ async def test_event_reaches_only_correct_department_display(
 
                 # Connect second department display
                 with test_client.websocket_connect(
-                    f"/ws/display?department_id={other_dept_str}"
+                    f"/ws/display?dept_id={other_dept_str}"
                 ) as other_socket:
 
                     other_handshake = other_socket.receive_json()
@@ -846,7 +846,7 @@ async def test_event_reaches_only_correct_department_display(
                     event = department_socket.receive_json()
                     assert event["event_type"] == "TOKEN_CALLED"
                     assert event["token_number"] == "W-101"
-                    assert event["department_id"] == target_dept_str
+                    assert event["dept_id"] == target_dept_str
 
                     # 4. Verify connection exists under string key in manager
                     other_connections = ws_manager._display_connections.get(
@@ -910,8 +910,8 @@ async def test_event_reaches_global_display(
 
                 assert event["event_type"] == "TOKEN_CALLED"
                 assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
 
     finally:
@@ -1002,8 +1002,8 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                     "TOKEN_SERVICE_STARTED"
                 )
                 assert started_event["token_number"] == "W-101"
-                assert started_event["department_id"] == str(
-                    queue_entry.department_id
+                assert started_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert started_event["status"] == "IN_PROGRESS"
 
@@ -1033,8 +1033,8 @@ async def test_completing_queue_entry_broadcasts_token_completed_to_display(
                     "TOKEN_COMPLETED"
                 )
                 assert completed_event["token_number"] == "W-101"
-                assert completed_event["department_id"] == str(
-                    queue_entry.department_id
+                assert completed_event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
                 assert completed_event["status"] == "COMPLETED"
 
@@ -1108,8 +1108,8 @@ async def test_cancelling_queue_entry_broadcasts_token_cancelled_to_display(
 
                 assert event["event_type"] == "TOKEN_CANCELLED"
                 assert event["token_number"] == "W-101"
-                assert event["department_id"] == str(
-                    queue_entry.department_id
+                assert event["dept_id"] == str(
+                    queue_entry.dept_id
                 )
 
     finally:

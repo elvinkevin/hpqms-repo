@@ -101,7 +101,7 @@ const snapshot = {
     server_timestamp: "2026-08-04T10:00:00Z",
     departments: [
         {
-            department_id: "dept-opd",
+            dept_id: "dept-opd",
             department_name: "Outpatient",
             active_tokens: [
                 {
@@ -116,7 +116,7 @@ const snapshot = {
             estimated_wait_minutes: 8,
         },
         {
-            department_id: "dept-pharmacy",
+            dept_id: "dept-pharmacy",
             department_name: "Pharmacy",
             active_tokens: [],
             next_tokens: [
@@ -146,7 +146,7 @@ const tokenCalledEvent = {
     priority: "HIGH",
     occurred_at: "2026-08-04T10:01:00Z",
     token_number: "P-014",
-    department_id: "dept-pharmacy",
+    dept_id: "dept-pharmacy",
     department_name: "Pharmacy",
     service_point: "Counter 2",
     message: "Token P-014 called to Counter 2",

@@ -340,7 +340,7 @@ describe("incoming messages", () => {
             event_id: "event-001",
             event_type: "TOKEN_CALLED",
             priority: "HIGH",
-            department_id: "dept-001",
+            dept_id: "dept-001",
             department_name: "Reception",
             token_number: "A-102",
         };

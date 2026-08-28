@@ -144,13 +144,13 @@ class StaffService:
 
     async def get_by_department(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> list[Staff]:
 
         result = await self.db.execute(
             select(Staff)
             .where(
-                Staff.dept_id == department_id,
+                Staff.dept_id == dept_id,
                 Staff.is_active == True,
             )
             .order_by(
@@ -347,7 +347,7 @@ class StaffService:
             employee_id=staff.employee_id,
             full_name=f"{staff.first_name} {staff.last_name}",
             role=staff.role,
-            department_id=staff.dept_id,
+            dept_id=staff.dept_id,
             is_on_duty=staff.is_on_duty,
         )
 
@@ -384,10 +384,10 @@ class StaffService:
 
         return await self.db.get(Staff, staff_id) is not None
     # async def get_department_staff(
-    #     department_id: UUID,
+    #     dept_id: UUID,
     # ) -> list[Staff]
     TODO:...
     #     async def get_available_department_staff(
-    #     department_id: UUID,
+    #     dept_id: UUID,
     # ) -> list[Staff]
     TODO:...

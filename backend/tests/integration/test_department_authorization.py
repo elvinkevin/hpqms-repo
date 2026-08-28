@@ -103,11 +103,11 @@ async def test_staff_cannot_call_second_patient_while_first_is_active(
 
     entry1 = await services["queue"].create_queue_entry(
         visit_id=visit1.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
     entry2 = await services["queue"].create_queue_entry(
         visit_id=visit2.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     await services["queue"].call_queue_entry(
@@ -162,7 +162,7 @@ async def test_second_staff_cannot_claim_already_called_patient(
 
     entry = await services["queue"].create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     await services["queue"].call_queue_entry(
@@ -213,7 +213,7 @@ async def test_staff_cannot_start_patient_owned_by_another_staff(
 
     entry = await services["queue"].create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     await services["queue"].call_queue_entry(
@@ -259,11 +259,11 @@ async def test_staff_can_call_another_patient_after_completion(
 
     entry1 = await services["queue"].create_queue_entry(
         visit_id=visit1.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
     entry2 = await services["queue"].create_queue_entry(
         visit_id=visit2.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     await services["queue"].call_queue_entry(
@@ -318,11 +318,11 @@ async def test_no_show_releases_staff_for_next_patient(
 
     entry1 = await services["queue"].create_queue_entry(
         visit_id=visit1.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
     entry2 = await services["queue"].create_queue_entry(
         visit_id=visit2.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     await services["queue"].call_queue_entry(
@@ -370,7 +370,7 @@ async def test_call_endpoint_assigns_authenticated_staff(
 
     entry = await services["queue"].create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     response = await client.patch(
@@ -418,12 +418,12 @@ async def test_call_endpoint_rejects_second_active_patient(
 
     entry1 = await services["queue"].create_queue_entry(
         visit_id=visit1.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     entry2 = await services["queue"].create_queue_entry(
         visit_id=visit2.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     first_response = await client.patch(
@@ -482,7 +482,7 @@ async def test_other_staff_cannot_start_owned_patient(
 
     entry = await services["queue"].create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     # Staff A claims the patient
@@ -544,7 +544,7 @@ async def test_other_staff_cannot_mark_owned_patient_no_show(
 
     entry = await services["queue"].create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     # Commit/flush so the API HTTP client can see the entry in the DB session
@@ -591,7 +591,7 @@ async def test_owner_can_complete_patient(
 
     entry = await services["queue"].create_queue_entry(
         visit_id=visit.visit_id,
-        department_id=reception.dept_id,
+        dept_id=reception.dept_id,
     )
 
     # Call patient
@@ -635,7 +635,7 @@ async def test_staff_sees_only_own_no_show_entries(
     )
 
     response = await client.get(
-        f"/api/queue/department/{entry_one.department_id}/no-show",
+        f"/api/queue/department/{entry_one.dept_id}/no-show",
         headers={
             "Authorization": f"Bearer {receptionist.access_token}"
         },
@@ -670,7 +670,7 @@ async def test_second_staff_sees_only_their_own_no_show(
     )
 
     response = await client.get(
-        f"/api/queue/department/{entry_one.department_id}/no-show",
+        f"/api/queue/department/{entry_one.dept_id}/no-show",
         headers={
             "Authorization": f"Bearer {receptionist_two.access_token}"
         },

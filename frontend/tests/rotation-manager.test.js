@@ -41,7 +41,7 @@ import {
 
 const departments = [
     {
-        department_id: "dept-1",
+        dept_id: "dept-1",
         department_name: "Reception",
         active_tokens: [
             {
@@ -60,7 +60,7 @@ const departments = [
     },
 
     {
-        department_id: "dept-2",
+        dept_id: "dept-2",
         department_name: "Triage",
         active_tokens: [],
         next_tokens: [
@@ -74,7 +74,7 @@ const departments = [
     },
 
     {
-        department_id: "dept-3",
+        dept_id: "dept-3",
         department_name: "Consultation",
         active_tokens: [],
         next_tokens: [],
@@ -270,7 +270,7 @@ describe("setDepartments()", () => {
         setDepartments(departments);
 
         expect(
-            getCurrentDepartment().department_id
+            getCurrentDepartment().dept_id
         ).toBe("dept-1");
     });
 
@@ -324,7 +324,7 @@ describe("setDepartments()", () => {
         expect(() => {
             setDepartments([
                 {
-                    department_id: 123,
+                    dept_id: 123,
                 },
             ]);
         }).toThrow(TypeError);
@@ -343,7 +343,7 @@ describe("setDepartments()", () => {
         ]);
 
         expect(
-            getCurrentDepartment().department_id
+            getCurrentDepartment().dept_id
         ).toBe("dept-2");
     });
 
@@ -359,7 +359,7 @@ describe("setDepartments()", () => {
         ]);
 
         expect(
-            getCurrentDepartment().department_id
+            getCurrentDepartment().dept_id
         ).toBe("dept-1");
     });
 
@@ -482,7 +482,7 @@ describe("selectDepartment()", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-2");
     });
 
@@ -529,7 +529,7 @@ describe("nextDepartment()", () => {
         const next =
             nextDepartment();
 
-        expect(next.department_id)
+        expect(next.dept_id)
             .toBe("dept-2");
     });
 
@@ -554,7 +554,7 @@ describe("nextDepartment()", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 
@@ -565,7 +565,7 @@ describe("nextDepartment()", () => {
         const next =
             nextDepartment();
 
-        expect(next.department_id)
+        expect(next.dept_id)
             .toBe("dept-1");
 
         expect(
@@ -597,7 +597,7 @@ describe("previousDepartment()", () => {
         const previous =
             previousDepartment();
 
-        expect(previous.department_id)
+        expect(previous.dept_id)
             .toBe("dept-1");
     });
 
@@ -608,7 +608,7 @@ describe("previousDepartment()", () => {
         const previous =
             previousDepartment();
 
-        expect(previous.department_id)
+        expect(previous.dept_id)
             .toBe("dept-3");
     });
 
@@ -619,7 +619,7 @@ describe("previousDepartment()", () => {
         const previous =
             previousDepartment();
 
-        expect(previous.department_id)
+        expect(previous.dept_id)
             .toBe("dept-1");
     });
 
@@ -698,14 +698,14 @@ describe("automatic rotation", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
 
         vi.advanceTimersByTime(5000);
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-2");
     });
 
@@ -725,14 +725,14 @@ describe("automatic rotation", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-2");
 
         vi.advanceTimersByTime(5000);
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-3");
     });
 
@@ -752,7 +752,7 @@ describe("automatic rotation", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 
@@ -770,7 +770,7 @@ describe("automatic rotation", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-2");
     });
 
@@ -792,7 +792,7 @@ describe("automatic rotation", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 
@@ -812,7 +812,7 @@ describe("automatic rotation", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-2");
     });
 });
@@ -835,7 +835,7 @@ describe("focusDepartment()", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-3");
     });
 
@@ -900,7 +900,7 @@ describe("focusDepartment()", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-3");
     });
 
@@ -948,7 +948,7 @@ describe("focusDepartment()", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 
@@ -1045,7 +1045,7 @@ describe("clearPriorityFocus()", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 });
@@ -1072,14 +1072,14 @@ describe("priority focus and rotation interaction", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-3");
 
         vi.advanceTimersByTime(5000);
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-3");
     });
 
@@ -1102,7 +1102,7 @@ describe("priority focus and rotation interaction", () => {
 
         expect(
             getCurrentDepartment()
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 
@@ -1165,7 +1165,7 @@ describe("getState()", () => {
 
         expect(
             state.currentDepartment
-                .department_id
+                .dept_id
         ).toBe("dept-1");
     });
 

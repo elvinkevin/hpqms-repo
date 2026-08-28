@@ -124,7 +124,7 @@ def mock_queue_entry():
     entry = MagicMock(spec=QueueEntry)
     entry.queue_entry_id = uuid4()
     entry.visit_id = uuid4()
-    entry.department_id = uuid4()
+    entry.dept_id = uuid4()
     entry.status = QueueEntryStatus.WAITING
     entry.priority = QueuePriority.NORMAL
     entry.entered_at = datetime.utcnow()
@@ -138,7 +138,7 @@ def mock_in_progress_queue_entry():
     entry = MagicMock(spec=QueueEntry)
     entry.queue_entry_id = uuid4()
     entry.visit_id = uuid4()
-    entry.department_id = uuid4()
+    entry.dept_id = uuid4()
     entry.status = QueueEntryStatus.IN_PROGRESS
     entry.priority = QueuePriority.NORMAL
     entry.entered_at = datetime.utcnow()
@@ -282,7 +282,7 @@ class TestTransferPatient:
     ):
         """Test successful patient transfer"""
         staff_id = uuid4()
-        mock_in_progress_queue_entry.department_id = uuid4()  # Different department
+        mock_in_progress_queue_entry.dept_id = uuid4()  # Different department
         mock_department.dept_id = uuid4()
 
         routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
@@ -302,7 +302,7 @@ class TestTransferPatient:
 
         result = await routing_service.transfer_patient(
             visit_id=mock_visit.visit_id,
-            target_department_id=mock_department.dept_id,
+            target_dept_id=mock_department.dept_id,
             priority=QueuePriority.NORMAL,
             notes="Patient needs follow-up",
             initiated_by_staff_id=staff_id,
@@ -327,7 +327,7 @@ class TestTransferPatient:
         with pytest.raises(HTTPException) as exc_info:
             await routing_service.transfer_patient(
                 visit_id=mock_visit.visit_id,
-                target_department_id=mock_department.dept_id,
+                target_dept_id=mock_department.dept_id,
             )
 
         assert exc_info.value.status_code == 409
@@ -350,7 +350,7 @@ class TestTransferPatient:
         with pytest.raises(HTTPException) as exc_info:
             await routing_service.transfer_patient(
                 visit_id=mock_visit.visit_id,
-                target_department_id=mock_department.dept_id,
+                target_dept_id=mock_department.dept_id,
             )
 
         assert exc_info.value.status_code == 400
@@ -371,7 +371,7 @@ class TestTransferPatient:
         with pytest.raises(HTTPException) as exc_info:
             await routing_service.transfer_patient(
                 visit_id=mock_visit.visit_id,
-                target_department_id=mock_department.dept_id,
+                target_dept_id=mock_department.dept_id,
                 priority=QueuePriority.CRITICAL,
             )
 
@@ -386,7 +386,7 @@ class TestTransferPatient:
         mock_in_progress_queue_entry,
     ):
         """Test transfer fails when trying to transfer to same department"""
-        mock_in_progress_queue_entry.department_id = mock_department.dept_id
+        mock_in_progress_queue_entry.dept_id = mock_department.dept_id
         staff_id = uuid4()
 
         routing_service.visit_service.get_visit = AsyncMock(return_value=mock_visit)
@@ -400,7 +400,7 @@ class TestTransferPatient:
         with pytest.raises(HTTPException) as exc_info:
             await routing_service.transfer_patient(
                 visit_id=mock_visit.visit_id,
-                target_department_id=mock_department.dept_id,
+                target_dept_id=mock_department.dept_id,
                 initiated_by_staff_id=staff_id,
             )
 
@@ -429,7 +429,7 @@ class TestTransferPatient:
         with pytest.raises(HTTPException) as exc_info:
             await routing_service.transfer_patient(
                 visit_id=mock_visit.visit_id,
-                target_department_id=mock_department.dept_id,
+                target_dept_id=mock_department.dept_id,
                 initiated_by_staff_id=staff_id,
             )
 
@@ -455,7 +455,7 @@ class TestTransferPatient:
         with pytest.raises(HTTPException) as exc_info:
             await routing_service.transfer_patient(
                 visit_id=mock_visit.visit_id,
-                target_department_id=mock_department.dept_id,
+                target_dept_id=mock_department.dept_id,
                 # No initiated_by_staff_id
             )
 
@@ -487,7 +487,7 @@ class TestTransferPatient:
 
         await routing_service.transfer_patient(
             visit_id=mock_visit.visit_id,
-            target_department_id=mock_department.dept_id,
+            target_dept_id=mock_department.dept_id,
             reason=TransferReason.RETURN_TO_DEPARTMENT,
             priority=QueuePriority.NORMAL,  # Should be escalated to URGENT
         )
@@ -520,7 +520,7 @@ class TestTransferPatient:
 
         result = await routing_service.transfer_patient(
             visit_id=mock_visit.visit_id,
-            target_department_id=mock_department.dept_id,
+            target_dept_id=mock_department.dept_id,
         )
 
         assert result == mock_queue_entry
@@ -562,7 +562,7 @@ class TestGetCurrentLocation:
         assert result["visit_id"] == mock_visit.visit_id
         assert result["token_number"] == mock_visit.token_number
         assert result["current_queue_entry_id"] == mock_queue_entry.queue_entry_id
-        assert result["current_department_id"] == mock_department.dept_id
+        assert result["current_dept_id"] == mock_department.dept_id
         assert result["current_department_name"] == mock_department.name
         assert result["position_in_line"] == 3
         assert result["estimated_wait_minutes"] == 15
@@ -583,7 +583,7 @@ class TestGetCurrentLocation:
 
         assert result["visit_id"] == mock_visit.visit_id
         assert result["current_queue_entry_id"] is None
-        assert result["current_department_id"] is None
+        assert result["current_dept_id"] is None
         assert result["current_department_name"] is None
         assert result["status"] is None
         assert result["position_in_line"] == 0
@@ -852,7 +852,7 @@ class TestRoutingServiceIntegration:
         mock_in_progress_queue_entry.status = QueueEntryStatus.IN_PROGRESS
 
         # Make sure current department differs from target department.
-        mock_in_progress_queue_entry.department_id = uuid4()
+        mock_in_progress_queue_entry.dept_id = uuid4()
 
         # During transfer, the patient now has an active
         # in-progress queue entry.
@@ -875,7 +875,7 @@ class TestRoutingServiceIntegration:
 
         transferred = await routing_service.transfer_patient(
             visit_id=mock_visit.visit_id,
-            target_department_id=mock_department.dept_id,
+            target_dept_id=mock_department.dept_id,
             initiated_by_staff_id=staff_id,
         )
 

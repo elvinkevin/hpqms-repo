@@ -247,7 +247,7 @@ async def active_visit(db, existing_patient, setup_departments):
     # Automatically create initial queue entry in Reception
     entry = QueueEntry(
         visit_id=visit.visit_id,
-        department_id=setup_departments["RECEPTION"].dept_id,
+        dept_id=setup_departments["RECEPTION"].dept_id,
         sequence_number=1,
         priority=QueuePriority.NORMAL,
         status=QueueEntryStatus.WAITING,
@@ -263,7 +263,7 @@ async def active_visit(db, existing_patient, setup_departments):
 async def queue_entry(db, active_visit, department):
     entry = QueueEntry(
         visit_id=active_visit.visit_id,
-        department_id=department.dept_id,
+        dept_id=department.dept_id,
         sequence_number=1,
         priority=QueuePriority.NORMAL,
         status=QueueEntryStatus.WAITING,

@@ -144,7 +144,7 @@ class TestDepartmentQueueState:
             department.dept_id
         )
 
-        assert display.department_id == department.dept_id
+        assert display.dept_id == department.dept_id
         assert display.department_name == "Pharmacy"
 
         assert display.active_tokens == []
@@ -194,7 +194,7 @@ class TestDepartmentQueueState:
 
         called_entry = QueueEntry(
             visit_id=visit_called.visit_id,
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
             sequence_number=1,
             priority=QueuePriority.NORMAL,
             status=QueueEntryStatus.CALLED,
@@ -202,7 +202,7 @@ class TestDepartmentQueueState:
 
         in_progress_entry = QueueEntry(
             visit_id=visit_in_progress.visit_id,
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
             sequence_number=2,
             priority=QueuePriority.NORMAL,
             status=QueueEntryStatus.IN_PROGRESS,
@@ -258,7 +258,7 @@ class TestDepartmentQueueState:
 
         queue_entry = QueueEntry(
             visit_id=visit.visit_id,
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
             sequence_number=1,
             priority=QueuePriority.NORMAL,
             status=QueueEntryStatus.WAITING,
@@ -308,7 +308,7 @@ class TestDepartmentQueueState:
 
         queue_entry = QueueEntry(
             visit_id=visit.visit_id,
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
             sequence_number=1,
             priority=QueuePriority.NORMAL,
             status=QueueEntryStatus.COMPLETED,
@@ -387,28 +387,28 @@ class TestDepartmentQueueState:
         entries = [
             QueueEntry(
                 visit_id=visits[0].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=1,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.WAITING,
             ),
             QueueEntry(
                 visit_id=visits[1].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=2,
                 priority=QueuePriority.URGENT,
                 status=QueueEntryStatus.WAITING,
             ),
             QueueEntry(
                 visit_id=visits[2].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=3,
                 priority=QueuePriority.CRITICAL,
                 status=QueueEntryStatus.WAITING,
             ),
             QueueEntry(
                 visit_id=visits[3].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=4,
                 priority=QueuePriority.URGENT,
                 status=QueueEntryStatus.WAITING,
@@ -478,7 +478,7 @@ class TestDepartmentQueueState:
             entries.append(
                 QueueEntry(
                     visit_id=visit.visit_id,
-                    department_id=department.dept_id,
+                    dept_id=department.dept_id,
                     sequence_number=index,
                     priority=QueuePriority.NORMAL,
                     status=QueueEntryStatus.WAITING,
@@ -550,7 +550,7 @@ class TestDepartmentQueueState:
             entries.append(
                 QueueEntry(
                     visit_id=visit.visit_id,
-                    department_id=department.dept_id,
+                    dept_id=department.dept_id,
                     sequence_number=index,
                     priority=QueuePriority.NORMAL,
                     status=QueueEntryStatus.COMPLETED,
@@ -609,7 +609,7 @@ class TestDepartmentQueueState:
         entries = [
             QueueEntry(
                 visit_id=visit.visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=index,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.WAITING,
@@ -673,7 +673,7 @@ class TestDisplayEdgeCases:
         entries = [
             QueueEntry(
                 visit_id=visits[0].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=1,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.COMPLETED,
@@ -681,7 +681,7 @@ class TestDisplayEdgeCases:
             ),
             QueueEntry(
                 visit_id=visits[1].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=2,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.COMPLETED,
@@ -689,7 +689,7 @@ class TestDisplayEdgeCases:
             ),
             QueueEntry(
                 visit_id=visits[2].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=3,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.COMPLETED,
@@ -755,7 +755,7 @@ class TestDisplayEdgeCases:
         entries = [
             QueueEntry(
                 visit_id=visits[0].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=1,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.CALLED,
@@ -763,7 +763,7 @@ class TestDisplayEdgeCases:
             ),
             QueueEntry(
                 visit_id=visits[1].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=2,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.IN_PROGRESS,
@@ -771,7 +771,7 @@ class TestDisplayEdgeCases:
             ),
             QueueEntry(
                 visit_id=visits[2].visit_id,
-                department_id=department.dept_id,
+                dept_id=department.dept_id,
                 sequence_number=3,
                 priority=QueuePriority.NORMAL,
                 status=QueueEntryStatus.CALLED,
@@ -853,7 +853,7 @@ class TestDisplayEdgeCases:
 
         queue_entry = QueueEntry(
             visit_id=visit.visit_id,
-            department_id=department.dept_id,
+            dept_id=department.dept_id,
             sequence_number=1,
             priority=QueuePriority.NORMAL,
             status=QueueEntryStatus.WAITING,
@@ -891,7 +891,7 @@ class TestDisplayEdgeCases:
             unknown_id
         )
 
-        assert display.department_id == unknown_id
+        assert display.dept_id == unknown_id
         assert display.department_name == "Unknown Department"
         assert display.active_tokens == []
         assert display.next_tokens == []
@@ -929,7 +929,7 @@ class TestDisplayEdgeCases:
         original_method = service.get_department_display
 
         async def wrapped_method(
-            department_id,
+            dept_id,
             department_name=None,
             *,
             next_limit=3,
@@ -939,7 +939,7 @@ class TestDisplayEdgeCases:
             assert recent_limit == 1
 
             return await original_method(
-                department_id,
+                dept_id,
                 department_name,
                 next_limit=next_limit,
                 recent_limit=recent_limit,

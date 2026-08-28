@@ -120,7 +120,7 @@ function createSnapshot(overrides = {}) {
 
         departments: [
             {
-                department_id: "dept-1",
+                dept_id: "dept-1",
                 department_name: "Pharmacy",
 
                 active_tokens: [
@@ -154,7 +154,7 @@ function createSnapshot(overrides = {}) {
             },
 
             {
-                department_id: "dept-2",
+                dept_id: "dept-2",
                 department_name: "Laboratory",
 
                 active_tokens: [],
@@ -713,7 +713,7 @@ describe("repeated rendering", () => {
             createSnapshot({
                 departments: [
                     {
-                        department_id: "dept-3",
+                        dept_id: "dept-3",
                         department_name: "Radiology",
                         active_tokens: [],
                         next_tokens: [],

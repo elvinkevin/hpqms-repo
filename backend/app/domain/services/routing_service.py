@@ -67,7 +67,7 @@ class RoutingService:
 
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
-                target_department_id=emergency.dept_id,
+                target_dept_id=emergency.dept_id,
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.CRITICAL,
                 notes="Emergency patient routed directly to Emergency.",
@@ -84,7 +84,7 @@ class RoutingService:
 
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
-                target_department_id=reception.dept_id,
+                target_dept_id=reception.dept_id,
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
                 notes="Patient requires registration.",
@@ -101,7 +101,7 @@ class RoutingService:
 
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
-                target_department_id=triage.dept_id,
+                target_dept_id=triage.dept_id,
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
                 notes="Appointment patient routed directly to Triage.",
@@ -116,7 +116,7 @@ class RoutingService:
 
         return await self.transfer_patient(
             visit_id=visit.visit_id,
-            target_department_id=reception.dept_id,
+            target_dept_id=reception.dept_id,
             reason=TransferReason.DIRECT_ROUTING,
             priority=QueuePriority.NORMAL,
             notes="Walk-in patient routed to Reception.",
@@ -128,7 +128,7 @@ class RoutingService:
     async def transfer_patient(
         self,
         visit_id: UUID,
-        target_department_id: UUID,
+        target_dept_id: UUID,
         reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER,
         priority: QueuePriority = QueuePriority.NORMAL,
         notes: Optional[str] = None,
@@ -143,7 +143,7 @@ class RoutingService:
             )
 
         # 2. Fetch & Validate Target Department
-        target_dept = await self.department_service.get_by_id(target_department_id)
+        target_dept = await self.department_service.get_by_id(target_dept_id)
         if not target_dept.is_active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -166,7 +166,7 @@ class RoutingService:
             current_entry = await self.queue_service.get_active_queue_entry(visit_id)
 
             if current_entry:
-                # FIX: changed department_id to dept_id
+                # FIX: changed dept_id to dept_id
                 if current_entry.dept_id == target_dept.dept_id:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
@@ -204,7 +204,7 @@ class RoutingService:
             # 6. Create Target Department Encounter
             new_entry = await self.queue_service.create_queue_entry(
                 visit_id=visit.visit_id,
-                department_id=target_dept.dept_id,
+                dept_id=target_dept.dept_id,
                 priority=priority,
                 notes=notes,
             )
@@ -223,11 +223,11 @@ class RoutingService:
             event_type="PATIENT_ROUTED",
             extra_payload={
                 "transfer_reason": reason.value,
-                # FIX: changed department_id to dept_id
-                "source_department_id": (
+                # FIX: changed dept_id to dept_id
+                "source_dept_id": (
                     str(current_entry.dept_id) if current_entry else None
                 ),
-                "target_department_id": str(target_dept.dept_id),
+                "target_dept_id": str(target_dept.dept_id),
             },
         )
 
@@ -236,7 +236,7 @@ class RoutingService:
     async def move_patient(
         self,
         visit_id: UUID,
-        target_department_id: UUID,
+        target_dept_id: UUID,
         priority: QueuePriority = QueuePriority.NORMAL,
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
@@ -244,7 +244,7 @@ class RoutingService:
         """Backward-compatible alias for a standard department transfer."""
         return await self.transfer_patient(
             visit_id=visit_id,
-            target_department_id=target_department_id,
+            target_dept_id=target_dept_id,
             reason=TransferReason.DEPARTMENT_TRANSFER,
             priority=priority,
             notes=notes,
@@ -274,7 +274,7 @@ class RoutingService:
 
     "current_queue_entry_id": None,
 
-    "current_department_id": None,
+    "current_dept_id": None,
     "current_department_name": None,
 
     "status": None,
@@ -288,7 +288,7 @@ class RoutingService:
 }
 
         department = await self.department_service.get_by_id(
-            active_entry.department_id
+            active_entry.dept_id
         )
 
         position = await self.queue_service.get_patient_position(
@@ -304,7 +304,7 @@ class RoutingService:
         "token_number": visit.token_number,
         "visit_stage": visit.stage.value,
         "current_queue_entry_id": active_entry.queue_entry_id,
-        "current_department_id": department.dept_id,
+        "current_dept_id": department.dept_id,
         "current_department_name": department.name,
         "status": active_entry.status.value,
         "assigned_staff_id": active_entry.assigned_staff_id,

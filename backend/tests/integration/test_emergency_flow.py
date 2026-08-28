@@ -286,7 +286,7 @@ class TestEmergencyRouting:
         assert visit.entry_type == EntryType.EMERGENCY
 
         assert queue_entry.visit_id == visit.visit_id
-        assert queue_entry.department_id == routing_departments["emergency"].dept_id
+        assert queue_entry.dept_id == routing_departments["emergency"].dept_id
 
         assert queue_entry.priority == QueuePriority.CRITICAL
         assert queue_entry.status == QueueEntryStatus.WAITING
@@ -337,17 +337,17 @@ class TestEmergencyRouting:
         )
 
         assert (
-            queue_entry.department_id
+            queue_entry.dept_id
             != routing_departments["reception"].dept_id
         )
 
         assert (
-            queue_entry.department_id
+            queue_entry.dept_id
             != routing_departments["triage"].dept_id
         )
 
         assert (
-            queue_entry.department_id
+            queue_entry.dept_id
             == routing_departments["emergency"].dept_id
         )
 

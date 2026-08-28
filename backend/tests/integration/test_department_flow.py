@@ -190,13 +190,13 @@
 
 #         departments = await service.get_active_departments()
 
-#         department_ids = {
+#         dept_ids = {
 #             department.dept_id
 #             for department in departments
 #         }
 
-#         assert active.dept_id in department_ids
-#         assert inactive.dept_id not in department_ids
+#         assert active.dept_id in dept_ids
+#         assert inactive.dept_id not in dept_ids
 
 
 # # ============================================================

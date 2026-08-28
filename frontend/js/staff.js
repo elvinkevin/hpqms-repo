@@ -919,16 +919,16 @@ function eventBelongsToCurrentDepartment(event) {
     const departmentId = String(selectedDepartmentId);
 
     if (
-        event.department_id &&
-        String(event.department_id) === departmentId
+        event.dept_id &&
+        String(event.dept_id) === departmentId
     ) {
         return true;
     }
 
     if (event.event_type === "PATIENT_ROUTED") {
         return (
-            String(event.source_department_id) === departmentId ||
-            String(event.target_department_id) === departmentId
+            String(event.source_dept_id) === departmentId ||
+            String(event.target_dept_id) === departmentId
         );
     }
 

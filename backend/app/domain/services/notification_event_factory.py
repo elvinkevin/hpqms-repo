@@ -24,7 +24,7 @@ class NotificationEventFactory:
         token_number: str,
         visit_id: UUID | None = None,
         queue_entry_id: UUID | None = None,
-        department_id: UUID | None = None,
+        dept_id: UUID | None = None,
         department_name: str | None = None,
         service_point: str | None = None,
     ) -> NotificationEvent:
@@ -37,7 +37,7 @@ class NotificationEventFactory:
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
 
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
             service_point=service_point,
 
@@ -57,7 +57,7 @@ class NotificationEventFactory:
         token_number: str,
         visit_id: UUID | None = None,
         queue_entry_id: UUID | None = None,
-        department_id: UUID | None = None,
+        dept_id: UUID | None = None,
         department_name: str | None = None,
         service_point: str | None = None,
     ) -> NotificationEvent:
@@ -70,7 +70,7 @@ class NotificationEventFactory:
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
 
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
             service_point=service_point,
 
@@ -89,7 +89,7 @@ class NotificationEventFactory:
         token_number: str,
         visit_id: UUID | None = None,
         queue_entry_id: UUID | None = None,
-        department_id: UUID | None = None,
+        dept_id: UUID | None = None,
         department_name: str | None = None,
     ) -> NotificationEvent:
 
@@ -101,7 +101,7 @@ class NotificationEventFactory:
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
 
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
 
             message=(
@@ -119,7 +119,7 @@ class NotificationEventFactory:
         token_number: str,
         visit_id: UUID | None = None,
         queue_entry_id: UUID | None = None,
-        department_id: UUID | None = None,
+        dept_id: UUID | None = None,
         department_name: str | None = None,
     ) -> NotificationEvent:
 
@@ -131,7 +131,7 @@ class NotificationEventFactory:
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
 
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
 
             message=(
@@ -149,7 +149,7 @@ class NotificationEventFactory:
         token_number: str,
         visit_id: UUID,
         queue_entry_id: UUID,
-        department_id: UUID,
+        dept_id: UUID,
         department_name: str,
     ) -> NotificationEvent:
 
@@ -161,7 +161,7 @@ class NotificationEventFactory:
             visit_id=visit_id,
             queue_entry_id=queue_entry_id,
 
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
 
             message=(
@@ -178,7 +178,7 @@ class NotificationEventFactory:
     @staticmethod
     def queue_updated(
         *,
-        department_id: UUID,
+        dept_id: UUID,
         department_name: str | None = None,
     ) -> NotificationEvent:
 
@@ -186,7 +186,7 @@ class NotificationEventFactory:
             event_type=NotificationEventType.QUEUE_UPDATED,
             priority=NotificationPriority.LOW,
 
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
 
             targets=[

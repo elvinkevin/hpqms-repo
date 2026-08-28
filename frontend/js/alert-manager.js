@@ -122,7 +122,7 @@ function getAlertKey(event) {
     return [
         event.event_type,
         event.token_number ?? "",
-        event.department_id ?? "",
+        event.dept_id ?? "",
         event.message ?? "",
     ].join(":");
 }
@@ -149,8 +149,8 @@ function normalizeAlert(event) {
         token_number:
             event.token_number ?? null,
 
-        department_id:
-            event.department_id ?? null,
+        dept_id:
+            event.dept_id ?? null,
 
         department_name:
             event.department_name ?? null,

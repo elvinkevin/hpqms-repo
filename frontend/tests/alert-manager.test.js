@@ -50,7 +50,7 @@ const tokenCalledEvent = {
     queue_entry_id:
         "00000000-0000-0000-0000-000000000003",
 
-    department_id:
+    dept_id:
         "00000000-0000-0000-0000-000000000004",
 
     department_name: "Outpatient",

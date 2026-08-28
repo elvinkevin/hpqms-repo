@@ -96,7 +96,7 @@ class DisplayService:
 
     async def get_department_display(
         self,
-        department_id: UUID,
+        dept_id: UUID,
         department_name: str | None = None,
         *,
         next_limit: int = 3,
@@ -115,7 +115,7 @@ class DisplayService:
         if department_name is None:
             department = await self.db.get(
                 Department,
-                department_id,
+                dept_id,
             )
 
             if department is None:
@@ -124,29 +124,29 @@ class DisplayService:
                 department_name = department.name
 
         active_tokens = await self._get_active_tokens(
-            department_id
+            dept_id
         )
 
         next_tokens = await self._get_next_tokens(
-            department_id,
+            dept_id,
             limit=next_limit,
         )
 
         recent_tokens = await self._get_recent_tokens(
-            department_id,
+            dept_id,
             limit=recent_limit,
         )
 
         waiting_count = await self._get_waiting_count(
-            department_id
+            dept_id
         )
 
         estimated_wait = await self._get_estimated_wait(
-            department_id
+            dept_id
         )
 
         return DepartmentDisplay(
-            department_id=department_id,
+            dept_id=dept_id,
             department_name=department_name,
             active_tokens=active_tokens,
             next_tokens=next_tokens,
@@ -161,7 +161,7 @@ class DisplayService:
 
     async def _get_active_tokens(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> list[ActiveTokenDisplay]:
         """
         Return tokens currently being called or processed.
@@ -174,7 +174,7 @@ class DisplayService:
             select(QueueEntry)
             .options(selectinload(QueueEntry.visit))
             .where(
-                QueueEntry.department_id == department_id,
+                QueueEntry.dept_id == dept_id,
                 QueueEntry.status.in_(
                     (
                         QueueEntryStatus.CALLED,
@@ -206,7 +206,7 @@ class DisplayService:
 
     async def _get_next_tokens(
         self,
-        department_id: UUID,
+        dept_id: UUID,
         *,
         limit: int = 3,
     ) -> list[NextTokenDisplay]:
@@ -224,7 +224,7 @@ class DisplayService:
             select(QueueEntry)
             .options(selectinload(QueueEntry.visit))
             .where(
-                QueueEntry.department_id == department_id,
+                QueueEntry.dept_id == dept_id,
                 QueueEntry.status == QueueEntryStatus.WAITING,
             )
             .order_by(
@@ -250,7 +250,7 @@ class DisplayService:
 
     async def _get_recent_tokens(
         self,
-        department_id: UUID,
+        dept_id: UUID,
         *,
         limit: int = 3,
     ) -> list[RecentTokenDisplay]:
@@ -265,7 +265,7 @@ class DisplayService:
             select(QueueEntry)
             .options(selectinload(QueueEntry.visit))
             .where(
-                QueueEntry.department_id == department_id,
+                QueueEntry.dept_id == dept_id,
                 QueueEntry.status == QueueEntryStatus.COMPLETED,
             )
             .order_by(
@@ -290,7 +290,7 @@ class DisplayService:
 
     async def _get_waiting_count(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> int:
         """
         Return the number of patients currently waiting in a department.
@@ -301,7 +301,7 @@ class DisplayService:
                 func.count(QueueEntry.queue_entry_id)
             )
             .where(
-                QueueEntry.department_id == department_id,
+                QueueEntry.dept_id == dept_id,
                 QueueEntry.status == QueueEntryStatus.WAITING,
             )
         )
@@ -314,7 +314,7 @@ class DisplayService:
 
     async def _get_estimated_wait(
         self,
-        department_id: UUID,
+        dept_id: UUID,
     ) -> int | None:
         """
         Calculate estimated waiting time for the next patient.
@@ -326,7 +326,7 @@ class DisplayService:
         result = await self.db.execute(
             select(QueueEntry.queue_entry_id)
             .where(
-                QueueEntry.department_id == department_id,
+                QueueEntry.dept_id == dept_id,
                 QueueEntry.status == QueueEntryStatus.WAITING,
             )
             .order_by(

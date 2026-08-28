@@ -238,7 +238,7 @@ async def test_get_active_departments_unauthorized(
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-# --- 3. GET /api/departments/{department_id} ---
+# --- 3. GET /api/departments/{dept_id} ---
 
 
 async def test_get_department_success(
@@ -297,7 +297,7 @@ async def test_get_department_unauthorized(
 
 
 # ============================================================================
-# GROUP 3: UPDATE DEPARTMENT (PATCH /api/departments/{department_id})
+# GROUP 3: UPDATE DEPARTMENT (PATCH /api/departments/{dept_id})
 # ============================================================================
 
 
@@ -448,7 +448,7 @@ async def test_update_department_forbidden_role(
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 # ============================================================================
-# GROUP 4: ACTIVATE DEPARTMENT (PATCH /api/departments/{department_id}/activate)
+# GROUP 4: ACTIVATE DEPARTMENT (PATCH /api/departments/{dept_id}/activate)
 # ============================================================================
 
 
@@ -541,7 +541,7 @@ async def test_activate_department_forbidden_role(
 
 
 # ============================================================================
-# GROUP 5: DEACTIVATE DEPARTMENT (PATCH /api/departments/{department_id}/deactivate)
+# GROUP 5: DEACTIVATE DEPARTMENT (PATCH /api/departments/{dept_id}/deactivate)
 # ============================================================================
 
 

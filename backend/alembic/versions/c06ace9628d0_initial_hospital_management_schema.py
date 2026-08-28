@@ -68,16 +68,16 @@ def upgrade() -> None:
     
     op.create_table('department_queue_counters',
     sa.Column('counter_id', sa.UUID(), nullable=False),
-    sa.Column('department_id', sa.UUID(), nullable=False),
+    sa.Column('dept_id', sa.UUID(), nullable=False),
     sa.Column('queue_date', sa.Date(), nullable=False),
     sa.Column('last_sequence', sa.Integer(), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.ForeignKeyConstraint(['department_id'], ['departments.dept_id'], ),
+    sa.ForeignKeyConstraint(['dept_id'], ['departments.dept_id'], ),
     sa.PrimaryKeyConstraint('counter_id'),
-    sa.UniqueConstraint('department_id', 'queue_date', name='uq_dept_queue_date')
+    sa.UniqueConstraint('dept_id', 'queue_date', name='uq_dept_queue_date')
     )
-    op.create_index('idx_department_queue_date', 'department_queue_counters', ['department_id', 'queue_date'], unique=False)
-    op.create_index(op.f('ix_department_queue_counters_department_id'), 'department_queue_counters', ['department_id'], unique=False)
+    op.create_index('idx_department_queue_date', 'department_queue_counters', ['dept_id', 'queue_date'], unique=False)
+    op.create_index(op.f('ix_department_queue_counters_dept_id'), 'department_queue_counters', ['dept_id'], unique=False)
     op.create_index(op.f('ix_department_queue_counters_queue_date'), 'department_queue_counters', ['queue_date'], unique=False)
     
     op.create_table('staff',
@@ -152,7 +152,7 @@ def upgrade() -> None:
     op.create_table('queue_entries',
     sa.Column('queue_entry_id', sa.UUID(), nullable=False),
     sa.Column('visit_id', sa.UUID(), nullable=False),
-    sa.Column('department_id', sa.UUID(), nullable=False),
+    sa.Column('dept_id', sa.UUID(), nullable=False),
     sa.Column('assigned_staff_id', sa.UUID(), nullable=True),
     sa.Column('sequence_number', sa.Integer(), nullable=False),
     sa.Column('priority', sa.Enum('NORMAL', 'SEMI_URGENT', 'URGENT', 'CRITICAL', name='queuepriority'), server_default='NORMAL', nullable=False),
@@ -163,12 +163,12 @@ def upgrade() -> None:
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['assigned_staff_id'], ['staff.staff_id'], ),
-    sa.ForeignKeyConstraint(['department_id'], ['departments.dept_id'], ),
+    sa.ForeignKeyConstraint(['dept_id'], ['departments.dept_id'], ),
     sa.ForeignKeyConstraint(['visit_id'], ['visits.visit_id'], ),
     sa.PrimaryKeyConstraint('queue_entry_id')
     )
-    op.create_index('idx_department_sequence', 'queue_entries', ['department_id', 'sequence_number'], unique=False)
-    op.create_index('idx_department_waiting', 'queue_entries', ['department_id', 'status', 'priority', 'sequence_number'], unique=False)
+    op.create_index('idx_department_sequence', 'queue_entries', ['dept_id', 'sequence_number'], unique=False)
+    op.create_index('idx_department_waiting', 'queue_entries', ['dept_id', 'status', 'priority', 'sequence_number'], unique=False)
     op.create_index('idx_queue_entered_at', 'queue_entries', ['entered_at'], unique=False)
     op.create_index('idx_visit_queue', 'queue_entries', ['visit_id'], unique=False)
     op.create_index('uq_active_entry_per_visit', 'queue_entries', ['visit_id'], unique=True, postgresql_where=sa.text("status IN ('WAITING','CALLED','IN_PROGRESS')"))
@@ -230,7 +230,7 @@ def downgrade() -> None:
     op.drop_index('idx_staff_department', table_name='staff')
     op.drop_table('staff')
     op.drop_index(op.f('ix_department_queue_counters_queue_date'), table_name='department_queue_counters')
-    op.drop_index(op.f('ix_department_queue_counters_department_id'), table_name='department_queue_counters')
+    op.drop_index(op.f('ix_department_queue_counters_dept_id'), table_name='department_queue_counters')
     op.drop_index('idx_department_queue_date', table_name='department_queue_counters')
     op.drop_table('department_queue_counters')
     op.drop_index(op.f('ix_patients_phone'), table_name='patients')

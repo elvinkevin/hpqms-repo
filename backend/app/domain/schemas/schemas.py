@@ -34,7 +34,7 @@ class KioskCheckInResponse(BaseModel):
     token_number: str
     entry_type: EntryType
 
-    department_id: UUID
+    dept_id: UUID
     department_name: str
 
     status: QueueEntryStatus
@@ -347,7 +347,7 @@ class StaffDutyStatusRead(BaseModel):
     employee_id: str
     full_name: str
     role: StaffRole
-    department_id: UUID
+    dept_id: UUID
     is_on_duty: bool
 
 
@@ -359,7 +359,7 @@ class MessageResponse(BaseModel):
 class QueueEntryRead(ORMBase):
     queue_entry_id: UUID
     visit_id: UUID
-    department_id: UUID
+    dept_id: UUID
     department_name: Optional[str] = None
 
     assigned_staff_id: Optional[UUID]
@@ -384,7 +384,7 @@ class QueueEntryStatusUpdate(BaseModel):
 
 class PatientMovementRequest(BaseModel):
     """Payload driving RoutingService.move_patient operations across rooms."""
-    target_department_id: UUID
+    target_dept_id: UUID
     priority: QueuePriority = QueuePriority.NORMAL
     notes: Optional[str] = None
 
@@ -397,7 +397,7 @@ class LiveLocationRead(BaseModel):
 
     current_queue_entry_id: Optional[UUID] = None
 
-    current_department_id: Optional[UUID] = None
+    current_dept_id: Optional[UUID] = None
     current_department_name: Optional[str] = None
 
     status: Optional[QueueEntryStatus] = None
@@ -451,8 +451,8 @@ class TransferPatientRequest(BaseModel):
     """
 
     visit_id: UUID
-    from_department_id: UUID
-    to_department_id: UUID
+    from_dept_id: UUID
+    to_dept_id: UUID
 
     priority: Optional[QueuePriority] = QueuePriority.NORMAL
     notes: Optional[str] = Field(
@@ -511,8 +511,8 @@ class RouteDecision(BaseModel):
     Describes the routing action taken.
     """
     visit_id: UUID
-    previous_department_id: UUID | None = None
-    current_department_id: UUID | None = None
+    previous_dept_id: UUID | None = None
+    current_dept_id: UUID | None = None
     queue_entry_id: UUID | None = None
     visit_completed: bool = False
     message: str
@@ -557,7 +557,7 @@ class RecentTokenDisplay(BaseModel):
 class DepartmentDisplay(BaseModel):
     """Aggregated display view for a single department queue state."""
 
-    department_id: UUID
+    dept_id: UUID
     department_name: str
 
     active_tokens: list[ActiveTokenDisplay] = Field(
@@ -728,7 +728,7 @@ class NotificationEvent(BaseModel):
     # GENERAL DEPARTMENT CONTEXT
     # ─────────────────────────────────────────────────────────────────────
 
-    department_id: UUID | None = Field(
+    dept_id: UUID | None = Field(
         default=None,
         description=(
             "Primary department associated with the event. "
@@ -752,7 +752,7 @@ class NotificationEvent(BaseModel):
     # ROUTING CONTEXT
     # ─────────────────────────────────────────────────────────────────────
 
-    source_department_id: UUID | None = Field(
+    source_dept_id: UUID | None = Field(
         default=None,
         description=(
             "Department from which the patient/token is being routed."
@@ -765,7 +765,7 @@ class NotificationEvent(BaseModel):
         description="Display name of the source department",
     )
 
-    target_department_id: UUID | None = Field(
+    target_dept_id: UUID | None = Field(
         default=None,
         description=(
             "Department to which the patient/token is being routed."
@@ -834,7 +834,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class TransferPatientRequest(BaseModel):
-    target_department_id: UUID
+    target_dept_id: UUID
 
     reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER
 

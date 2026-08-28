@@ -625,5 +625,5 @@ class TestStaffStatus:
         assert status_data.employee_id == "EMP020"
         assert status_data.full_name == "Status Staff"
         assert status_data.role == StaffRole.RECEPTIONIST
-        assert status_data.department_id == routing_departments["reception"].dept_id
+        assert status_data.dept_id == routing_departments["reception"].dept_id
         assert status_data.is_on_duty is False

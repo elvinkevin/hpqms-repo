@@ -199,7 +199,7 @@ async def test_doctor_can_transfer_patient(
         f"/api/routing/{active_visit.visit_id}/transfer",
         headers=doctor_token_headers,
         json={
-            "target_department_id": str(target_department.dept_id),
+            "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
             "notes": "Transferred for further assessment.",
@@ -238,7 +238,7 @@ async def test_triage_nurse_can_transfer_patient(
         f"/api/routing/{active_visit.visit_id}/transfer",
         headers=triage_token_headers,
         json={
-            "target_department_id": str(target_department.dept_id),
+            "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
             "notes": "Triage complete. Forwarding to doctor.",
@@ -276,7 +276,7 @@ async def test_admin_can_transfer_patient(
         f"/api/routing/{active_visit.visit_id}/transfer",
         headers=admin_headers,
         json={
-            "target_department_id": str(target_department.dept_id),
+            "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
             "notes": "Admin override transfer.",
@@ -312,7 +312,7 @@ async def test_receptionist_cannot_transfer_patient(
         f"/api/routing/{active_visit.visit_id}/transfer",
         headers=receptionist_token_headers,
         json={
-            "target_department_id": str(target_department.dept_id),
+            "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
             "notes": "Unauthorized receptionist transfer.",
@@ -348,7 +348,7 @@ async def test_nurse_cannot_transfer_patient(
         f"/api/routing/{active_visit.visit_id}/transfer",
         headers=nurse_token_headers,
         json={
-            "target_department_id": str(target_department.dept_id),
+            "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
             "notes": "Unauthorized nurse transfer.",
@@ -371,7 +371,7 @@ async def test_unauthenticated_cannot_transfer_patient(
     response = await client.post(
         f"/api/routing/{active_visit.visit_id}/transfer",
         json={
-            "target_department_id": str(target_department.dept_id),
+            "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
             "notes": "Unauthenticated transfer attempt.",
@@ -410,7 +410,7 @@ async def test_doctor_can_call(
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
-    current_entry.department_id = doctor_staff.dept_id
+    current_entry.dept_id = doctor_staff.dept_id
     await db.commit()
 
     response = await client.patch(
@@ -443,7 +443,7 @@ async def test_triage_nurse_can_call(
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
-    current_entry.department_id = triage_nurse_staff.dept_id
+    current_entry.dept_id = triage_nurse_staff.dept_id
     await db.commit()
 
     response = await client.patch(
@@ -476,7 +476,7 @@ async def test_receptionist_can_call(
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
-    current_entry.department_id = receptionist_staff.dept_id
+    current_entry.dept_id = receptionist_staff.dept_id
     await db.commit()
 
     response = await client.patch(
@@ -509,7 +509,7 @@ async def test_nurse_can_call(
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
-    current_entry.department_id = nurse_staff.dept_id
+    current_entry.dept_id = nurse_staff.dept_id
     await db.commit()
 
     response = await client.patch(
@@ -598,7 +598,7 @@ async def test_doctor_cannot_call_cross_department_entry(
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
-    current_entry.department_id = triage_dept.dept_id
+    current_entry.dept_id = triage_dept.dept_id
     await db.commit()
 
     response = await client.patch(

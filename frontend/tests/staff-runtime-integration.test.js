@@ -354,7 +354,7 @@ describe("Staff Dashboard integration", () => {
 
             await messageHandler({
                 event_type: "TOKEN_CALLED",
-                department_id: departmentId,
+                dept_id: departmentId,
                 queue_entry_id: "queue-1",
             });
 
@@ -376,7 +376,7 @@ describe("Staff Dashboard integration", () => {
 
             await messageHandler({
                 event_type: "TOKEN_REQUEUED",
-                department_id: departmentId,
+                dept_id: departmentId,
                 queue_entry_id: "queue-1",
             });
 
@@ -420,7 +420,7 @@ describe("Staff Dashboard integration", () => {
 
             await messageHandler({
                 event_type: "TOKEN_CALLED",
-                department_id: "dept-other",
+                dept_id: "dept-other",
                 queue_entry_id: "queue-999",
             });
 
@@ -464,8 +464,8 @@ describe("Staff Dashboard integration", () => {
 
             await messageHandler({
                 event_type: "PATIENT_ROUTED",
-                source_department_id: "dept-triage",
-                target_department_id: departmentId,
+                source_dept_id: "dept-triage",
+                target_dept_id: departmentId,
                 queue_entry_id: "queue-2",
             });
 

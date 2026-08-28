@@ -36,7 +36,7 @@ async def kiosk_check_in(
     queue_entry_id=queue_entry.queue_entry_id,
     token_number=visit.token_number,
     entry_type=visit.entry_type,
-    department_id=queue_entry.department_id,
+    dept_id=queue_entry.dept_id,
     department_name=queue_entry.department.name,
     status=queue_entry.status,
 )

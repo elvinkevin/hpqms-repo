@@ -75,7 +75,7 @@ function isValidDepartment(department) {
     return (
         department !== null &&
         typeof department === "object" &&
-        typeof department.department_id === "string"
+        typeof department.dept_id === "string"
     );
 }
 
@@ -93,7 +93,7 @@ function validateDepartments(value) {
     for (const department of value) {
         if (!isValidDepartment(department)) {
             throw new TypeError(
-                "Each department must contain a string department_id"
+                "Each department must contain a string dept_id"
             );
         }
     }
@@ -151,7 +151,7 @@ function cloneDepartments() {
 function findDepartmentIndex(departmentId) {
     return departments.findIndex(
         (department) =>
-            department.department_id ===
+            department.dept_id ===
             departmentId
     );
 }
@@ -299,7 +299,7 @@ function setDepartments(newDepartments) {
     validateDepartments(newDepartments);
 
     const previousDepartmentId =
-        getCurrentDepartment()?.department_id;
+        getCurrentDepartment()?.dept_id;
 
     departments =
         newDepartments.map(
@@ -539,7 +539,7 @@ function isRotationActive() {
  *
  *   TOKEN_CALLED
  *   priority = CRITICAL
- *   department_id = emergency department
+ *   dept_id = emergency department
  *
  * The display can immediately switch to that department.
  */

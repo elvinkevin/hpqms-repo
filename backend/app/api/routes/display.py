@@ -24,11 +24,11 @@ from uuid import UUID
 @websocket_router.websocket("/ws/display")
 async def display_websocket_endpoint(
     websocket: WebSocket,
-    department_id: UUID | None = None,
+    dept_id: UUID | None = None,
 ):
     """Accept public display connections and subscribe them to department/global events."""
 
-    department_key = str(department_id) if department_id else None
+    department_key = str(dept_id) if dept_id else None
 
     await ws_manager.connect_display(
         department_key,
@@ -44,3 +44,6 @@ async def display_websocket_endpoint(
             department_key,
             websocket,
         )
+
+
+        

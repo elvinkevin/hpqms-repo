@@ -30,7 +30,7 @@ class TestQueueCreation:
 
         entry = await service.create_queue_entry(
             visit_id=active_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
             notes="Initial queue entry",
         )
@@ -38,7 +38,7 @@ class TestQueueCreation:
         assert entry.queue_entry_id is not None
         assert entry.visit_id == active_visit.visit_id
         assert (
-            entry.department_id
+            entry.dept_id
             == routing_departments["reception"].dept_id
         )
         assert entry.priority == QueuePriority.NORMAL
@@ -58,7 +58,7 @@ class TestQueueCreation:
         with pytest.raises(HTTPException) as exc_info:
             await service.create_queue_entry(
                 visit_id=uuid4(),
-                department_id=routing_departments["reception"].dept_id,
+                dept_id=routing_departments["reception"].dept_id,
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
@@ -76,7 +76,7 @@ class TestQueueCreation:
         with pytest.raises(HTTPException) as exc_info:
             await service.create_queue_entry(
                 visit_id=active_visit.visit_id,
-                department_id=uuid4(),
+                dept_id=uuid4(),
             )
 
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
@@ -94,7 +94,7 @@ class TestQueueCreation:
 
         first = await service.create_queue_entry(
             visit_id=active_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
         )
 
         assert first.status == QueueEntryStatus.WAITING
@@ -102,7 +102,7 @@ class TestQueueCreation:
         with pytest.raises(HTTPException) as exc_info:
             await service.create_queue_entry(
                 visit_id=active_visit.visit_id,
-                department_id=routing_departments["triage"].dept_id,
+                dept_id=routing_departments["triage"].dept_id,
             )
 
         assert exc_info.value.status_code == status.HTTP_409_CONFLICT
@@ -150,12 +150,12 @@ class TestQueueCreation:
 
         first_entry = await service.create_queue_entry(
             visit_id=visit_one.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
         )
 
         second_entry = await service.create_queue_entry(
             visit_id=visit_two.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
         )
 
         assert second_entry.sequence_number == first_entry.sequence_number + 1
@@ -221,13 +221,13 @@ class TestQueueOrdering:
 
         first_entry = await queue_service.create_queue_entry(
             visit_id=first_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
         second_entry = await queue_service.create_queue_entry(
             visit_id=second_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -309,13 +309,13 @@ class TestQueueOrdering:
 
         normal_entry = await queue_service.create_queue_entry(
             visit_id=normal_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
         critical_entry = await queue_service.create_queue_entry(
             visit_id=critical_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.CRITICAL,
         )
 
@@ -380,13 +380,13 @@ class TestQueueOrdering:
 
         normal_entry = await queue_service.create_queue_entry(
             visit_id=normal_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
         urgent_entry = await queue_service.create_queue_entry(
             visit_id=urgent_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.URGENT,
         )
 
@@ -682,7 +682,7 @@ class TestQueueAnalytics:
 
         first_entry = await service.create_queue_entry(
             visit_id=first_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -708,7 +708,7 @@ class TestQueueAnalytics:
 
         second_entry = await service.create_queue_entry(
             visit_id=second_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -750,7 +750,7 @@ class TestQueueAnalytics:
 
         normal_entry = await service.create_queue_entry(
             visit_id=normal_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -775,7 +775,7 @@ class TestQueueAnalytics:
 
         critical_entry = await service.create_queue_entry(
             visit_id=critical_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.CRITICAL,
         )
 
@@ -818,7 +818,7 @@ class TestQueueAnalytics:
 
         first_entry = await service.create_queue_entry(
             visit_id=first_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -843,7 +843,7 @@ class TestQueueAnalytics:
 
         second_entry = await service.create_queue_entry(
             visit_id=second_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -914,7 +914,7 @@ class TestQueueAnalyticsFinal:
 
         first_entry = await service.create_queue_entry(
             visit_id=first_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -939,7 +939,7 @@ class TestQueueAnalyticsFinal:
 
         second_entry = await service.create_queue_entry(
             visit_id=second_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -1097,7 +1097,7 @@ class TestQueueAnalyticsFinal:
 
         reception_entry = await service.create_queue_entry(
             visit_id=reception_visit.visit_id,
-            department_id=routing_departments["reception"].dept_id,
+            dept_id=routing_departments["reception"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 
@@ -1126,7 +1126,7 @@ class TestQueueAnalyticsFinal:
 
         triage_entry = await service.create_queue_entry(
             visit_id=triage_visit.visit_id,
-            department_id=routing_departments["triage"].dept_id,
+            dept_id=routing_departments["triage"].dept_id,
             priority=QueuePriority.NORMAL,
         )
 

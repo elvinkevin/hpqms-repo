@@ -213,13 +213,13 @@ class QueueEntry(Base):
     __table_args__ = (
         Index(
             "idx_department_waiting",
-            "department_id",
+            "dept_id",
             "status",
             "priority",
             "sequence_number",
         ),
         Index("idx_visit_queue", "visit_id"),
-        Index("idx_department_sequence", "department_id", "sequence_number"),
+        Index("idx_department_sequence", "dept_id", "sequence_number"),
         Index("idx_queue_entered_at", "entered_at"),
         Index(
             "uq_active_entry_per_visit",
@@ -240,7 +240,7 @@ class QueueEntry(Base):
 
     queue_entry_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.visit_id"), nullable=False)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False)
+    dept_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False)
     assigned_staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.staff_id"), nullable=True)
     sequence_number = Column(Integer, nullable=False)
     priority = Column(Enum(QueuePriority), nullable=False, server_default=QueuePriority.NORMAL.value)
@@ -261,12 +261,12 @@ class QueueEntry(Base):
 class DepartmentQueueCounter(Base):
     __tablename__ = "department_queue_counters"
     __table_args__ = (
-        UniqueConstraint("department_id", "queue_date", name="uq_dept_queue_date"),
-        Index("idx_department_queue_date", "department_id", "queue_date"),
+        UniqueConstraint("dept_id", "queue_date", name="uq_dept_queue_date"),
+        Index("idx_department_queue_date", "dept_id", "queue_date"),
     )
 
     counter_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False, index=True)
+    dept_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False, index=True)
     queue_date = Column(Date, nullable=False, index=True)
     last_sequence = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

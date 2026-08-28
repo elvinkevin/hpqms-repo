@@ -228,7 +228,7 @@ function findDepartment(departmentId) {
 
     return state.snapshot.departments.find(
         department =>
-            String(department.department_id) === String(departmentId)
+            String(department.dept_id) === String(departmentId)
     ) ?? null;
 }
 
@@ -325,13 +325,13 @@ function handleTokenCalled(state, event) {
     );
 
     const department = findDepartment(
-        event.department_id
+        event.dept_id
     );
 
     console.warn(
         "[TOKEN_CALLED] Department lookup:",
         {
-            department_id: event.department_id,
+            dept_id: event.dept_id,
             found: !!department,
             department
         }
@@ -377,7 +377,7 @@ function handleTokenCalled(state, event) {
  * Handle TOKEN_SERVICE_STARTED.
  */
 function handleTokenServiceStarted(event) {
-    const department = findDepartment(event.department_id);
+    const department = findDepartment(event.dept_id);
 
     if (!department) {
         return;
@@ -423,7 +423,7 @@ function handleTokenServiceStarted(event) {
  * Handle TOKEN_COMPLETED.
  */
 function handleTokenCompleted(event) {
-    const department = findDepartment(event.department_id);
+    const department = findDepartment(event.dept_id);
 
     if (!department) {
         return;
@@ -445,7 +445,7 @@ function handleTokenCompleted(event) {
  * Handle TOKEN_CANCELLED.
  */
 function handleTokenCancelled(event) {
-    const department = findDepartment(event.department_id);
+    const department = findDepartment(event.dept_id);
 
     if (!department) {
         return;
@@ -461,7 +461,7 @@ function handleTokenCancelled(event) {
  * Handle TOKEN_NO_SHOW.
  */
 function handleTokenNoShow(event) {
-    const department = findDepartment(event.department_id);
+    const department = findDepartment(event.dept_id);
 
     if (!department) {
         return;
@@ -492,7 +492,7 @@ function handleTokenRequeued() {
  */
 function handlePatientRouted(event) {
     const targetDepartment = findDepartment(
-        event.target_department_id
+        event.target_dept_id
     );
 
     if (!targetDepartment) {
@@ -501,9 +501,9 @@ function handlePatientRouted(event) {
     }
 
     // Interdepartmental transfer
-    if (event.source_department_id) {
+    if (event.source_dept_id) {
         const sourceDepartment = findDepartment(
-            event.source_department_id
+            event.source_dept_id
         );
 
         if (!sourceDepartment) {
