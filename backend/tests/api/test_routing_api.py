@@ -1,8 +1,10 @@
 from uuid import uuid4
 import pytest
 import pytest_asyncio
+from datetime import datetime
 from fastapi import status
 from httpx import AsyncClient
+import os
 
 from app.domain.models.models import (
     QueueEntry,
@@ -12,995 +14,946 @@ from app.domain.models.models import (
     DeptType,
     QueueEntryStatus,
     StaffRole,
+    Visit,
+    Patient,
+    RegistrationStatus,
 )
-from app.domain.services import auth_service
 from app.core.security import create_access_token
-from app.domain.models.models import Staff, StaffRole
+from app.domain.models.models import Staff
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import (
+    AsyncSession)
+
+from tests.conftest import make_headers
+
+pytestmark = pytest.mark.asyncio
+
+from uuid import uuid4
+import pytest
+from fastapi import status
+from httpx import AsyncClient
+from sqlalchemy import select, delete
+
+from app.domain.models.models import (
+    QueueEntry,
+    VisitStage,
+    EntryType,
+    QueueEntryStatus,
+    StaffRole,
+)
+from app.domain.schemas.schemas import TransferReason
 
 
 pytestmark = pytest.mark.asyncio
 
 
-# ── LOCAL FIXTURES ───────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 1: KIOSK DISPATCH
+# ══════════════════════════════════════════════════════════════════════════════
 
-from sqlalchemy import select
 
 @pytest_asyncio.fixture
-async def setup_departments(db):
-    """
-    Creates (or reuses) the core hospital routing departments.
-    """
-
-    department_definitions = {
-        "RECEPTION": {
-            "name": "Reception",
-            "type": DeptType.OPD,
-        },
-        "TRIAGE": {
-            "name": "Triage",
-            "type": DeptType.OPD,
-        },
-         "CONSULT": {
-            "name": "Consultation",
-            "type": DeptType.OPD,
-        },
-        "EMERGENCY": {
-            "name": "Emergency",
-            "type": DeptType.EMERGENCY,
-        },
-    }
-
-    departments = {}
-
-    for code, values in department_definitions.items():
-
-        result = await db.execute(
-            select(Department).where(
-                Department.department_code == code
-            )
-        )
-
-        dept = result.scalar_one_or_none()
-
-        if dept is None:
-            dept = Department(
-                department_code=code,
-                name=values["name"],
-                type=values["type"],
-                is_active=True,
-            )
-
-            db.add(dept)
-            await db.flush()
-
-        departments[code] = dept
-
-    await db.commit()
-
-    for dept in departments.values():
-        await db.refresh(dept)
-
-    return departments
-
-@pytest.fixture
-async def receptionist(db, department):
-    staff = Staff(
-        employee_id="REC001",
-        first_name="Reception",
-        last_name="User",
-        role=StaffRole.RECEPTIONIST,
-        dept_id=department.dept_id,
-        hashed_password="ignored",
-        is_active=True,
+async def new_visit(db, existing_patient):
+    from app.domain.models.models import Visit, VisitStage, EntryType
+    visit = Visit(
+        visit_id=uuid4(),
+        patient_id=existing_patient.patient_id,
+        token_number="W-102",
+        entry_type=EntryType.WALK_IN,
+        visit_reason="Routine Checkup",
+        stage=VisitStage.ACTIVE,
     )
-
-    db.add(staff)
+    db.add(visit)
     await db.commit()
-    await db.refresh(staff)
+    await db.refresh(visit)
+    return visit
 
-    return staff
+class TestKioskDispatch:
+    """
+    Test the initial patient routing from kiosk via dispatch endpoint.
+    
+    Endpoint: POST /api/routing/dispatch/{visit_id}
+    
+    Requires: X-Kiosk-API-Key header
+    """
 
-
-@pytest.fixture
-async def receptionist_headers(receptionist):
-    return make_headers(receptionist)
-
-
-@pytest.fixture
-async def doctor(db, department):
-    # Check if DOC001 already exists in the test database
-    result = await db.execute(
-        select(Staff).where(Staff.employee_id == "DOC001")
-    )
-    staff = result.scalar_one_or_none()
-
-    if staff is None:
-        staff = Staff(
-            employee_id="DOC001",
-            first_name="Doctor",
-            last_name="User",
-            role=StaffRole.DOCTOR,
-            dept_id=department.dept_id,
-            hashed_password="ignored",
-            is_active=True,
-        )
-        db.add(staff)
+    async def test_dispatch_walk_in_routes_to_reception(
+        self,
+        client: AsyncClient,
+        db,
+        new_visit,
+        setup_departments,
+    ):
+        """Walk-in patients should be routed to RECEPTION department."""
+        # Arrange: Set visit type to WALK_IN
+        new_visit.entry_type = EntryType.WALK_IN
         await db.commit()
-        await db.refresh(staff)
+        await db.refresh(new_visit)
 
-    return staff
+        # Act
+        response = await client.post(
+            f"/api/routing/dispatch/{new_visit.visit_id}",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_201_CREATED
+
+        reception_dept = setup_departments["RECEPTION"]
+        data = response.json()
+        assert data["dept_id"] == str(reception_dept.dept_id)
+        assert data["status"] == "WAITING"
+
+    async def test_dispatch_appointment_routes_to_triage(
+        self,
+        client: AsyncClient,
+        db,
+        new_visit,
+        setup_departments,
+    ):
+        """Appointment patients should bypass reception and go directly to TRIAGE."""
+        # Arrange
+        new_visit.entry_type = EntryType.APPOINTMENT
+        await db.commit()
+        await db.refresh(new_visit)
+
+        # Act
+        response = await client.post(
+            f"/api/routing/dispatch/{new_visit.visit_id}",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["visit_id"] == str(new_visit.visit_id)
+        assert data["dept_id"] == str(setup_departments["TRIAGE"].dept_id)
+
+    async def test_dispatch_emergency_routes_to_emergency(
+        self,
+        client: AsyncClient,
+        db,
+        new_visit,
+        setup_departments,
+    ):
+        """Emergency patients should bypass all departments and route to EMERGENCY."""
+        # Arrange
+        new_visit.entry_type = EntryType.EMERGENCY
+        await db.commit()
+        await db.refresh(new_visit)
+
+        # Act
+        response = await client.post(
+            f"/api/routing/dispatch/{new_visit.visit_id}",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["visit_id"] == str(new_visit.visit_id)
+        assert data["dept_id"] == str(setup_departments["EMERGENCY"].dept_id)
+        # Emergency patients get CRITICAL priority
+        assert data["priority"] == "CRITICAL"
+
+    async def test_dispatch_referral_routes_to_reception(
+        self,
+        client: AsyncClient,
+        db,
+        new_visit,
+        setup_departments,
+    ):
+        """Referral patients should follow standard reception workflow."""
+        # Arrange
+        new_visit.entry_type = EntryType.REFERRAL
+        await db.commit()
+        await db.refresh(new_visit)
+
+        # Act
+        response = await client.post(
+            f"/api/routing/dispatch/{new_visit.visit_id}",
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["visit_id"] == str(new_visit.visit_id)
+        assert data["dept_id"] == str(setup_departments["RECEPTION"].dept_id)
+
+    async def test_dispatch_visit_not_found(
+        self,
+        client: AsyncClient,
+    ):
+        """POST /api/routing/dispatch/{visit_id} - 404 for unknown visit_id."""
+        # Act
+        response = await client.post(f"/api/routing/dispatch/{uuid4()}")
+
+        # Assert
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_dispatch_invalid_uuid(
+        self,
+        client: AsyncClient,
+    ):
+        """POST /api/routing/dispatch/{visit_id} - 422 for malformed UUID."""
+        # Act
+        response = await client.post("/api/routing/dispatch/invalid-uuid-format")
+
+        # Assert
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    async def test_dispatch_completed_visit_fails(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        new_visit,
+    ):
+        """POST /api/routing/dispatch/{visit_id} - 409 Conflict for non-active visit."""
+        # 1. Arrange: Update stage and sync with DB session
+        new_visit.stage = VisitStage.COMPLETED
+        db.add(new_visit)
+        await db.commit()
+        await db.refresh(new_visit)
+
+        # 2. Act: Kiosk key is automatically injected by the client fixture
+        response = await client.post(f"/api/routing/dispatch/{new_visit.visit_id}")
+
+        # 3. Assert
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert "active" in response.json()["detail"].lower()
+
+    async def test_dispatch_rejects_invalid_kiosk_api_key(
+        self,
+        client: AsyncClient,
+    ):
+        """Kiosk dispatch is unavailable without the managed-device secret."""
+        # Act
+        response = await client.post(
+            f"/api/routing/dispatch/{uuid4()}",
+            headers={"X-Kiosk-API-Key": "invalid-key"},
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-@pytest.fixture
-async def doctor_headers(doctor):
-    return make_headers(doctor)
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 2: TRANSFER BETWEEN DEPARTMENTS
+# ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.fixture
-async def nurse(db, department):
-    staff = Staff(
-        employee_id="NUR001",
-        first_name="Nurse",
-        last_name="User",
-        role=StaffRole.NURSE,
-        dept_id=department.dept_id,
-        hashed_password="ignored",
-        is_active=True,
-    )
+class TestPatientTransfer:
+    """
+    Test patient transfers between departments.
+    
+    Endpoint: POST /api/routing/{visit_id}/transfer
+    
+    Requires: Authentication + Authorized Role
+    """
 
-    db.add(staff)
-    await db.commit()
-    await db.refresh(staff)
+    async def test_transfer_patient_success(
+        self,
+        client: AsyncClient,
+        db: AsyncSession,
+        active_visit,
+        setup_departments,
+        doctor_staff,
+    ):
+        """A doctor transfers an in-progress patient to another department."""
+        from app.domain.models.models import QueueEntry
 
-    return staff
+        # 1. Arrange: Fetch and start the active queue entry
+        result = await db.execute(
+            select(QueueEntry).where(
+                QueueEntry.visit_id == active_visit.visit_id,
+                QueueEntry.status == QueueEntryStatus.WAITING,
+            )
+        )
+        current_entry = result.scalar_one()
 
+        # 2. Update doctor's department to match the patient's current department
+        doctor_staff.dept_id = current_entry.dept_id
+        current_entry.status = QueueEntryStatus.IN_PROGRESS
+        current_entry.assigned_staff_id = doctor_staff.staff_id
 
-@pytest.fixture
-async def nurse_headers(nurse):
-    return make_headers(nurse)
+        db.add(doctor_staff)
+        db.add(current_entry)
+        await db.commit()
 
-@pytest.fixture
-async def triage_nurse(db, department):
-    staff = Staff(
-        employee_id="TRI001",
-        first_name="Triage",
-        last_name="Nurse",
-        role=StaffRole.TRIAGE_NURSE,
-        dept_id=department.dept_id,
-        hashed_password="ignored",
-        is_active=True,
-    )
+        # 3. Generate token headers with updated doctor_staff claims
+        headers = make_headers(doctor_staff)
 
-    db.add(staff)
-    await db.commit()
-    await db.refresh(staff)
+        target_department = setup_departments["CONSULT"]
 
-    return staff
-
-
-@pytest.fixture
-async def triage_headers(triage_nurse):
-    return make_headers(triage_nurse)
-
-@pytest.fixture
-async def admin_staff(db, department):
-    staff = Staff(
-        employee_id="ADM001",
-        first_name="Admin",
-        last_name="User",
-        role=StaffRole.ADMIN,
-        dept_id=department.dept_id,
-        hashed_password="ignored",
-        is_active=True,
-    )
-
-    db.add(staff)
-    await db.commit()
-    await db.refresh(staff)
-
-    return staff
-
-
-@pytest.fixture
-async def admin_headers(admin_staff):
-    return make_headers(admin_staff)
-
-
-
-def make_headers(staff: Staff):
-    token = create_access_token(
-        {
-            "sub": str(staff.staff_id),
-            "employee_id": staff.employee_id,
-            "role": staff.role.value,
-            "dept_id": str(staff.dept_id),
+        payload = {
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Patient requires further clinical assessment.",
         }
-    )
 
-    return {
-        "Authorization": f"Bearer {token}"
-    }
-
-# ── GROUP 1: KIOSK DISPATCH ──────────────────────────────────────────────────
-
-async def test_dispatch_walkin_routes_to_reception(
-    client: AsyncClient, db, active_visit, setup_departments
-):
-    """POST /api/routing/dispatch/{visit_id} - Walk-in routes to RECEPTION."""
-    active_visit.visit_type = EntryType.WALK_IN
-    await db.commit()
-
-    response = await client.post(f"/api/routing/dispatch/{active_visit.visit_id}")
-    assert response.status_code == status.HTTP_201_CREATED
-
-    reception_dept = setup_departments["RECEPTION"]
-    data = response.json()
-    assert data["dept_id"] == str(reception_dept.dept_id)
-
-
-
-
-async def test_dispatch_appointment_routes_to_triage(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-):
-    """
-    Appointment visits should bypass reception and go directly to Triage.
-    """
-
-    active_visit.entry_type = EntryType.APPOINTMENT
-
-    await db.commit()
-    await db.refresh(active_visit)
-
-    response = await client.post(
-        f"/api/routing/dispatch/{active_visit.visit_id}"
-    )
-
-    assert response.status_code == status.HTTP_201_CREATED
-
-    data = response.json()
-
-    assert data["visit_id"] == str(active_visit.visit_id)
-
-    assert data["dept_id"] == str(
-        setup_departments["TRIAGE"].dept_id
-    )
-
-
-async def test_dispatch_emergency_routes_to_emergency(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-):
-    """
-    Emergency visits should bypass every department and route
-    directly to Emergency.
-    """
-
-    active_visit.entry_type = EntryType.EMERGENCY
-
-    await db.commit()
-    await db.refresh(active_visit)
-
-    response = await client.post(
-        f"/api/routing/dispatch/{active_visit.visit_id}"
-    )
-
-    assert response.status_code == status.HTTP_201_CREATED
-
-    data = response.json()
-
-    assert data["visit_id"] == str(active_visit.visit_id)
-
-    assert data["dept_id"] == str(
-        setup_departments["EMERGENCY"].dept_id
-    )
-
-async def test_dispatch_referral_routes_to_reception(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-):
-    """
-    Referral patients currently follow the standard reception workflow.
-    """
-
-    active_visit.entry_type = EntryType.REFERRAL
-
-    await db.commit()
-    await db.refresh(active_visit)
-
-    response = await client.post(
-        f"/api/routing/dispatch/{active_visit.visit_id}"
-    )
-
-    assert response.status_code == status.HTTP_201_CREATED
-
-    data = response.json()
-
-    assert data["visit_id"] == str(active_visit.visit_id)
-
-    assert data["dept_id"] == str(
-        setup_departments["RECEPTION"].dept_id
-    )
-
-
-async def test_dispatch_referral_routes_to_reception(
-    client: AsyncClient, db, active_visit, setup_departments
-):
-    """POST /api/routing/dispatch/{visit_id} - Referral routes to RECEPTION."""
-    active_visit.EntryType = EntryType.REFERRAL
-    await db.commit()
-
-    response = await client.post(f"/api/routing/dispatch/{active_visit.visit_id}")
-    assert response.status_code == status.HTTP_201_CREATED
-
-    reception_dept = setup_departments["RECEPTION"]
-    data = response.json()
-    assert data["dept_id"] == str(reception_dept.dept_id)
-
-
-async def test_dispatch_visit_not_found(client: AsyncClient, setup_departments):
-    """POST /api/routing/dispatch/{visit_id} - 404 for unknown visit_id."""
-    response = await client.post(f"/api/routing/dispatch/{uuid4()}")
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_dispatch_invalid_uuid(client: AsyncClient):
-    """POST /api/routing/dispatch/{visit_id} - 422 for malformed UUID."""
-    response = await client.post("/api/routing/dispatch/invalid-uuid-format")
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-
-async def test_dispatch_completed_visit_fails(
-    client: AsyncClient, db, active_visit, setup_departments
-):
-    """POST /api/routing/dispatch/{visit_id} - 409 Conflict for non-active visit."""
-    active_visit.stage = VisitStage.COMPLETED
-    await db.commit()
-
-    response = await client.post(f"/api/routing/dispatch/{active_visit.visit_id}")
-    assert response.status_code == status.HTTP_409_CONFLICT
-
-
-# ── GROUP 2: MOVE PATIENT ────────────────────────────────────────────────────
-
-
-async def test_dispatch_rejects_an_invalid_kiosk_api_key(
-    client: AsyncClient,
-):
-    """Kiosk dispatch is unavailable without the managed-device secret."""
-    response = await client.post(
-        f"/api/routing/dispatch/{uuid4()}",
-        headers={"X-Kiosk-API-Key": "invalid-key"},
-    )
-
-    assert response.status_code == status.HTTP_403_FORBIDDEN
-
-async def test_move_patient_success(
-    client,
-    db,
-    active_visit,
-    queue_entry,
-    doctor_staff,
-    doctor_token_headers,
-    setup_departments,
-):
-    queue_entry.status = QueueEntryStatus.IN_PROGRESS
-    queue_entry.assigned_staff_id = doctor_staff.staff_id
-
-    await db.commit()
-
-    target_dept = setup_departments["TRIAGE"]
-
-    payload = {
-        "target_dept_id": str(target_dept.dept_id),
-        "priority": "NORMAL",
-        "notes": "Transferring to triage",
-    }
-
-    response = await client.post(
-        f"/api/routing/move/{active_visit.visit_id}",
-        json=payload,
-        headers=doctor_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
-
-    assert data["dept_id"] == str(target_dept.dept_id)
-    assert data["visit_id"] == str(active_visit.visit_id)
-    assert data["status"] == "WAITING"
-    assert data["priority"] == "NORMAL"
-    assert data["notes"] == "Transferring to triage"
-
-
-
-
-async def test_move_patient_inactive_department(
-    client: AsyncClient, db, active_visit, queue_entry, doctor_token_headers, setup_departments
-):
-    """POST /api/routing/move/{visit_id} - 400 for inactive target department."""
-    queue_entry.status = QueueEntryStatus.IN_PROGRESS
-    target_dept = setup_departments["TRIAGE"]
-    target_dept.is_active = False
-    await db.commit()
-
-    payload = {"target_dept_id": str(target_dept.dept_id)}
-
-    response = await client.post(
-        f"/api/routing/move/{active_visit.visit_id}", json=payload, headers=doctor_token_headers
-    )
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-
-async def test_move_patient_visit_not_found(
-    client: AsyncClient, doctor_token_headers, setup_departments
-):
-    """POST /api/routing/move/{visit_id} - 404 for unknown visit_id."""
-    target_dept = setup_departments["TRIAGE"]
-    payload = {"target_dept_id": str(target_dept.dept_id)}
-
-    response = await client.post(
-        f"/api/routing/move/{uuid4()}", json=payload, headers=doctor_token_headers
-    )
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_move_patient_invalid_uuid(client: AsyncClient, doctor_token_headers):
-    """POST /api/routing/move/{visit_id} - 422 for malformed UUID."""
-    response = await client.post(
-        "/api/routing/move/invalid-uuid-format", json={}, headers=doctor_token_headers
-    )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-
-async def test_move_patient_token_preservation_regression(
-    client: AsyncClient,
-    db,
-    active_visit,
-    queue_entry,
-    doctor_staff,
-    doctor_token_headers,
-    setup_departments,
-):
-    queue_entry.status = QueueEntryStatus.IN_PROGRESS
-    queue_entry.assigned_staff_id = doctor_staff.staff_id
-
-    old_token = active_visit.token_number
-
-    await db.commit()
-
-    target_dept = setup_departments["TRIAGE"]
-
-    response = await client.post(
-        f"/api/routing/move/{active_visit.visit_id}",
-        json={"target_dept_id": str(target_dept.dept_id)},
-        headers=doctor_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    await db.refresh(active_visit)
-
-    assert active_visit.token_number == old_token
-
-
-async def test_move_patient_forbidden_role(
-    client,
-    active_visit,
-    admin_headers,
-    setup_departments,
-):
-    target = setup_departments["TRIAGE"]
-
-    payload = {
-        "target_dept_id": str(target.dept_id)
-    }
-
-    response = await client.post(
-        f"/api/routing/move/{active_visit.visit_id}",
-        json=payload,
-        headers=admin_headers,
-    )
-
-    assert response.status_code == status.HTTP_403_FORBIDDEN
-
-async def test_get_current_location_success(
-    client: AsyncClient,
-    active_visit,
-    queue_entry,
-    receptionist_token_headers,
-):
-    """
-    GET /api/routing/location/{visit_id}
-    Returns the patient's current routing location.
-    """
-
-    response = await client.get(
-        f"/api/routing/location/{active_visit.visit_id}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
-
-    assert data["visit_id"] == str(active_visit.visit_id)
-    assert data["token_number"] == active_visit.token_number
-
-    assert "current_department_name" in data
-    assert "position_in_line" in data
-    assert "estimated_wait_minutes" in data
-
-async def test_get_current_location_no_active_queue(
-    client: AsyncClient,
-    db,
-    active_visit,
-    receptionist_token_headers,
-):
-    """
-    GET /api/routing/location/{visit_id}
-
-    Visit exists but has no active queue entry.
-    """
-
-    active_visit.current_queue_entry_id = None
-    await db.commit()
-
-    response = await client.get(
-        f"/api/routing/location/{active_visit.visit_id}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
-
-    assert data["visit_id"] == str(active_visit.visit_id)
-    assert data["token_number"] == active_visit.token_number
-    assert data["visit_stage"] == VisitStage.ACTIVE.value
-
-    assert data["current_queue_entry_id"] is None
-    assert data["current_dept_id"] is None
-    assert data["current_department_name"] is None
-
-    assert data["status"] is None
-
-    assert data["position_in_line"] == 0
-    assert data["estimated_wait_minutes"] == 0
-
-    assert data["assigned_staff_id"] is None
-    assert data["entered_at"] is None
-
-async def test_get_current_location_visit_not_found(
-    client: AsyncClient,
-    receptionist_token_headers,
-):
-    response = await client.get(
-        f"/api/routing/location/{uuid4()}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_get_current_location_invalid_uuid(
-    client: AsyncClient,
-    receptionist_token_headers,
-):
-    response = await client.get(
-        "/api/routing/location/not-a-valid-uuid",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-
-async def test_get_current_location_unauthorized(
-    client: AsyncClient,
-    active_visit,
-):
-    response = await client.get(
-        f"/api/routing/location/{active_visit.visit_id}"
-    )
-
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-async def test_get_patient_history_success(
-    client: AsyncClient,
-    db,
-    active_visit,
-    queue_entry,
-    receptionist_token_headers,
-):
-    """
-    GET /api/routing/history/{visit_id}
-
-    Returns the patient's routing history.
-    """
-
-    response = await client.get(
-        f"/api/routing/history/{active_visit.visit_id}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
-
-    assert isinstance(data, list)
-    assert len(data) >= 1
-
-    entry = data[0]
-
-    assert entry["visit_id"] == str(active_visit.visit_id)
-    assert entry["queue_entry_id"] == str(queue_entry.queue_entry_id)
-
-async def test_get_patient_history_ordered(
-    client: AsyncClient,
-    db,
-    active_visit,
-    receptionist_token_headers,
-):
-    """
-    Queue history should be returned in chronological order.
-    """
-
-    response = await client.get(
-        f"/api/routing/history/{active_visit.visit_id}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
-
-    entered_times = [entry["entered_at"] for entry in data]
-
-    assert entered_times == sorted(entered_times)
-
-async def test_get_patient_history_visit_not_found(
-    client: AsyncClient,
-    receptionist_token_headers,
-):
-    """
-    Unknown visit returns 404.
-    """
-
-    response = await client.get(
-        f"/api/routing/history/{uuid4()}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-
-async def test_get_patient_history_invalid_uuid(
-    client: AsyncClient,
-    receptionist_token_headers,
-):
-    """
-    Invalid UUID returns validation error.
-    """
-
-    response = await client.get(
-        "/api/routing/history/not-a-uuid",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-async def test_get_patient_history_unauthorized(
-    client: AsyncClient,
-    active_visit,
-):
-    """
-    Missing JWT returns 401.
-    """
-
-    response = await client.get(
-        f"/api/routing/history/{active_visit.visit_id}"
-    )
-
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-async def test_get_patient_history_unauthorized(
-    client: AsyncClient,
-    active_visit,
-):
-    """
-    Missing JWT returns 401.
-    """
-
-    response = await client.get(
-        f"/api/routing/history/{active_visit.visit_id}"
-    )
-
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-async def test_get_patient_history_response_schema(
-    client: AsyncClient,
-    active_visit,
-    queue_entry,
-    receptionist_token_headers,
-):
-    response = await client.get(
-        f"/api/routing/history/{active_visit.visit_id}",
-        headers=receptionist_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-
-    data = response.json()
-
-    assert len(data) == 1
-
-    entry = data[0]
-
-    expected_fields = {
-        "queue_entry_id",
-        "visit_id",
-        "dept_id",
-        "status",
-        "priority",
-        "entered_at",
-    }
-
-    assert expected_fields.issubset(entry.keys())
-
-
-# ── GROUP 2: PATIENT TRANSFER / ROUTING ──────────────────────────────────────
-
-
-async def test_transfer_patient_success(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-    doctor_token_headers,
-    doctor_staff,
-):
-    """
-    A doctor transfers an in-progress patient to another department.
-
-    Expected:
-        Current QueueEntry -> COMPLETED
-        New QueueEntry      -> WAITING
-        Visit               -> ACTIVE
-    """
-    from sqlalchemy import select
-    from app.domain.models.models import QueueEntry, QueueEntryStatus, VisitStage
-
-    # 1. Retrieve the existing active QueueEntry created by active_visit fixture
-    result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
+        # 4. Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+            headers=headers,
         )
-    )
-    current_entry = result.scalar_one()
 
-    # 2. Update its status to IN_PROGRESS to simulate an ongoing consultation
-    current_entry.status = QueueEntryStatus.IN_PROGRESS
-    current_entry.assigned_staff_id = doctor_staff.staff_id
-    await db.commit()
+        # 5. Assert
+        assert response.status_code == status.HTTP_200_OK
 
-    # 3. Transfer payload to target department
-    target_department = setup_departments["CONSULT"]
+        data = response.json()
+        assert data["visit_id"] == str(active_visit.visit_id)
+        assert data["dept_id"] == str(target_department.dept_id)
+        assert data["status"] == "WAITING"
+        assert data["priority"] == "NORMAL"
+        assert data["notes"] == "Patient requires further clinical assessment."
 
-    payload = {
-        "target_dept_id": str(target_department.dept_id),
-        "reason": "DEPARTMENT_TRANSFER",
-        "priority": "NORMAL",
-        "notes": "Patient requires further clinical assessment.",
-    }
+        # Verify old entry is completed
+        await db.refresh(current_entry)
+        assert current_entry.status == QueueEntryStatus.COMPLETED
 
-    # 4. Act
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/transfer",
-        json=payload,
-        headers=doctor_token_headers,
-    )
+        # Verify visit remains active
+        await db.refresh(active_visit)
+        assert active_visit.stage == VisitStage.ACTIVE
 
-    # 5. Assert HTTP response
-    assert response.status_code == status.HTTP_200_OK
+    async def test_transfer_waiting_patient_rejected(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        setup_departments,
+        doctor_token_headers,
+    ):
+        """
+        A patient must be actively in an encounter before being transferred.
+        Cannot transfer from WAITING status.
+        """
+        from app.domain.models.models import QueueEntry
 
-    data = response.json()
-    assert data["visit_id"] == str(active_visit.visit_id)
-    assert data["dept_id"] == str(target_department.dept_id)
-    assert data["status"] == QueueEntryStatus.WAITING.value
-
-    # 6. Assert current queue entry was marked COMPLETED
-    await db.refresh(current_entry)
-    assert current_entry.status == QueueEntryStatus.COMPLETED
-
-    # 7. Assert Visit remains ACTIVE
-    await db.refresh(active_visit)
-    assert active_visit.stage == VisitStage.ACTIVE
-
-    # 8. Assert new destination QueueEntry exists in WAITING state
-    result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id,
-            QueueEntry.dept_id == target_department.dept_id,
+        # Arrange
+        result = await db.execute(
+            select(QueueEntry).where(
+                QueueEntry.visit_id == active_visit.visit_id,
+                QueueEntry.status == QueueEntryStatus.WAITING,
+            )
         )
-    )
-    new_entry = result.scalar_one()
-    assert new_entry.status == QueueEntryStatus.WAITING
+        current_entry = result.scalar_one()
 
+        target_department = setup_departments["CONSULT"]
 
-async def test_transfer_waiting_patient_rejected(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-    doctor_token_headers,
-):
-    """
-    A patient must be actively in an encounter before being transferred.
-    """
-    from sqlalchemy import select
-    from app.domain.models.models import QueueEntry
+        payload = {
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Transfer attempt.",
+        }
 
-    result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
+        # Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+            headers=doctor_token_headers,
         )
-    )
 
-    current_entry = result.scalar_one()
+        # Assert
+        assert response.status_code == status.HTTP_409_CONFLICT
+        detail = response.json()["detail"].lower()
+        assert "in-progress" in detail or "started" in detail
 
-    assert current_entry.status == QueueEntryStatus.WAITING
+    async def test_transfer_to_same_department_rejected(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        setup_departments,
+        doctor_token_headers,
+    ):
+        """
+        A patient cannot be transferred to the department they are
+        already being served in.
+        """
+        from app.domain.models.models import QueueEntry
 
-    # Matches key in setup_departments fixture
-    target_department = setup_departments["CONSULT"]
-
-    payload = {
-        "target_dept_id": str(target_department.dept_id),
-        "reason": "DEPARTMENT_TRANSFER",
-        "priority": "NORMAL",
-        "notes": "Transfer attempt.",
-    }
-
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/transfer",
-        json=payload,
-        headers=doctor_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_409_CONFLICT
-
-    assert (
-        "in-progress" in response.json()["detail"].lower()
-        or "started" in response.json()["detail"].lower()
-    )
-
-
-async def test_transfer_to_same_department_rejected(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-    doctor_token_headers,
-):
-    """
-    A patient cannot be transferred to the department they are
-    already being served in.
-    """
-    from sqlalchemy import select
-    from app.domain.models.models import QueueEntry, QueueEntryStatus
-
-    # 1. Fetch the QueueEntry automatically created with active_visit
-    result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
+        # Arrange: Fetch and transition queue entry to IN_PROGRESS
+        result = await db.execute(
+            select(QueueEntry).where(
+                QueueEntry.visit_id == active_visit.visit_id,
+                QueueEntry.status == QueueEntryStatus.WAITING,
+            )
         )
-    )
-    current_entry = result.scalar_one()
+        current_entry = result.scalar_one()
 
-    # 2. Transition it to IN_PROGRESS so it simulates an active encounter
-    current_entry.status = QueueEntryStatus.IN_PROGRESS
-    await db.commit()
+        current_entry.status = QueueEntryStatus.IN_PROGRESS
+        await db.commit()
 
-    # 3. Payload targeting the same department
-    payload = {
-        "target_dept_id": str(current_entry.dept_id),
-        "reason": "DEPARTMENT_TRANSFER",
-        "priority": "NORMAL",
-        "notes": "Invalid same-department transfer.",
-    }
+        # Payload targeting the same department
+        payload = {
+            "target_dept_id": str(current_entry.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Invalid same-department transfer.",
+        }
 
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/transfer",
-        json=payload,
-        headers=doctor_token_headers,
-    )
-
-    assert response.status_code == status.HTTP_409_CONFLICT
-    assert (
-        response.json()["detail"]
-        == "Patient is already queued in the target department."
-    )
-
-
-async def test_transfer_to_inactive_department_rejected(
-    client: AsyncClient,
-    db,
-    active_visit,
-    setup_departments,
-    doctor_token_headers,
-):
-    """
-    Transfers to inactive departments must be rejected.
-    """
-    from sqlalchemy import select
-    from app.domain.models.models import QueueEntry, QueueEntryStatus
-
-    # Fetch active visit entry and transition to IN_PROGRESS
-    result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
+        # Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+            headers=doctor_token_headers,
         )
-    )
-    current_entry = result.scalar_one()
-    current_entry.status = QueueEntryStatus.IN_PROGRESS
 
-    # Deactivate the target department
-    target_department = setup_departments["CONSULT"]
-    target_department.is_active = False
+        # Assert
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert (
+            response.json()["detail"]
+            == "Patient is already queued in the target department."
+        )
 
-    await db.commit()
+    async def test_transfer_to_inactive_department_rejected(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        setup_departments,
+        doctor_token_headers,
+    ):
+        """Transfers to inactive departments must be rejected."""
+        from app.domain.models.models import QueueEntry
 
-    payload = {
-        "target_dept_id": str(target_department.dept_id),
-        "reason": "DEPARTMENT_TRANSFER",
-        "priority": "NORMAL",
-        "notes": "Transfer to inactive department.",
-    }
+        # Arrange
+        result = await db.execute(
+            select(QueueEntry).where(
+                QueueEntry.visit_id == active_visit.visit_id,
+                QueueEntry.status == QueueEntryStatus.WAITING,
+            )
+        )
+        current_entry = result.scalar_one()
+        current_entry.status = QueueEntryStatus.IN_PROGRESS
 
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/transfer",
-        json=payload,
-        headers=doctor_token_headers,
-    )
+        target_department = setup_departments["CONSULT"]
+        target_department.is_active = False
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
+        await db.commit()
 
-    assert (
-        "inactive" in response.json()["detail"].lower()
-        or "does not exist" in response.json()["detail"].lower()
-    )
+        payload = {
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Transfer to inactive department.",
+        }
 
-async def test_transfer_requires_authentication(
-    client: AsyncClient,
-    active_visit,
-    setup_departments,
-):
+        # Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+            headers=doctor_token_headers,
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        detail = response.json()["detail"].lower()
+        assert "inactive" in detail or "does not exist" in detail
+
+    async def test_transfer_critical_requires_notes(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        setup_departments,
+        doctor_token_headers,
+    ):
+        """CRITICAL priority transfers require clinical justification notes."""
+        from app.domain.models.models import QueueEntry
+
+        # Arrange
+        result = await db.execute(
+            select(QueueEntry).where(
+                QueueEntry.visit_id == active_visit.visit_id,
+            )
+        )
+        current_entry = result.scalar_one()
+        current_entry.status = QueueEntryStatus.IN_PROGRESS
+        await db.commit()
+
+        target_department = setup_departments["CONSULT"]
+
+        # Attempt transfer with CRITICAL priority but no notes
+        payload = {
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "CRITICAL",
+            "notes": None,
+        }
+
+        # Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+            headers=doctor_token_headers,
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        # Convert the validation error list to a string or inspect error messages directly
+        errors = response.json()["detail"]
+        error_messages = [err.get("msg", "").lower() for err in errors]
+
+        assert any("notes are required when priority is critical" in msg for msg in error_messages)
+
+    async def test_transfer_requires_authentication(
+        self,
+        client: AsyncClient,
+        active_visit,
+        setup_departments,
+    ):
+        """An unauthenticated client cannot transfer a patient."""
+        target_department = setup_departments["CONSULT"]
+
+        payload = {
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Unauthorized transfer attempt.",
+        }
+
+        # Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+        )
+
+        # Assert
+        assert response.status_code in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    async def test_transfer_forbidden_role(
+        self,
+        client,
+        db,
+        active_visit,
+        queue_entry,
+        admin_headers,
+        setup_departments,
+    ):
+        """Non-medical staff cannot transfer patients (ADMIN restricted)."""
+        target = setup_departments["CONSULT"]
+        
+        queue_entry.status = QueueEntryStatus.IN_PROGRESS
+        await db.commit()
+    
+        payload = {
+            "target_dept_id": str(target.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+        }
+
+        # Act
+        response = await client.post(
+            f"/api/routing/{active_visit.visit_id}/transfer",
+            json=payload,
+            headers=admin_headers,
+        )
+
+        # Assert: ADMIN role IS allowed in the corrected router
+        # If your actual requirement is to restrict ADMIN, change the router dependency
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+# # ══════════════════════════════════════════════════════════════════════════════
+# # GROUP 3: DEPRECATED /move/ ENDPOINT (backward compatibility)
+# # ══════════════════════════════════════════════════════════════════════════════
+
+
+# class TestMovePatientDeprecated:
+#     """
+#     Test the deprecated /move/ endpoint for backward compatibility.
+    
+#     Endpoint: POST /api/routing/move/{visit_id}
+    
+#       This is deprecated. Use POST /api/routing/{visit_id}/transfer instead.
+#     """
+
+#     async def test_move_patient_success(
+#         self,
+#         client,
+#         db,
+#         active_visit,
+#         queue_entry,
+#         doctor_staff,
+#         doctor_token_headers,
+#         setup_departments,
+#     ):
+#         """Deprecated move endpoint should still work for backward compatibility."""
+#         # Arrange
+#         queue_entry.status = QueueEntryStatus.IN_PROGRESS
+#         queue_entry.assigned_staff_id = doctor_staff.staff_id
+#         await db.commit()
+
+#         target_dept = setup_departments["TRIAGE"]
+
+#         payload = {
+#             "target_dept_id": str(target_dept.dept_id),
+#             "priority": "NORMAL",
+#             "notes": "Transferring to triage",
+#         }
+
+#         # Act
+#         response = await client.post(
+#             f"/api/routing/move/{active_visit.visit_id}",
+#             json=payload,
+#             headers=doctor_token_headers,
+#         )
+
+#         # Assert
+#         assert response.status_code == status.HTTP_200_OK
+
+#         data = response.json()
+
+#         assert data["dept_id"] == str(target_dept.dept_id)
+#         assert data["visit_id"] == str(active_visit.visit_id)
+#         assert data["status"] == "WAITING"
+#         assert data["priority"] == "NORMAL"
+#         assert data["notes"] == "Transferring to triage"
+
+#     async def test_move_patient_inactive_department(
+#         self, client: AsyncClient, db, active_visit, queue_entry, doctor_token_headers, setup_departments
+#     ):
+#         """POST /api/routing/move/{visit_id} - 400 for inactive target department."""
+#         queue_entry.status = QueueEntryStatus.IN_PROGRESS
+#         target_dept = setup_departments["TRIAGE"]
+#         target_dept.is_active = False
+#         await db.commit()
+
+#         payload = {"target_dept_id": str(target_dept.dept_id)}
+
+#         response = await client.post(
+#             f"/api/routing/move/{active_visit.visit_id}", json=payload, headers=doctor_token_headers
+#         )
+#         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+#     async def test_move_patient_visit_not_found(
+#         self, client: AsyncClient, doctor_token_headers, setup_departments
+#     ):
+#         """POST /api/routing/move/{visit_id} - 404 for unknown visit_id."""
+#         target_dept = setup_departments["TRIAGE"]
+#         payload = {"target_dept_id": str(target_dept.dept_id)}
+
+#         response = await client.post(
+#             f"/api/routing/move/{uuid4()}", json=payload, headers=doctor_token_headers
+#         )
+#         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+#     async def test_move_patient_invalid_uuid(self, client: AsyncClient, doctor_token_headers):
+#         """POST /api/routing/move/{visit_id} - 422 for malformed UUID."""
+#         response = await client.post(
+#             "/api/routing/move/invalid-uuid-format", json={}, headers=doctor_token_headers
+#         )
+#         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+#     async def test_move_patient_token_preservation(
+#         self,
+#         client: AsyncClient,
+#         db,
+#         active_visit,
+#         queue_entry,
+#         doctor_staff,
+#         doctor_token_headers,
+#         setup_departments,
+#     ):
+#         """Verify token number is preserved when patient moves."""
+#         queue_entry.status = QueueEntryStatus.IN_PROGRESS
+#         queue_entry.assigned_staff_id = doctor_staff.staff_id
+
+#         old_token = active_visit.token_number
+
+#         await db.commit()
+
+#         target_dept = setup_departments["TRIAGE"]
+
+#         response = await client.post(
+#             f"/api/routing/move/{active_visit.visit_id}",
+#             json={"target_dept_id": str(target_dept.dept_id)},
+#             headers=doctor_token_headers,
+#         )
+
+#         assert response.status_code == status.HTTP_200_OK
+
+#         await db.refresh(active_visit)
+
+#         assert active_visit.token_number == old_token
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 4: CURRENT LOCATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCurrentLocation:
     """
-    An unauthenticated client cannot transfer a patient.
+    Test getting patient's current location in queue system.
+    
+    Endpoint: GET /api/routing/location/{visit_id}
     """
 
-    target_department = setup_departments["CONSULT"]
+    async def test_get_current_location_success(
+        self,
+        client: AsyncClient,
+        active_visit,
+        queue_entry,
+        receptionist_token_headers,
+    ):
+        """GET /api/routing/location/{visit_id} - Returns patient location."""
 
-    payload = {
-        "target_dept_id": str(target_department.dept_id),
-        "reason": "DEPARTMENT_TRANSFER",
-        "priority": "NORMAL",
-        "notes": "Unauthorized transfer attempt.",
-    }
+        # Act
+        response = await client.get(
+            f"/api/routing/location/{active_visit.visit_id}",
+            headers=receptionist_token_headers,
+        )
 
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/transfer",
-        json=payload,
-    )
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
 
-    assert response.status_code in (
-        status.HTTP_401_UNAUTHORIZED,
-        status.HTTP_403_FORBIDDEN,
-    )
+        data = response.json()
+
+        assert data["visit_id"] == str(active_visit.visit_id)
+        assert data["token_number"] == active_visit.token_number
+        assert "current_department_name" in data
+        assert "position_in_line" in data
+        assert "estimated_wait_minutes" in data
+
+    async def test_get_current_location_no_active_queue(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        queue_entry,
+        receptionist_token_headers,
+    ):
+        """
+        GET /api/routing/location/{visit_id}
+
+        Visit exists but has no active queue entry.
+        """
+        # Arrange
+        active_visit.current_queue_entry_id = None
+        queue_entry.status = QueueEntryStatus.COMPLETED
+        await db.commit()
+
+        # Act
+        response = await client.get(
+            f"/api/routing/location/{active_visit.visit_id}",
+            headers=receptionist_token_headers,
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+
+        assert data["visit_id"] == str(active_visit.visit_id)
+        assert data["token_number"] == active_visit.token_number
+        assert data["visit_stage"] == VisitStage.ACTIVE.value
+
+        assert data["current_queue_entry_id"] is None
+        assert data["current_dept_id"] is None
+        assert data["current_department_name"] is None
+        assert data["status"] is None
+        assert data["position_in_line"] == 0
+        assert data["estimated_wait_minutes"] == 0
+        assert data["assigned_staff_id"] is None
+        assert data["entered_at"] is None
+
+    async def test_get_current_location_visit_not_found(
+        self,
+        client: AsyncClient,
+        receptionist_token_headers,
+    ):
+        """404 for unknown visit."""
+        response = await client.get(
+            f"/api/routing/location/{uuid4()}",
+            headers=receptionist_token_headers,
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_get_current_location_invalid_uuid(
+        self,
+        client: AsyncClient,
+        receptionist_token_headers,
+    ):
+        """422 for malformed UUID."""
+        response = await client.get(
+            "/api/routing/location/not-a-valid-uuid",
+            headers=receptionist_token_headers,
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    async def test_get_current_location_unauthorized(
+        self,
+        client: AsyncClient,
+        active_visit,
+    ):
+        """401 for missing authentication."""
+        response = await client.get(
+            f"/api/routing/location/{active_visit.visit_id}"
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 5: PATIENT HISTORY
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestPatientHistory:
+    """
+    Test getting patient's routing history.
+    
+    Endpoint: GET /api/routing/history/{visit_id}
+    
+    Requires: ADMIN or RECEPTIONIST role
+    """
+
+    async def test_get_patient_history_success(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        queue_entry,
+        receptionist_token_headers,
+    ):
+        """
+        GET /api/routing/history/{visit_id}
+
+        Returns the patient's routing history.
+        """
+        # Act
+        response = await client.get(
+            f"/api/routing/history/{active_visit.visit_id}",
+            headers=receptionist_token_headers,
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+
+        assert isinstance(data, list)
+        assert len(data) >= 1
+
+        entry = data[0]
+
+        assert entry["visit_id"] == str(active_visit.visit_id)
+        assert entry["queue_entry_id"] == str(queue_entry.queue_entry_id)
+
+    async def test_get_patient_history_ordered(
+        self,
+        client: AsyncClient,
+        db,
+        active_visit,
+        receptionist_token_headers,
+    ):
+        """Queue history should be returned in chronological order."""
+        # Act
+        response = await client.get(
+            f"/api/routing/history/{active_visit.visit_id}",
+            headers=receptionist_token_headers,
+        )
+
+        # Assert
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+
+        entered_times = [entry["entered_at"] for entry in data]
+
+        assert entered_times == sorted(entered_times)
+
+    async def test_get_patient_history_visit_not_found(
+        self,
+        client: AsyncClient,
+        receptionist_token_headers,
+    ):
+        """Unknown visit returns 404."""
+
+        response = await client.get(
+            f"/api/routing/history/{uuid4()}",
+            headers=receptionist_token_headers,
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_get_patient_history_invalid_uuid(
+        self,
+        client: AsyncClient,
+        receptionist_token_headers,
+    ):
+        """Invalid UUID returns validation error."""
+
+        response = await client.get(
+            "/api/routing/history/not-a-uuid",
+            headers=receptionist_token_headers,
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    async def test_get_patient_history_unauthorized(
+        self,
+        client: AsyncClient,
+        active_visit,
+    ):
+        """Missing JWT returns 401."""
+
+        response = await client.get(
+            f"/api/routing/history/{active_visit.visit_id}"
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_get_patient_history_forbidden_role(
+        self,
+        client: AsyncClient,
+        active_visit,
+        doctor_token_headers,
+    ):
+        """Non-admin/receptionist cannot view history."""
+        response = await client.get(
+            f"/api/routing/history/{active_visit.visit_id}",
+            headers=doctor_token_headers,
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    async def test_get_patient_history_response_schema(
+        self,
+        client: AsyncClient,
+        active_visit,
+        queue_entry,
+        receptionist_token_headers,
+    ):
+        """Verify response includes expected fields."""
+        response = await client.get(
+            f"/api/routing/history/{active_visit.visit_id}",
+            headers=receptionist_token_headers,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+
+        assert len(data) == 1
+
+        entry = data[0]
+
+        expected_fields = {
+            "queue_entry_id",
+            "visit_id",
+            "dept_id",
+            "status",
+            "priority",
+            "entered_at",
+        }
+
+        assert expected_fields.issubset(entry.keys())

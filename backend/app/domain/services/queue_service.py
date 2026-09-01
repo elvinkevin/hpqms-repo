@@ -400,17 +400,25 @@ class QueueService:
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
     ) -> None:
-
         entry.status = new_status
-
-        if new_status == QueueEntryStatus.WAITING:
-            entry.assigned_staff_id = None
-
-        elif staff_id is not None and hasattr(entry, "assigned_staff_id"):
-            entry.assigned_staff_id = staff_id
 
         if notes is not None:
             entry.notes = notes
+
+        # 1. Active states: Bind staff to entry
+        if new_status in (QueueEntryStatus.CALLED, QueueEntryStatus.IN_PROGRESS):
+            if staff_id is not None:
+                entry.assigned_staff_id = staff_id
+
+        # 2. Terminal or Waiting states: Unbind staff to free up capacity
+        elif new_status in (
+            QueueEntryStatus.WAITING,
+            QueueEntryStatus.COMPLETED,
+            QueueEntryStatus.NO_SHOW,
+            QueueEntryStatus.CANCELLED,
+        ):
+            entry.assigned_staff_id = None
+
 
     def _apply_lifecycle_timestamps(
         self,
@@ -418,31 +426,28 @@ class QueueService:
         new_status: QueueEntryStatus,
     ) -> None:
         """Sets lifecycle timestamps based on target state."""
-
         now = datetime.now(timezone.utc)
 
         if new_status == QueueEntryStatus.CALLED:
             entry.called_at = now
 
         elif new_status == QueueEntryStatus.IN_PROGRESS:
-            if not getattr(entry, "called_at", None):
+            if not entry.called_at:
                 entry.called_at = now
-
-            if hasattr(entry, "started_at"):
-                entry.started_at = now
+            entry.started_at = now
 
         elif new_status == QueueEntryStatus.COMPLETED:
-            if hasattr(entry, "completed_at"):
-                entry.completed_at = now
-
-        elif new_status == QueueEntryStatus.CANCELLED:
-            if hasattr(entry, "completed_at"):
-                entry.completed_at = now
+            entry.completed_at = now
 
         elif new_status == QueueEntryStatus.NO_SHOW:
-            if hasattr(entry, "no_show_at"):
-                entry.no_show_at = now
+            entry.no_show_at = now
 
+        elif new_status == QueueEntryStatus.CANCELLED:
+            # Avoid overriding completed_at if CANCELLED uses a different column
+            if hasattr(entry, "cancelled_at") and getattr(entry, "cancelled_at") is None:
+                entry.cancelled_at = now
+            elif hasattr(entry, "completed_at"):
+                entry.completed_at = now
     # ------------------------------------------------------------------
     # DISPLAY BROADCAST
     # ------------------------------------------------------------------
@@ -647,11 +652,28 @@ class QueueService:
     async def cancel_queue_entry(
         self,
         queue_entry_id: UUID,
+        staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
     ) -> QueueEntry:
-        """Transitions ANY ACTIVE -> CANCELLED."""
+        entry = await self.get_queue_entry(queue_entry_id)
+        if not entry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Queue entry not found.",
+            )
+
+        # If the entry is already assigned to another staff member, block execution
+        if staff_id and entry.assigned_staff_id and entry.assigned_staff_id != staff_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot modify a queue entry assigned to another staff member.",
+            )
+
         return await self.transition_entry_status(
-            queue_entry_id, QueueEntryStatus.CANCELLED, notes=notes
+            queue_entry_id=queue_entry_id,
+            new_status=QueueEntryStatus.CANCELLED,
+            staff_id=staff_id,
+            notes=notes,
         )
 
     # --- Backward-Compatibility Aliases ---
@@ -743,15 +765,14 @@ class QueueService:
         queue_entry_id: UUID,
         staff_id: UUID,
     ) -> QueueEntry:
-
         stmt = (
-                select(QueueEntry)
-                .options(
-                    selectinload(QueueEntry.visit),
-                    selectinload(QueueEntry.department),
-                )
-                .where(QueueEntry.queue_entry_id == queue_entry_id)
+            select(QueueEntry)
+            .options(
+                selectinload(QueueEntry.visit),
+                selectinload(QueueEntry.department),
             )
+            .where(QueueEntry.queue_entry_id == queue_entry_id)
+        )
 
         result = await self.db.execute(stmt)
         entry = result.scalar_one_or_none()
@@ -768,7 +789,20 @@ class QueueService:
                 detail="Only NO_SHOW entries can be requeued.",
             )
 
-        if entry.assigned_staff_id != staff_id:
+        # Department Access Check
+        staff_stmt = select(Staff).where(Staff.staff_id == staff_id)
+        staff_res = await self.db.execute(staff_stmt)
+        acting_staff = staff_res.scalar_one_or_none()
+
+        if acting_staff and acting_staff.role != StaffRole.ADMIN:
+            if acting_staff.dept_id != entry.dept_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot requeue entries outside your assigned department.",
+                )
+
+        # Allow if unassigned OR if assigned to this staff member
+        if entry.assigned_staff_id is not None and entry.assigned_staff_id != staff_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only requeue patients assigned to you.",
@@ -778,7 +812,6 @@ class QueueService:
         entry.assigned_staff_id = None
 
         await self.db.flush()
-
         return entry
 
     async def emit_department_event(

@@ -6,6 +6,7 @@ from app.domain.schemas.schemas import EmergencyPatientCreate, PatientCreate, Vi
 from app.domain.services.patient_service import PatientService
 from app.domain.services.routing_service import RoutingService
 from app.domain.services.visit_service import VisitService
+from app.domain.services.queue_service import QueueService
 
 
 # ======================================================================
@@ -237,7 +238,7 @@ class TestEmergencyRouting:
     async def test_emergency_patient_routed_directly_to_emergency_department(
         self,
         db,
-        routing_departments,
+        setup_departments,
     ):
         """
         Scenario:
@@ -286,7 +287,7 @@ class TestEmergencyRouting:
         assert visit.entry_type == EntryType.EMERGENCY
 
         assert queue_entry.visit_id == visit.visit_id
-        assert queue_entry.dept_id == routing_departments["emergency"].dept_id
+        assert queue_entry.dept_id == setup_departments["EMERGENCY"].dept_id
 
         assert queue_entry.priority == QueuePriority.CRITICAL
         assert queue_entry.status == QueueEntryStatus.WAITING
@@ -298,7 +299,7 @@ class TestEmergencyRouting:
     async def test_emergency_patient_bypasses_reception_and_triage(
         self,
         db,
-        routing_departments,
+        setup_departments,
     ):
         """
         Scenario:
@@ -308,9 +309,9 @@ class TestEmergencyRouting:
         Expected:
 
             Emergency
-                 │
-                 ▼
-          Emergency Department
+                │
+                ▼
+        Emergency Department
         """
 
         patient_service = PatientService(db)
@@ -338,17 +339,18 @@ class TestEmergencyRouting:
 
         assert (
             queue_entry.dept_id
-            != routing_departments["reception"].dept_id
+            != setup_departments["RECEPTION"].dept_id
         )
 
         assert (
             queue_entry.dept_id
-            != routing_departments["triage"].dept_id
+            != setup_departments["TRIAGE"].dept_id
         )
 
+        # Updated from setup_departments["TRIAGE"] to setup_departments["EMERGENCY"]
         assert (
             queue_entry.dept_id
-            == routing_departments["emergency"].dept_id
+            == setup_departments["EMERGENCY"].dept_id
         )
 
 
@@ -356,26 +358,23 @@ class TestEmergencyRouting:
     async def test_emergency_queue_progression(
         self,
         db,
-        routing_departments,
+        setup_departments,
+        doctor_staff,
     ):
         """
         Scenario:
-
-            Emergency patient progresses through
-            the ER queue lifecycle.
-
-        WAITING
-            ↓
-        CALLED
-            ↓
-        IN_PROGRESS
-            ↓
-        COMPLETED
+            Emergency patient progresses through the ER queue lifecycle.
         """
 
         patient_service = PatientService(db)
         visit_service = VisitService(db)
+        queue_service = QueueService(db)
         routing_service = RoutingService(db)
+
+        # 1. Assign doctor_staff to the EMERGENCY department so the department check passes
+        doctor_staff.dept_id = setup_departments["EMERGENCY"].dept_id
+        db.add(doctor_staff)
+        await db.commit()
 
         patient = await patient_service.register_emergency_patient(
             EmergencyPatientCreate(
@@ -399,20 +398,23 @@ class TestEmergencyRouting:
         assert queue_entry.status == QueueEntryStatus.WAITING
         assert queue_entry.priority == QueuePriority.CRITICAL
 
-        called = await routing_service.call_queue_entry(
-            queue_entry.queue_entry_id
+        # 2. Call queue entry with doctor belonging to the same department
+        called = await queue_service.call_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=doctor_staff.staff_id,
         )
-
         assert called.status == QueueEntryStatus.CALLED
 
+        # 3. Start patient - pass staff_id to satisfy department requirement
         in_progress = await routing_service.start_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry.queue_entry_id,
+            staff_id=doctor_staff.staff_id,
         )
-
         assert in_progress.status == QueueEntryStatus.IN_PROGRESS
 
+        # 4. Complete patient - pass staff_id to finalize processing in the same department
         completed = await routing_service.complete_queue_entry(
-            queue_entry.queue_entry_id
+            queue_entry.queue_entry_id,
+            staff_id=doctor_staff.staff_id,
         )
-
         assert completed.status == QueueEntryStatus.COMPLETED

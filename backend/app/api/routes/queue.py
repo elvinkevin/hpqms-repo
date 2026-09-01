@@ -204,6 +204,7 @@ async def complete_queue_entry(
 )
 async def cancel_queue_step(
     queue_entry_id: UUID,
+    db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(
         require_role(
             StaffRole.RECEPTIONIST,
@@ -211,7 +212,6 @@ async def cancel_queue_step(
             StaffRole.DOCTOR,
         )
     ),
-    db: AsyncSession = Depends(get_db),
 ):
     service = QueueService(db)
     entry = await service.get_queue_entry(queue_entry_id)
@@ -224,12 +224,16 @@ async def cancel_queue_step(
 
     ensure_department_access(current_user, entry.dept_id)
 
-    entry = await service.cancel_queue_entry(queue_entry_id)
+    # Align with complete_queue_entry by passing staff_id to the service layer
+    entry = await service.cancel_queue_entry(
+        queue_entry_id,
+        staff_id=current_user.staff_id,
+    )
 
     await db.commit()
     await service.emit_display_event(entry)
+    
     return entry
-
 
 @router.get(
     "/department/{dept_id}/no-show",

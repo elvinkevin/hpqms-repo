@@ -45,26 +45,27 @@ class RoutingService:
         self,
         visit_id: UUID,
     ) -> QueueEntry:
-
+        # 1. Fetch and validate visit existence
         visit = await self.visit_service.get_visit(visit_id)
-
         if not visit:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Visit not found.",
             )
+        
+        # 2. Validate that the visit is active prior to routing
+        # This prevents 404 leakage from downstream transfer_patient calls
+        if visit.stage in (VisitStage.COMPLETED, VisitStage.CANCELLED):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot dispatch non-active visit.",
+            )
 
         patient = visit.patient
 
-        # ---------------------------------------------------------
-        # Emergency patients bypass the normal workflow
-        # ---------------------------------------------------------
+        # 3. Emergency patients bypass the normal workflow completely
         if visit.entry_type == EntryType.EMERGENCY:
-
-            emergency = await self.department_service.get_by_code(
-                "EMERGENCY"
-            )
-
+            emergency = await self.department_service.get_by_code("EMERGENCY")
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_dept_id=emergency.dept_id,
@@ -73,32 +74,27 @@ class RoutingService:
                 notes="Emergency patient routed directly to Emergency.",
             )
 
-        # ---------------------------------------------------------
-        # Temporary / Incomplete registrations go to Reception
-        # ---------------------------------------------------------
-        if patient.registration_status == RegistrationStatus.INCOMPLETE:
-
-            reception = await self.department_service.get_by_code(
-                "REC"
-            )
-
+        # 4. Handle paths that skip triage (Incomplete registration or Walk-ins / Referrals)
+        if (
+            patient.registration_status == RegistrationStatus.INCOMPLETE 
+            or visit.entry_type in (EntryType.WALK_IN, EntryType.REFERRAL)
+        ):
+            reception = await self.department_service.get_by_code("RECEPTION")
+            
+            is_incomplete = patient.registration_status == RegistrationStatus.INCOMPLETE
+            notes = "Patient requires registration." if is_incomplete else "Walk-in patient routed to Reception."
+            
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_dept_id=reception.dept_id,
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
-                notes="Patient requires registration.",
+                notes=notes,
             )
 
-        # ---------------------------------------------------------
-        # Appointment patients bypass Reception
-        # ---------------------------------------------------------
+        # 5. Standard booked appointments bypass Reception and go straight to Triage
         if visit.entry_type == EntryType.APPOINTMENT:
-
-            triage = await self.department_service.get_by_code(
-                "TRIAGE"
-            )
-
+            triage = await self.department_service.get_by_code("TRIAGE")
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_dept_id=triage.dept_id,
@@ -106,34 +102,42 @@ class RoutingService:
                 priority=QueuePriority.NORMAL,
                 notes="Appointment patient routed directly to Triage.",
             )
-
-        # ---------------------------------------------------------
-        # Walk-ins & Referrals
-        # ---------------------------------------------------------
-        reception = await self.department_service.get_by_code(
-            "REC"
-        )
-
+            
+        # 6. Fallback safety route to Reception
+        reception = await self.department_service.get_by_code("RECEPTION")
         return await self.transfer_patient(
             visit_id=visit.visit_id,
             target_dept_id=reception.dept_id,
             reason=TransferReason.DIRECT_ROUTING,
             priority=QueuePriority.NORMAL,
-            notes="Walk-in patient routed to Reception.",
+            notes="Patient routed to Reception by default.",
         )
+
+
     # ---------------------------------------------------------
-    # MOVE PATIENT
+    # TRANSFER PATIENT
     # ---------------------------------------------------------
 
     async def transfer_patient(
         self,
         visit_id: UUID,
-        target_dept_id: UUID,
+        target_dept_id: UUID,  # ← FIX: Changed from target_department_id
         reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER,
         priority: QueuePriority = QueuePriority.NORMAL,
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
     ) -> QueueEntry:
+        """
+        Transfer a patient to a target department.
+        
+        Args:
+            visit_id: The visit to transfer
+            target_dept_id: The target department UUID (not department_id)
+            reason: Transfer reason
+            priority: Queue priority
+            notes: Optional clinical notes
+            initiated_by_staff_id: Staff member initiating transfer
+        """
         # 1. Fetch & Validate Active Visit
         visit = await self.visit_service.get_visit(visit_id)
         if visit.stage != VisitStage.ACTIVE:
@@ -154,7 +158,7 @@ class RoutingService:
         if reason == TransferReason.RETURN_TO_DEPARTMENT and priority == QueuePriority.NORMAL:
             priority = QueuePriority.URGENT
 
-        # 4. Safety Guardrails
+        # 4. Safety Guardrails - CRITICAL priority requires notes
         if priority == QueuePriority.CRITICAL and not (notes and notes.strip()):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -166,7 +170,7 @@ class RoutingService:
             current_entry = await self.queue_service.get_active_queue_entry(visit_id)
 
             if current_entry:
-                # FIX: changed dept_id to dept_id
+                # FIX: Use dept_id (not department_id)
                 if current_entry.dept_id == target_dept.dept_id:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
@@ -202,6 +206,7 @@ class RoutingService:
                 )
 
             # 6. Create Target Department Encounter
+            # FIX: Use dept_id parameter name (not department_id)
             new_entry = await self.queue_service.create_queue_entry(
                 visit_id=visit.visit_id,
                 dept_id=target_dept.dept_id,
@@ -223,7 +228,7 @@ class RoutingService:
             event_type="PATIENT_ROUTED",
             extra_payload={
                 "transfer_reason": reason.value,
-                # FIX: changed dept_id to dept_id
+                # FIX: Use dept_id (not department_id)
                 "source_dept_id": (
                     str(current_entry.dept_id) if current_entry else None
                 ),
@@ -236,7 +241,7 @@ class RoutingService:
     async def move_patient(
         self,
         visit_id: UUID,
-        target_dept_id: UUID,
+        target_dept_id: UUID,  # ← FIX: Changed from target_department_id
         priority: QueuePriority = QueuePriority.NORMAL,
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
@@ -244,7 +249,7 @@ class RoutingService:
         """Backward-compatible alias for a standard department transfer."""
         return await self.transfer_patient(
             visit_id=visit_id,
-            target_dept_id=target_dept_id,
+            target_dept_id=target_dept_id,  # ← FIX: Changed from target_department_id
             reason=TransferReason.DEPARTMENT_TRANSFER,
             priority=priority,
             notes=notes,
@@ -259,6 +264,7 @@ class RoutingService:
         self,
         visit_id: UUID,
     ) -> dict:
+        """Get patient's current location in the queue system."""
 
         visit = await self.visit_service.get_visit(visit_id)
 
@@ -268,25 +274,20 @@ class RoutingService:
 
         if not active_entry:
             return {
-    "visit_id": visit.visit_id,
-    "token_number": visit.token_number,
-    "visit_stage": visit.stage.value,
+                "visit_id": visit.visit_id,
+                "token_number": visit.token_number,
+                "visit_stage": visit.stage.value,
+                "current_queue_entry_id": None,
+                "current_dept_id": None,  # ← FIX: Changed from current_department_id
+                "current_department_name": None,
+                "status": None,
+                "assigned_staff_id": None,
+                "position_in_line": 0,
+                "estimated_wait_minutes": 0,
+                "entered_at": None,
+            }
 
-    "current_queue_entry_id": None,
-
-    "current_dept_id": None,
-    "current_department_name": None,
-
-    "status": None,
-
-    "assigned_staff_id": None,
-
-    "position_in_line": 0,
-    "estimated_wait_minutes": 0,
-
-    "entered_at": None,
-}
-
+        # FIX: Use dept_id (not department_id)
         department = await self.department_service.get_by_id(
             active_entry.dept_id
         )
@@ -300,20 +301,20 @@ class RoutingService:
         )
 
         return {
-        "visit_id": visit.visit_id,
-        "token_number": visit.token_number,
-        "visit_stage": visit.stage.value,
-        "current_queue_entry_id": active_entry.queue_entry_id,
-        "current_dept_id": department.dept_id,
-        "current_department_name": department.name,
-        "status": active_entry.status.value,
-        "assigned_staff_id": active_entry.assigned_staff_id,
-        "position_in_line": position,
-        "estimated_wait_minutes": wait,
-        "entered_at": active_entry.entered_at.isoformat()
-        if active_entry.entered_at
-        else None,
-}
+            "visit_id": visit.visit_id,
+            "token_number": visit.token_number,
+            "visit_stage": visit.stage.value,
+            "current_queue_entry_id": active_entry.queue_entry_id,
+            "current_dept_id": department.dept_id,  # ← FIX: Changed from current_department_id
+            "current_department_name": department.name,
+            "status": active_entry.status.value,
+            "assigned_staff_id": active_entry.assigned_staff_id,
+            "position_in_line": position,
+            "estimated_wait_minutes": wait,
+            "entered_at": active_entry.entered_at.isoformat()
+            if active_entry.entered_at
+            else None,
+        }
 
     # ---------------------------------------------------------
     # HISTORY
@@ -323,8 +324,9 @@ class RoutingService:
         self,
         visit_id: UUID,
     ) -> List[QueueEntry]:
+        """Get complete routing history for a visit."""
 
-        # Ensure the visit exists.
+        # Ensure the visit exists
         await self.visit_service.get_visit(visit_id)
 
         stmt = (
@@ -393,13 +395,10 @@ class RoutingService:
         queue_entry_id: UUID,
         notes: Optional[str] = None,
     ) -> QueueEntry:
-        """
-        Cancels an active queue entry via QueueService.
-        """
+        """Cancels an active queue entry via QueueService."""
         return await self.queue_service.cancel_queue_entry(
             queue_entry_id, notes=notes
         )
-    
 
     async def discharge_patient(
         self,

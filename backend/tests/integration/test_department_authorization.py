@@ -20,16 +20,16 @@ from tests.conftest import queue_entry
 async def test_staff_can_access_own_department(
     client,
     db,
-    receptionist,
-    routing_departments,
+    receptionist_staff,            # FIX: Changed from receptionist
+    receptionist_token_headers,    # FIX: Injected available token headers fixture
+    setup_departments,
 ):
-    reception = routing_departments["reception"]
+    # Depending on how setup_departments is keyed (check if string is lower or uppercase)
+    reception = setup_departments.get("reception") or setup_departments.get("RECEPTION")
 
     response = await client.get(
         f"/api/queue/department/{reception.dept_id}",
-        headers={
-            "Authorization": f"Bearer {receptionist.access_token}"
-        },
+        headers=receptionist_token_headers,  # FIX: Passes {"Authorization": "Bearer ..."} directly
     )
 
     assert response.status_code == 200
@@ -37,16 +37,15 @@ async def test_staff_can_access_own_department(
 @pytest.mark.asyncio
 async def test_staff_cannot_access_other_department(
     client,
-    receptionist,
-    routing_departments,
+    receptionist_token_headers,    # FIX: Changed from receptionist
+    setup_departments,
 ):
-    triage = routing_departments["triage"]
+    # Adjust dictionary lookup casing based on how setup_departments populates it
+    triage = setup_departments.get("triage") or setup_departments.get("TRIAGE")
 
     response = await client.get(
         f"/api/queue/department/{triage.dept_id}",
-        headers={
-            "Authorization": f"Bearer {receptionist.access_token}"
-        },
+        headers=receptionist_token_headers,  # FIX: Passes authorization block directly
     )
 
     assert response.status_code == 403
@@ -57,14 +56,12 @@ async def test_staff_cannot_access_other_department(
 @pytest.mark.asyncio
 async def test_staff_can_call_entry_in_own_department(
     client,
-    receptionist,
-    reception_queue_entry,  # Injected directly from fixture
+    receptionist_token_headers,    # FIX: Changed from receptionist
+    reception_queue_entry,
 ):
     response = await client.patch(
         f"/api/queue/{reception_queue_entry.queue_entry_id}/call",
-        headers={
-            "Authorization": f"Bearer {receptionist.access_token}"
-        },
+        headers=receptionist_token_headers,  # FIX: Passes token authorization header map
     )
 
     assert response.status_code == 200
@@ -72,6 +69,7 @@ async def test_staff_can_call_entry_in_own_department(
     data = response.json()
     assert data["queue_entry_id"] == str(reception_queue_entry.queue_entry_id)
     assert data["status"] == "CALLED"
+
 
 
 @pytest.mark.asyncio

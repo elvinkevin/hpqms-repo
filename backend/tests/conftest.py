@@ -31,7 +31,18 @@ from app.domain.models.models import (
 from app.domain.schemas.schemas import StaffCreate
 from app.domain.services.staff_service import StaffService
 from app.main import app
-from tests.api.test_routing_api import make_headers
+
+def make_headers(staff: Staff) -> dict:
+    """Generate Authorization headers for a staff member."""
+    token = create_access_token(
+        {
+            "sub": str(staff.staff_id),
+            "employee_id": staff.employee_id,
+            "role": staff.role.value if hasattr(staff.role, "value") else staff.role,
+            "dept_id": str(staff.dept_id),
+        }
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 DATABASE_URL = "postgresql+asyncpg://postgres:viken@localhost/hospital_test"
 
@@ -106,21 +117,89 @@ async def client(db):
 
 
 # ============================================================================
-# 3. BASE DEPARTMENT & STAFF FIXTURES
+# 3. CORE ENTITY FIXTURES
 # ============================================================================
 
 
 @pytest.fixture
+async def patient(db):
+    """Creates and persists a Patient record."""
+    patient = Patient(
+        first_name="Jane",
+        last_name="Doe",
+    )
+    db.add(patient)
+    await db.flush()
+    await db.refresh(patient)
+    return patient
+
+
+@pytest.fixture
 async def department(db):
-    department = Department(
-        name="Reception",
-        department_code="REC",
+    """Creates and persists an Outpatient Department record."""
+    dept = Department(
+        name="Outpatient",
+        department_code="OPD",
         type=DeptType.OPD,
     )
-    db.add(department)
+    db.add(dept)
+    await db.flush()
+    await db.refresh(dept)
+    return dept
+
+
+@pytest.fixture
+async def secondary_department(db):
+    """Creates and persists a Pharmacy Department record."""
+    dept = Department(
+        name="Pharmacy",
+        department_code="PHARM",
+        type=DeptType.OPD,
+    )
+    db.add(dept)
+    await db.flush()
+    await db.refresh(dept)
+    return dept
+
+
+@pytest.fixture
+async def active_visit(db, patient):
+    """Creates and persists an active Visit record linked to a valid Patient."""
+    visit = Visit(
+        patient_id=patient.patient_id,
+        token_number="W-101",
+        stage=VisitStage.ACTIVE,
+        entry_type=EntryType.WALK_IN,
+        visit_reason="General Consultation",
+    )
+    db.add(visit)
+    await db.flush()
+    await db.refresh(visit)
+    return visit
+
+
+@pytest.fixture
+async def existing_patient(db):
+    """Creates a fully registered patient with complete details."""
+    patient = Patient(
+        patient_id=uuid4(),
+        first_name="Jane",
+        last_name="Existing",
+        national_id="99999999",
+        phone="+254700000000",
+        gender="FEMALE",
+        date_of_birth=date(1995, 5, 15),
+        registration_status=RegistrationStatus.COMPLETE,
+    )
+    db.add(patient)
     await db.commit()
-    await db.refresh(department)
-    return department
+    await db.refresh(patient)
+    return patient
+
+
+# ============================================================================
+# 4. STAFF & AUTHENTICATION FIXTURES
+# ============================================================================
 
 
 @pytest.fixture
@@ -154,7 +233,31 @@ async def auth_headers(client, auth_staff):
 
 
 @pytest_asyncio.fixture
+async def staff_member(db, department):
+    """
+    Doctor/Staff fixture used in unit tests.
+    Satisfies all schema contracts and is ready for state transitions.
+    """
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id=f"DOC-{str(uuid4())[:6]}",
+        first_name="Test",
+        last_name="Doctor",
+        role=StaffRole.DOCTOR,
+        dept_id=department.dept_id,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
+    )
+
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+    return staff
+
+
+@pytest_asyncio.fixture
 async def receptionist_staff(db, department):
+    """Creates a receptionist staff member."""
     staff = Staff(
         staff_id=uuid4(),
         employee_id="REC001",
@@ -173,29 +276,46 @@ async def receptionist_staff(db, department):
 
 @pytest_asyncio.fixture
 async def receptionist_token_headers(receptionist_staff):
-    token = create_access_token({"sub": str(receptionist_staff.staff_id)})
-    return {"Authorization": f"Bearer {token}"}
+    """Generates auth headers for receptionist."""
+    return make_headers(receptionist_staff)
 
 
 @pytest_asyncio.fixture
-async def doctor_staff(doctor):
-    return doctor
+async def doctor_staff(db, department):
+    """Creates a doctor staff member."""
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id="DOC001",
+        dept_id=department.dept_id,
+        first_name="Dr",
+        last_name="Doctor",
+        role=StaffRole.DOCTOR,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
+    )
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+    return staff
 
 
 @pytest_asyncio.fixture
 async def doctor_token_headers(doctor_staff):
+    """Generates auth headers for doctor."""
     return make_headers(doctor_staff)
 
 
 @pytest_asyncio.fixture
 async def admin_staff(db, department):
+    """Creates an admin staff member."""
     staff = Staff(
+        staff_id=uuid4(),
         employee_id="ADM001",
         first_name="Admin",
         last_name="User",
         role=StaffRole.ADMIN,
         dept_id=department.dept_id,
-        hashed_password="ignored",
+        hashed_password=hash_password("Password123!"),
         is_active=True,
     )
     db.add(staff)
@@ -206,115 +326,107 @@ async def admin_staff(db, department):
 
 @pytest_asyncio.fixture
 async def admin_headers(admin_staff):
+    """Generates auth headers for admin."""
     return make_headers(admin_staff)
 
 
-# ============================================================================
-# 4. LEGACY ENTITY FIXTURES (Unit/API testing only)
-# ============================================================================
-
-
 @pytest_asyncio.fixture
-async def existing_patient(db):
-    patient = Patient(
-        patient_id=uuid4(),
-        first_name="Jane",
-        last_name="Existing",
-        national_id="99999999",
-        phone="+254700000000",
-        gender="FEMALE",
-        date_of_birth=date(1995, 5, 15),
-        registration_status=RegistrationStatus.COMPLETE,
-    )
-    db.add(patient)
-    await db.commit()
-    await db.refresh(patient)
-    return patient
-
-
-@pytest_asyncio.fixture
-async def active_visit(db, existing_patient, setup_departments):
-    visit = Visit(
-        patient_id=existing_patient.patient_id,
-        token_number="W-101",
-        entry_type=EntryType.WALK_IN,
-        visit_reason="Routine Checkup",
-        stage=VisitStage.ACTIVE,
-    )
-    db.add(visit)
-    await db.flush()
-
-    # Automatically create initial queue entry in Reception
-    entry = QueueEntry(
-        visit_id=visit.visit_id,
-        dept_id=setup_departments["RECEPTION"].dept_id,
-        sequence_number=1,
-        priority=QueuePriority.NORMAL,
-        status=QueueEntryStatus.WAITING,
-    )
-    db.add(entry)
-
-    await db.commit()
-    await db.refresh(visit)
-    return visit
-
-
-@pytest_asyncio.fixture
-async def queue_entry(db, active_visit, department):
-    entry = QueueEntry(
-        visit_id=active_visit.visit_id,
+async def nurse_staff(db, department):
+    """Creates a nurse staff member."""
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id="NURSE002",
         dept_id=department.dept_id,
-        sequence_number=1,
-        priority=QueuePriority.NORMAL,
-        status=QueueEntryStatus.WAITING,
+        first_name="Nurse",
+        last_name="Jackie",
+        role=StaffRole.NURSE,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
     )
-    db.add(entry)
+    db.add(staff)
     await db.commit()
-    await db.refresh(entry)
-    return entry
+    await db.refresh(staff)
+    return staff
 
-
-
-import pytest_asyncio
 
 @pytest_asyncio.fixture
-async def patient_factory(db, faker):
-    async def _create_patient(**kwargs):
-        defaults = {
-            "first_name": faker.first_name(),
-            "last_name": faker.last_name(),
-            "gender": "MALE",
-            "date_of_birth": faker.date_of_birth(),
-            "phone": faker.phone_number(),
-        }
-        defaults.update(kwargs)
-        patient = Patient(**defaults)
-        db.add(patient)
-        await db.flush()
-        return patient
-
-    return _create_patient
+async def nurse_token_headers(nurse_staff):
+    """Generates auth headers for nurse."""
+    return make_headers(nurse_staff)
 
 
-@pytest.fixture
-async def patient(db):
-    """Creates and persists a Patient parent record."""
-    patient = Patient(
-        first_name="Jane",
-        last_name="Doe",
+@pytest_asyncio.fixture
+async def triage_nurse_staff(db, department):
+    """Creates a triage nurse staff member."""
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id="NURSE001",
+        dept_id=department.dept_id,
+        first_name="Nurse",
+        last_name="Joy",
+        role=StaffRole.TRIAGE_NURSE,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
     )
-    db.add(patient)
-    await db.flush()
-    await db.refresh(patient)
-    return patient
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+    return staff
+
+
+@pytest_asyncio.fixture
+async def triage_token_headers(triage_nurse_staff):
+    """Generates auth headers for triage nurse."""
+    return make_headers(triage_nurse_staff)
+
+
+# ============================================================================
+# 5. DEPARTMENT ROUTING FIXTURES
+# ============================================================================
+
+
+@pytest_asyncio.fixture
+async def routing_departments(db):
+    """
+    Creates standard hospital departments required by routing workflows.
+    Returns a dict with department keys for easy access.
+    """
+    departments = []
+
+    configs = [
+        ("Reception", "RECEPTION", DeptType.OPD),
+        ("Triage", "TRIAGE", DeptType.OPD),
+        ("Emergency", "EMERGENCY", DeptType.EMERGENCY),
+    ]
+
+    for name, code, dept_type in configs:
+        department = Department(
+            name=name,
+            department_code=code,
+            type=dept_type,
+            is_active=True,
+        )
+        db.add(department)
+        departments.append(department)
+
+    await db.commit()
+
+    for department in departments:
+        await db.refresh(department)
+
+    return {
+        "reception": departments[0],
+        "triage": departments[1],
+        "emergency": departments[2],
+    }
 
 
 @pytest_asyncio.fixture
 async def setup_departments(db):
     """
-    Creates (or reuses) the core hospital routing departments.
+    Creates core hospital routing departments.
+    Returns dict indexed by department code.
     """
-
     department_definitions = {
         "RECEPTION": {
             "name": "Reception",
@@ -324,7 +436,7 @@ async def setup_departments(db):
             "name": "Triage",
             "type": DeptType.OPD,
         },
-         "CONSULT": {
+        "CONSULT": {
             "name": "Consultation",
             "type": DeptType.OPD,
         },
@@ -367,81 +479,99 @@ async def setup_departments(db):
     return departments
 
 
-@pytest_asyncio.fixture
-async def triage_nurse_staff(db, setup_departments):
-    """
-    Creates or reuses a triage nurse staff member.
-    """
-    from sqlalchemy import select
+# ============================================================================
+# 6. QUEUE & VISIT FIXTURES FOR API TESTS
+# ============================================================================
 
-    result = await db.execute(
-        select(Staff).where(Staff.employee_id == "NURSE001")
+
+@pytest_asyncio.fixture
+async def queue_entry(db, existing_patient, setup_departments):
+    """
+    Creates a complete visit with initial queue entry in WAITING status.
+    Includes all relationships needed for API response serialization.
+    """
+    visit = Visit(
+        patient_id=existing_patient.patient_id,
+        token_number="W-101",
+        entry_type=EntryType.WALK_IN,
+        visit_reason="Routine Checkup",
+        stage=VisitStage.ACTIVE,
     )
-    staff = result.scalar_one_or_none()
+    db.add(visit)
+    await db.flush()
 
-    if staff is None:
-        triage_dept = setup_departments.get("TRIAGE") or setup_departments.get("RECEPTION")
-        staff = Staff(
-            staff_id=uuid4(),
-            employee_id="NURSE001",
-            dept_id=triage_dept.dept_id,
-            first_name="Nurse",
-            last_name="Joy",
-            role=StaffRole.TRIAGE_NURSE,  # Adjust to StaffRole.NURSE if your Enum uses that
-            hashed_password=hash_password("Password123!"),
-            is_active=True,
-        )
-        db.add(staff)
-        await db.commit()
-        await db.refresh(staff)
-
-    return staff
-
-
-@pytest_asyncio.fixture
-async def triage_token_headers(triage_nurse_staff):
-    """
-    Generates auth headers for the triage nurse.
-    """
-    token = create_access_token({"sub": str(triage_nurse_staff.staff_id)})
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest_asyncio.fixture
-async def nurse_staff(db, setup_departments):
-    """
-    Creates or reuses a standard nurse staff member.
-    """
-    from sqlalchemy import select
-
-    result = await db.execute(
-        select(Staff).where(Staff.employee_id == "NURSE002")
+    # Automatically create initial queue entry in Reception
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        dept_id=setup_departments["RECEPTION"].dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
     )
-    staff = result.scalar_one_or_none()
+    db.add(entry)
+    await db.flush()
 
-    if staff is None:
-        dept = setup_departments.get("CONSULT") or setup_departments.get("RECEPTION")
-        staff = Staff(
-            staff_id=uuid4(),
-            employee_id="NURSE002",
-            dept_id=dept.dept_id,
-            first_name="Nurse",
-            last_name="Jackie",
-            role=StaffRole.NURSE,
-            hashed_password=hash_password("Password123!"),
-            is_active=True,
-        )
-        db.add(staff)
-        await db.commit()
-        await db.refresh(staff)
-
-    return staff
+    visit.current_queue_entry_id = entry.queue_entry_id
+    await db.commit()
+    await db.refresh(visit)
+    await db.refresh(entry)
+    return entry
 
 
 @pytest_asyncio.fixture
-async def nurse_token_headers(nurse_staff):
+async def active_visit_with_queue(db, existing_patient, setup_departments):
     """
-    Generates auth headers for the nurse.
+    Creates a visit with an initial queue entry in WAITING status.
+    Useful for testing visit-level operations.
     """
-    token = create_access_token({"sub": str(nurse_staff.staff_id)})
-    return {"Authorization": f"Bearer {token}"}
+    visit = Visit(
+        patient_id=existing_patient.patient_id,
+        token_number="W-101",
+        entry_type=EntryType.WALK_IN,
+        visit_reason="Routine Checkup",
+        stage=VisitStage.ACTIVE,
+    )
+    db.add(visit)
+    await db.flush()
+
+    # Create initial queue entry
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        dept_id=setup_departments["RECEPTION"].dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
+    )
+    db.add(entry)
+    await db.flush()
+
+    visit.current_queue_entry_id = entry.queue_entry_id
+    await db.commit()
+    await db.refresh(visit)
+    return visit
+
+
+# ============================================================================
+# 7. HELPER UTILITIES
+# ============================================================================
+
+
+@pytest_asyncio.fixture
+async def create_helper_visit(db, patient):
+    """
+    Factory fixture to create additional distinct visits for the same patient.
+    Useful for testing queue ordering with multiple entries.
+    """
+    async def _create_visit(token_number: str):
+        visit = Visit(
+            patient_id=patient.patient_id,
+            token_number=token_number,
+            stage=VisitStage.ACTIVE,
+            entry_type=EntryType.WALK_IN,
+        )
+        db.add(visit)
+        await db.flush()
+        await db.refresh(visit)
+        return visit
+
+    return _create_visit

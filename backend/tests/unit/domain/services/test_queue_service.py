@@ -2,21 +2,12 @@ import uuid
 import pytest
 from datetime import datetime
 from fastapi import HTTPException, status
-import pytest_asyncio
 from sqlalchemy.exc import IntegrityError
-from uuid import uuid4
+
 from app.domain.models.models import (
-    Department,
-    DeptType,
-    Patient,
     QueueEntry,
     QueueEntryStatus,
     QueuePriority,
-    EntryType,
-    StaffRole,
-    Visit,
-    VisitStage,
-    Staff,
 )
 from app.domain.services.queue_service import QueueService
 
@@ -32,137 +23,26 @@ async def queue_service(db):
 
 
 @pytest.fixture
-async def patient(db):
-    """Creates and persists a Patient parent record."""
-    patient = Patient(
-        first_name="Jane",
-        last_name="Doe",
-    )
-    db.add(patient)
-    await db.flush()
-    await db.refresh(patient)
-    return patient
-
-
-@pytest.fixture
-async def department(db):
-    """Creates and persists an Outpatient Department record."""
-    dept = Department(
-        name="Outpatient",
-        department_code="OPD",
-    )
-    db.add(dept)
-    await db.flush()
-    await db.refresh(dept)
-    return dept
-
-
-@pytest.fixture
-async def secondary_department(db):
-    """Creates and persists a Pharmacy Department record."""
-    dept = Department(
-        name="Pharmacy",
-        department_code="PHARM",
-    )
-    db.add(dept)
-    await db.flush()
-    await db.refresh(dept)
-    return dept
-
-
-@pytest.fixture
-async def active_visit(db, patient):
-    """Creates and persists an active Visit record linked to a valid Patient."""
-    visit = Visit(
-        patient_id=patient.patient_id,
-        token_number="W-101",
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.WALK_IN,
-        visit_reason="General Consultation",
-    )
-    db.add(visit)
-    await db.flush()
-    await db.refresh(visit)
-    return visit
-
-
-async def create_helper_visit(db, patient, token_number):
-    """Helper utility to generate additional distinct visits."""
-    visit = Visit(
-        patient_id=patient.patient_id,
-        token_number=token_number,
-        stage=VisitStage.ACTIVE,
-        entry_type=EntryType.WALK_IN,
-    )
-    db.add(visit)
-    await db.flush()
-    await db.refresh(visit)
-    return visit
-
-
-# ---------------------------------------------------------------------------
-# 1. Hospital Departments Suite (OPD, Triage, Emergency)
-# ---------------------------------------------------------------------------
-@pytest_asyncio.fixture
-async def routing_departments(db):
+async def create_queue_entry_helper(db, patient):
     """
-    Creates standard hospital departments required by the routing workflow service.
+    Factory fixture to create additional distinct visits for the same patient.
+    Useful for testing queue ordering with multiple entries.
     """
-    departments = []
+    async def _create_visit(token_number: str):
+        from app.domain.models.models import Visit, VisitStage, EntryType
 
-    configs = [
-        ("Reception", "RECEPTION", DeptType.OPD),
-        ("Triage", "TRIAGE", DeptType.OPD),
-        ("Emergency", "EMERGENCY", DeptType.EMERGENCY),
-    ]
-
-    for name, code, dept_type in configs:
-        department = Department(
-            name=name,
-            department_code=code,
-            type=dept_type,
-            is_active=True,
+        visit = Visit(
+            patient_id=patient.patient_id,
+            token_number=token_number,
+            stage=VisitStage.ACTIVE,
+            entry_type=EntryType.WALK_IN,
         )
-        db.add(department)
-        departments.append(department)
+        db.add(visit)
+        await db.flush()
+        await db.refresh(visit)
+        return visit
 
-    await db.commit()
-
-    for department in departments:
-        await db.refresh(department)
-
-    return {
-        "reception": departments[0],
-        "triage": departments[1],
-        "emergency": departments[2],
-    }
-
-
-@pytest_asyncio.fixture
-async def staff_member(db, routing_departments):
-    """
-    Doctor/Staff fixture used in the unit tests that satisfies all schema contracts.
-    """
-    # Fix: Use an existing key from your routing_departments fixture
-    triage_dept = routing_departments["triage"] 
-
-    staff = Staff(
-        staff_id=uuid4(),
-        employee_id=f"DOC-{str(uuid4())[:6]}",
-        first_name="Test",
-        last_name="Doctor",
-        role=StaffRole.DOCTOR,
-        dept_id=triage_dept.dept_id,             # Uses the valid department ID
-        hashed_password="mock_hashed_password",   # Satisfies the NOT NULL constraint
-        is_active=True,
-    )
-
-    db.add(staff)
-    await db.commit()
-    await db.refresh(staff)
-    return staff
-
-
+    return _create_visit
 
 
 # ==============================================================================
@@ -250,10 +130,10 @@ async def test_unknown_queue_entry(queue_service):
 
 
 @pytest.mark.asyncio
-async def test_get_department_queue(queue_service, db, patient, active_visit, department):
+async def test_get_department_queue(queue_service, db, patient, active_visit, department, create_queue_entry_helper):
     """Verifies that retrieving a department queue returns active entries ordered correctly."""
     v1 = active_visit
-    v2 = await create_helper_visit(db, patient, "W-102")
+    v2 = await create_queue_entry_helper("W-102")
 
     e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id)
     e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id)
@@ -266,7 +146,7 @@ async def test_get_department_queue(queue_service, db, patient, active_visit, de
 
 
 @pytest.mark.asyncio
-async def test_get_next_patient(queue_service, db, patient, active_visit, department):
+async def test_get_next_patient(queue_service, db, patient, active_visit, department, create_queue_entry_helper):
     """Validates fetching the next waiting patient in line based on priority and sequence."""
     e1 = await queue_service.create_queue_entry(visit_id=active_visit.visit_id, dept_id=department.dept_id)
 
@@ -280,8 +160,6 @@ async def test_get_next_patient(queue_service, db, patient, active_visit, depart
 # 3. STATUS TRANSITIONS CATEGORY
 # ==============================================================================
 
-
-
 @pytest.mark.asyncio
 async def test_cancel_queue_entry(queue_service, active_visit, department):
     """Verifies cancelling an active entry at any valid stage."""
@@ -293,16 +171,15 @@ async def test_cancel_queue_entry(queue_service, active_visit, department):
     assert cancelled.completed_at is not None
 
 
-
 # ==============================================================================
 # 4. ORDERING & PRIORITY CATEGORY
 # ==============================================================================
 
 @pytest.mark.asyncio
-async def test_fifo_order(queue_service, db, patient, active_visit, department):
+async def test_fifo_order(queue_service, db, patient, active_visit, department, create_queue_entry_helper):
     """Validates First-In, First-Out queue ordering for same priority tickets."""
     v1 = active_visit
-    v2 = await create_helper_visit(db, patient, "W-102")
+    v2 = await create_queue_entry_helper("W-102")
 
     e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id, priority=QueuePriority.NORMAL)
     e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id, priority=QueuePriority.NORMAL)
@@ -312,10 +189,10 @@ async def test_fifo_order(queue_service, db, patient, active_visit, department):
 
 
 @pytest.mark.asyncio
-async def test_priority_order(queue_service, db, patient, active_visit, department):
+async def test_priority_order(queue_service, db, patient, active_visit, department, create_queue_entry_helper):
     """Validates that a higher priority ticket jumps ahead of earlier normal priority tickets."""
     v1 = active_visit
-    v2 = await create_helper_visit(db, patient, "E-101")
+    v2 = await create_queue_entry_helper("E-101")
 
     # Lower priority first
     await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id, priority=QueuePriority.NORMAL)
@@ -324,9 +201,6 @@ async def test_priority_order(queue_service, db, patient, active_visit, departme
 
     next_up = await queue_service.get_next_patient(department.dept_id)
     assert next_up.queue_entry_id == e2.queue_entry_id
-
-
-
 
 
 @pytest.mark.asyncio
@@ -348,10 +222,10 @@ async def test_first_sequence(queue_service, active_visit, department):
 
 
 @pytest.mark.asyncio
-async def test_increment_sequence(queue_service, db, patient, active_visit, department):
+async def test_increment_sequence(queue_service, db, patient, active_visit, department, create_queue_entry_helper):
     """Verifies subsequent entries in a department auto-increment monotonically."""
     v1 = active_visit
-    v2 = await create_helper_visit(db, patient, "W-102")
+    v2 = await create_queue_entry_helper("W-102")
 
     e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id)
     e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=department.dept_id)
@@ -361,10 +235,10 @@ async def test_increment_sequence(queue_service, db, patient, active_visit, depa
 
 
 @pytest.mark.asyncio
-async def test_independent_departments(queue_service, db, patient, active_visit, department, secondary_department):
+async def test_independent_departments(queue_service, db, patient, active_visit, department, secondary_department, create_queue_entry_helper):
     """Verifies sequence numbers increment independently per department."""
     v1 = active_visit
-    v2 = await create_helper_visit(db, patient, "W-102")
+    v2 = await create_queue_entry_helper("W-102")
 
     e1 = await queue_service.create_queue_entry(visit_id=v1.visit_id, dept_id=department.dept_id)
     e2 = await queue_service.create_queue_entry(visit_id=v2.visit_id, dept_id=secondary_department.dept_id)

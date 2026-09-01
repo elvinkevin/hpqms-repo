@@ -2,6 +2,10 @@ import pytest
 from uuid import uuid4
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import (
+    AsyncSession)
+from app.domain.models.models import QueueEntry, QueueEntryStatus
 
 pytestmark = pytest.mark.asyncio
 
@@ -99,10 +103,22 @@ async def test_get_visit_success(
     assert data["visit_id"] == str(active_visit.visit_id)
 
 
-# 6. Complete Visit (Doctor/Admin Role Required)
 async def test_complete_visit_success(
-    client: AsyncClient, doctor_token_headers: dict, active_visit
+    client: AsyncClient, doctor_token_headers: dict, active_visit, db: AsyncSession
 ):
+    # Fetch and complete any open queue entries tied to this visit
+    result = await db.execute(
+        select(QueueEntry).where(
+            QueueEntry.visit_id == active_visit.visit_id,
+            QueueEntry.status.in_([QueueEntryStatus.WAITING, QueueEntryStatus.CALLED, QueueEntryStatus.IN_PROGRESS])
+        )
+    )
+    for queue_entry in result.scalars().all():
+        queue_entry.status = QueueEntryStatus.COMPLETED
+
+    await db.commit()
+
+    # Now request visit completion
     response = await client.patch(
         f"/api/visits/{active_visit.visit_id}/complete",
         headers=doctor_token_headers,
