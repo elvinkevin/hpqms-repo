@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.domain.models.models import QueueEntry, QueueEntryStatus, StaffRole, Visit
-from app.domain.schemas.schemas import CurrentUser, QueueEntryRead
+from app.domain.schemas.schemas import CurrentUser, QueueEntryRead, QueuePriorityUpdate
 from app.domain.services.auth_service import (
     ensure_department_access,
     get_current_user,
@@ -143,7 +143,9 @@ async def call_patient(
             require_role(
                 StaffRole.RECEPTIONIST,
                 StaffRole.NURSE,
+                StaffRole.TRIAGE_NURSE,
                 StaffRole.DOCTOR,
+                StaffRole.ADMIN,
             )
         )
     ],
@@ -175,7 +177,9 @@ async def start_patient(
             require_role(
                 StaffRole.RECEPTIONIST,
                 StaffRole.NURSE,
+                StaffRole.TRIAGE_NURSE,
                 StaffRole.DOCTOR,
+                StaffRole.ADMIN,
             )
         )
     ],
@@ -255,6 +259,17 @@ async def get_department_no_show_queue(
 @router.patch(
     "/{queue_entry_id}/requeue",
     response_model=QueueEntryRead,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.RECEPTIONIST,
+                StaffRole.NURSE,
+                StaffRole.TRIAGE_NURSE,
+                StaffRole.DOCTOR,
+                StaffRole.ADMIN,
+            )
+        )
+    ],
 )
 async def requeue_queue_entry(
     queue_entry_id: UUID,
@@ -263,27 +278,12 @@ async def requeue_queue_entry(
 ):
     service = QueueService(db)
 
-    # --------------------------------------------------------------
-    # 1. Perform state transition
-    # --------------------------------------------------------------
-
     await service.requeue_queue_entry(
         queue_entry_id,
         staff_id=current_user.staff_id,
     )
 
-    # --------------------------------------------------------------
-    # 2. Commit transaction
-    # --------------------------------------------------------------
-
     await db.commit()
-
-    # --------------------------------------------------------------
-    # 3. Reload committed state with ALL relationships needed by:
-    #    - display event
-    #    - staff event
-    #    - QueueEntryRead response
-    # --------------------------------------------------------------
 
     stmt = (
         select(QueueEntry)
@@ -297,30 +297,90 @@ async def requeue_queue_entry(
     result = await db.execute(stmt)
     entry = result.scalar_one()
 
-    # --------------------------------------------------------------
-    # 4. Publish canonical display event AFTER commit
-    # --------------------------------------------------------------
-
     await service.emit_display_event(
         entry,
         event_type="TOKEN_REQUEUED",
     )
-
-    # --------------------------------------------------------------
-    # 5. Publish staff event
-    # --------------------------------------------------------------
 
     await service.emit_department_event(
         entry,
         event_type="TOKEN_REQUEUED",
     )
 
-    # --------------------------------------------------------------
-    # 6. Return fully-loaded object
-    # --------------------------------------------------------------
+    return entry
+
+@router.patch(
+    "/{queue_entry_id}/no-show",
+    response_model=QueueEntryRead,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.RECEPTIONIST,
+                StaffRole.NURSE,
+                StaffRole.TRIAGE_NURSE,
+                StaffRole.DOCTOR,
+                StaffRole.ADMIN,
+            )
+        )
+    ],
+)
+async def mark_no_show(
+    queue_entry_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    service = QueueService(db)
+
+    entry = await service.mark_no_show(
+        queue_entry_id=queue_entry_id,
+        staff_id=current_user.staff_id,
+    )
+
+    await db.commit()
+    await service.emit_display_event(entry)
 
     return entry
 
+@router.patch(
+    "/{queue_entry_id}/priority",
+    response_model=QueueEntryRead,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.TRIAGE_NURSE,
+                StaffRole.DOCTOR,
+                StaffRole.ADMIN,
+            )
+        )
+    ],
+)
+async def set_queue_priority(
+    queue_entry_id: UUID,
+    payload: QueuePriorityUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    service = QueueService(db)
+
+    entry = await service.set_queue_priority(
+        queue_entry_id=queue_entry_id,
+        priority=payload.priority,
+        staff_id=current_user.staff_id,
+    )
+
+    await db.commit()
+
+    await service.emit_display_event(
+        entry,
+        event_type="QUEUE_UPDATED",
+    )
+
+    await service.emit_department_event(
+        entry,
+        event_type="QUEUE_UPDATED",
+    )
+
+    return entry
 
 # ==========================================
 # STATISTICAL METRICS (READ-ONLY)
@@ -370,23 +430,3 @@ async def get_wait_time(
     return await service.get_estimated_wait_time(queue_entry_id)
 
 
-@router.patch(
-        "/{queue_entry_id}/no-show", 
-        response_model=QueueEntryRead
-        )
-async def mark_no_show(
-    queue_entry_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    service = QueueService(db)
-
-    entry = await service.mark_no_show(
-        queue_entry_id=queue_entry_id,
-        staff_id=current_user.staff_id,
-    )
-
-    await db.commit()
-    await service.emit_display_event(entry)
-
-    return entry

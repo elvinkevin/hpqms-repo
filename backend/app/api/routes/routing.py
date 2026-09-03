@@ -75,11 +75,9 @@ async def dispatch_patient_from_kiosk(
     dependencies=[
         Depends(
             require_role(
-                StaffRole.RECEPTIONIST,
-                StaffRole.NURSE,
                 StaffRole.TRIAGE_NURSE,
                 StaffRole.DOCTOR,
-                
+                StaffRole.ADMIN,  
             )
         )
     ],
@@ -124,7 +122,6 @@ async def transfer_patient(
 
     await db.commit()
     return queue_entry
-
 
 # ------------------------------------------------------------------
 # DEPRECATED: /move/ endpoint (kept for backward compatibility)

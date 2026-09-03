@@ -270,15 +270,17 @@ def ensure_department_access(
 ) -> None:
     """
     Ensures that the authenticated staff member belongs
-    to the requested department.
+    to the requested department. Admins bypass department isolation.
     """
+    # System administrators hold cross-department operational permissions
+    if current_user.role == StaffRole.ADMIN:
+        return
 
     if current_user.dept_id != dept_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to access this department.",
         )
-
 
 
 async def validate_kiosk_api_key(

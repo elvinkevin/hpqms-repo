@@ -1,39 +1,26 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
 
 import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.domain.models.models import Department, Staff, StaffRole, Visit
-from app.domain.models.models import QueueEntry, QueueEntryStatus, VisitStage
-from datetime import datetime, timezone
+
+from app.domain.models.models import (
+    Department,
+    QueueEntry,
+    QueueEntryStatus,
+    Staff,
+    Visit,
+)
+
 pytestmark = pytest.mark.asyncio
 
-@pytest.fixture
-async def doctor(db, department):
-    # Check if DOC001 already exists in the test database
-    result = await db.execute(
-        select(Staff).where(Staff.employee_id == "DOC001")
-    )
-    staff = result.scalar_one_or_none()
 
-    if staff is None:
-        staff = Staff(
-            employee_id="DOC001",
-            first_name="Doctor",
-            last_name="User",
-            role=StaffRole.DOCTOR,
-            dept_id=department.dept_id,
-            hashed_password="ignored",
-            is_active=True,
-        )
-        db.add(staff)
-        await db.commit()
-        await db.refresh(staff)
-
-    return staff
-
+# ============================================================================
+# DISCHARGE RBAC TESTS
+# ============================================================================
 
 
 @pytest.mark.asyncio
@@ -44,21 +31,14 @@ async def test_doctor_can_discharge_patient(
     doctor_staff,
     doctor_token_headers,
 ):
-    """
-    A doctor can successfully discharge an active patient.
-    """
-    from sqlalchemy import select
-    from app.domain.models.models import QueueEntry, QueueEntryStatus
-
+    """A doctor can successfully discharge an active patient."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
     current_entry.assigned_staff_id = doctor_staff.staff_id
-    current_entry.dept_id = doctor_staff.dept_id  # <--- Align department
+    current_entry.dept_id = doctor_staff.dept_id
     await db.commit()
 
     response = await client.post(
@@ -74,9 +54,7 @@ async def test_receptionist_cannot_discharge_patient(
     active_visit,
     receptionist_token_headers,
 ):
-    """
-    A receptionist is forbidden from discharging a patient.
-    """
+    """A receptionist is forbidden from discharging a patient."""
     response = await client.post(
         f"/api/routing/{active_visit.visit_id}/discharge",
         headers=receptionist_token_headers,
@@ -88,21 +66,9 @@ async def test_receptionist_cannot_discharge_patient(
 async def test_triage_nurse_cannot_discharge_patient(
     client: AsyncClient,
     active_visit,
-    triage_headers,
-):
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/discharge",
-        headers=triage_headers,
-    )
-
-    assert response.status_code == status.HTTP_403_FORBIDDEN
-
-
-async def test_triage_nurse_cannot_discharge_patient(
-    client: AsyncClient,
-    active_visit,
     triage_token_headers,
 ):
+    """A triage nurse is forbidden from discharging a patient."""
     response = await client.post(
         f"/api/routing/{active_visit.visit_id}/discharge",
         headers=triage_token_headers,
@@ -116,12 +82,14 @@ async def test_nurse_cannot_discharge_patient(
     active_visit,
     nurse_token_headers,
 ):
+    """A ward nurse is forbidden from discharging a patient."""
     response = await client.post(
         f"/api/routing/{active_visit.visit_id}/discharge",
         headers=nurse_token_headers,
     )
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
 
 async def test_admin_can_discharge_patient(
     client: AsyncClient,
@@ -130,17 +98,9 @@ async def test_admin_can_discharge_patient(
     admin_staff,
     admin_headers,
 ):
-    """
-    An admin can successfully discharge an active patient.
-    """
-    from sqlalchemy import select
-    from app.domain.models.models import QueueEntry, QueueEntryStatus
-
-    # Retrieve existing QueueEntry, transition to IN_PROGRESS, and assign staff
+    """An admin can successfully discharge an active patient."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
@@ -154,21 +114,21 @@ async def test_admin_can_discharge_patient(
 
     assert response.status_code == status.HTTP_200_OK
 
+
 async def test_unauthenticated_cannot_discharge_patient(
     client: AsyncClient,
     active_visit,
 ):
-    response = await client.post(
-        f"/api/routing/{active_visit.visit_id}/discharge"
-    )
+    """Unauthenticated callers cannot discharge a patient."""
+    response = await client.post(f"/api/routing/{active_visit.visit_id}/discharge")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
 
 
 # ============================================================================
 # TRANSFER RBAC TESTS
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_doctor_can_transfer_patient(
@@ -179,18 +139,14 @@ async def test_doctor_can_transfer_patient(
     doctor_token_headers,
     setup_departments,
 ):
-    """
-    A doctor can transfer an in-progress patient to another department.
-    """
+    """A doctor can transfer an in-progress patient to another department."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
     current_entry.assigned_staff_id = doctor_staff.staff_id
-    current_entry.dept_id = doctor_staff.dept_id  # <--- Align department
+    current_entry.dept_id = doctor_staff.dept_id
     await db.commit()
 
     target_department = setup_departments["TRIAGE"]
@@ -218,18 +174,14 @@ async def test_triage_nurse_can_transfer_patient(
     triage_token_headers,
     setup_departments,
 ):
-    """
-    A triage nurse can route/transfer an in-progress patient to consultation.
-    """
+    """A triage nurse can route/transfer an in-progress patient to consultation."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
     current_entry.assigned_staff_id = triage_nurse_staff.staff_id
-    current_entry.dept_id = triage_nurse_staff.dept_id  # <--- Align department
+    current_entry.dept_id = triage_nurse_staff.dept_id
     await db.commit()
 
     target_department = setup_departments["CONSULT"]
@@ -247,6 +199,7 @@ async def test_triage_nurse_can_transfer_patient(
 
     assert response.status_code == status.HTTP_200_OK
 
+@pytest.mark.asyncio
 async def test_admin_can_transfer_patient(
     client: AsyncClient,
     db,
@@ -255,23 +208,26 @@ async def test_admin_can_transfer_patient(
     admin_headers,
     setup_departments,
 ):
-    """
-    An admin can perform transfers across departments.
-    """
+    """An admin can perform transfers across departments."""
+    # 1. Ensure admin_staff exists and is flushed to the DB
+    db.add(admin_staff)
+    await db.commit()
+    await db.refresh(admin_staff)
+
+    # 2. Update the active queue entry to IN_PROGRESS and assign to admin
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
-
-    # Ensure assigned staff matches the user behind admin_headers
     current_entry.assigned_staff_id = admin_staff.staff_id
+    db.add(current_entry)
     await db.commit()
 
-    target_department = setup_departments["CONSULT"]
+    # 3. Retrieve target department
+    target_department = setup_departments.get("CONSULT") or setup_departments.get("consult")
 
+    # 4. Execute transfer API call
     response = await client.post(
         f"/api/routing/{active_visit.visit_id}/transfer",
         headers=admin_headers,
@@ -285,6 +241,12 @@ async def test_admin_can_transfer_patient(
 
     assert response.status_code == status.HTTP_200_OK
 
+    # 5. Verify the response contains the new queue entry details
+    data = response.json()
+    assert data["dept_id"] == str(target_department.dept_id)
+    assert data["status"] == QueueEntryStatus.WAITING.value
+
+
 
 async def test_receptionist_cannot_transfer_patient(
     client: AsyncClient,
@@ -293,14 +255,9 @@ async def test_receptionist_cannot_transfer_patient(
     receptionist_token_headers,
     setup_departments,
 ):
-    """
-    A receptionist cannot transfer an active patient.
-    """
-    # Transition to IN_PROGRESS so domain check passes and role check triggers
+    """A receptionist cannot transfer an active patient."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
@@ -329,14 +286,9 @@ async def test_nurse_cannot_transfer_patient(
     nurse_token_headers,
     setup_departments,
 ):
-    """
-    A standard ward nurse cannot perform routing/transfers.
-    """
-    # Transition to IN_PROGRESS so domain check passes and role check triggers
+    """A standard ward nurse cannot perform routing/transfers."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.IN_PROGRESS
@@ -363,9 +315,7 @@ async def test_unauthenticated_cannot_transfer_patient(
     active_visit,
     setup_departments,
 ):
-    """
-    Unauthenticated users are denied access to patient transfers.
-    """
+    """Unauthenticated users are denied access to patient transfers."""
     target_department = setup_departments["CONSULT"]
 
     response = await client.post(
@@ -384,10 +334,8 @@ async def test_unauthenticated_cannot_transfer_patient(
     )
 
 
-
 # ============================================================================
-# BATCH 1: CALL PATIENT (PATCH /api/queue/{id}/call)
-# Expected transition: WAITING -> CALLED
+# CALL PATIENT (PATCH /api/queue/{id}/call) — WAITING -> CALLED
 # ============================================================================
 
 
@@ -398,15 +346,10 @@ async def test_doctor_can_call(
     active_visit,
     doctor_token_headers,
     doctor_staff,
-    setup_departments,
 ):
-    """
-    A Doctor can call a WAITING patient in their assigned department.
-    """
+    """A doctor can call a WAITING patient in their assigned department."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -431,15 +374,10 @@ async def test_triage_nurse_can_call(
     active_visit,
     triage_token_headers,
     triage_nurse_staff,
-    setup_departments,
 ):
-    """
-    A Triage Nurse can call a WAITING patient in the triage department.
-    """
+    """A triage nurse can call a WAITING patient in the triage department."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -464,15 +402,10 @@ async def test_receptionist_can_call(
     active_visit,
     receptionist_token_headers,
     receptionist_staff,
-    setup_departments,
 ):
-    """
-    A Receptionist can call a WAITING patient in the reception department.
-    """
+    """A receptionist can call a WAITING patient in the reception department."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -497,15 +430,10 @@ async def test_nurse_can_call(
     active_visit,
     nurse_token_headers,
     nurse_staff,
-    setup_departments,
 ):
-    """
-    A Ward Nurse can call a WAITING patient in their assigned department.
-    """
+    """A ward nurse can call a WAITING patient in their assigned department."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -529,15 +457,10 @@ async def test_admin_can_call(
     db,
     active_visit,
     admin_headers,
-    setup_departments,
 ):
-    """
-    An Admin can perform a call operation across system queue entries.
-    """
+    """An admin can perform a call operation across system queue entries."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -560,13 +483,9 @@ async def test_unauthenticated_cannot_call(
     db,
     active_visit,
 ):
-    """
-    Unauthenticated callers are rejected with 401 Unauthorized.
-    """
+    """Unauthenticated callers are rejected with 401."""
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -585,16 +504,11 @@ async def test_doctor_cannot_call_cross_department_entry(
     doctor_token_headers,
     setup_departments,
 ):
-    """
-    Cross-Department Guard Test: A Doctor in Consultation cannot call
-    a patient currently queued in another department.
-    """
+    """A doctor cannot call a patient currently queued in another department."""
     triage_dept = setup_departments["TRIAGE"]
 
     result = await db.execute(
-        select(QueueEntry).where(
-            QueueEntry.visit_id == active_visit.visit_id
-        )
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
     current_entry = result.scalar_one()
     current_entry.status = QueueEntryStatus.WAITING
@@ -609,17 +523,9 @@ async def test_doctor_cannot_call_cross_department_entry(
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-@pytest.mark.asyncio
-async def test_unauthenticated_cannot_start_queue_entry(
-    async_client: AsyncClient,
-    called_queue_entry: QueueEntry,
-):
-    """Verify unauthenticated users cannot start a queue entry."""
-    response = await async_client.post(
-        f"/api/v1/queue/{called_queue_entry.queue_entry_id}/start",
-    )
-
-    assert response.status_code == 401
+# ============================================================================
+# START (PATCH /api/queue/{id}/start) — CALLED -> IN_PROGRESS
+# ============================================================================
 
 
 @pytest.mark.asyncio
@@ -628,16 +534,13 @@ async def test_unauthenticated_cannot_start_queue_entry(
     db: AsyncSession,
     active_visit: Visit,
 ):
-    """Verify unauthenticated users cannot start a queue entry."""
+    """Unauthenticated users cannot start a queue entry."""
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    # Use PUT (or PATCH depending on your route definition)
-    response = await client.patch(
-        f"/api/queue/{entry.queue_entry_id}/start",
-    )
+    response = await client.patch(f"/api/queue/{entry.queue_entry_id}/start")
 
     assert response.status_code == 401
 
@@ -650,13 +553,12 @@ async def test_start_called_queue_entry_success(
     doctor_staff: Staff,
     active_visit: Visit,
 ):
-    """Verify that assigned staff can start a CALLED queue entry."""
+    """Assigned staff can start a CALLED queue entry."""
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    # Move entry to CALLED and assign to doctor
     entry.status = QueueEntryStatus.CALLED
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -676,6 +578,7 @@ async def test_start_called_queue_entry_success(
     assert entry.status == QueueEntryStatus.IN_PROGRESS
     assert entry.started_at is not None
 
+
 @pytest.mark.asyncio
 async def test_cannot_start_entry_assigned_to_another_staff(
     client: AsyncClient,
@@ -684,11 +587,11 @@ async def test_cannot_start_entry_assigned_to_another_staff(
     receptionist_staff: Staff,
     active_visit: Visit,
 ):
-    """Verify staff cannot start an entry called by another staff member."""
+    """Staff cannot start an entry called by another staff member."""
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
     entry.status = QueueEntryStatus.CALLED
     entry.assigned_staff_id = receptionist_staff.staff_id
     await db.commit()
@@ -699,44 +602,6 @@ async def test_cannot_start_entry_assigned_to_another_staff(
     )
 
     assert response.status_code == 403
-
-
-# @pytest.mark.asyncio
-# async def test_cannot_start_cross_department_entry(
-#     client: AsyncClient,
-#     db: AsyncSession,
-#     doctor_token_headers: dict,
-#     doctor_staff: Staff,
-#     active_visit: Visit,
-# ):
-#     """Verify staff cannot start an entry belonging to a different department."""
-#     # 1. Create a second valid department in the database
-#     other_dept = Department(
-#         name="Other Department",
-#         code="OTHER_DEPT",
-#         is_active=True,
-#     )
-#     db.add(other_dept)
-#     await db.commit()
-#     await db.refresh(other_dept)
-
-#     # 2. Assign the queue entry to the second department
-#     result = await db.execute(
-#         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
-#     )
-#     entry = result.scalars().first()
-#     entry.status = QueueEntryStatus.CALLED
-#     entry.assigned_staff_id = doctor_staff.staff_id
-#     entry.dept_id = other_dept.dept_id  # References a real department in DB
-#     await db.commit()
-
-#     # 3. Request with doctor credentials from a different department
-#     response = await client.patch(
-#         f"/api/queue/{entry.queue_entry_id}/start",
-#         headers=doctor_token_headers,
-#     )
-
-#     assert response.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -751,7 +616,7 @@ async def test_cannot_start_already_in_progress_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -763,10 +628,9 @@ async def test_cannot_start_already_in_progress_entry(
     response = await client.patch(
         f"/api/queue/{entry.queue_entry_id}/start",
         headers=doctor_token_headers,
-        json={},  # Include empty JSON payload in case schema requires a body
+        json={},
     )
 
-    # Accepts either 400 or 422 depending on validation layer response
     assert response.status_code in (400, 422)
     assert "detail" in response.json()
 
@@ -785,6 +649,11 @@ async def test_start_nonexistent_queue_entry_returns_404(
     assert response.status_code == 404
 
 
+# ============================================================================
+# NO-SHOW (PATCH /api/queue/{id}/no-show) — CALLED -> NO_SHOW
+# ============================================================================
+
+
 @pytest.mark.asyncio
 async def test_assigned_staff_can_mark_no_show(
     client: AsyncClient,
@@ -797,7 +666,7 @@ async def test_assigned_staff_can_mark_no_show(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -829,9 +698,8 @@ async def test_cannot_mark_waiting_patient_no_show(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    # Set staff and department so authorization passes
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
     entry.status = QueueEntryStatus.WAITING
@@ -858,7 +726,7 @@ async def test_cannot_mark_in_progress_patient_no_show(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -875,8 +743,6 @@ async def test_cannot_mark_in_progress_patient_no_show(
     assert "detail" in response.json()
 
 
-
-
 @pytest.mark.asyncio
 async def test_cannot_mark_cross_department_entry_no_show(
     client: AsyncClient,
@@ -886,7 +752,6 @@ async def test_cannot_mark_cross_department_entry_no_show(
     active_visit: Visit,
 ):
     """Staff cannot operate on a queue entry in another department."""
-    # Create a secondary valid department to avoid FK violation errors
     other_dept = Department(name="Other Dept", department_code="OTHER_DEPT", is_active=True)
     db.add(other_dept)
     await db.commit()
@@ -895,10 +760,10 @@ async def test_cannot_mark_cross_department_entry_no_show(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
-    entry.dept_id = other_dept.dept_id  # Cross-department mismatch
+    entry.dept_id = other_dept.dept_id
     entry.status = QueueEntryStatus.CALLED
     await db.commit()
 
@@ -920,11 +785,9 @@ async def test_unauthenticated_cannot_mark_no_show(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    response = await client.patch(
-        f"/api/queue/{entry.queue_entry_id}/no-show",
-    )
+    response = await client.patch(f"/api/queue/{entry.queue_entry_id}/no-show")
 
     assert response.status_code == 401
 
@@ -943,8 +806,9 @@ async def test_mark_no_show_nonexistent_entry_returns_404(
     assert response.status_code == 404
 
 
-
-
+# ============================================================================
+# REQUEUE (PATCH /api/queue/{id}/requeue) — NO_SHOW -> WAITING
+# ============================================================================
 
 
 @pytest.mark.asyncio
@@ -959,7 +823,7 @@ async def test_requeue_no_show_entry_success(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -991,7 +855,7 @@ async def test_cannot_requeue_waiting_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1019,7 +883,7 @@ async def test_cannot_requeue_called_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1047,7 +911,7 @@ async def test_cannot_requeue_in_progress_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1068,29 +932,24 @@ async def test_cannot_requeue_cross_department_entry(
     client: AsyncClient,
     db: AsyncSession,
     doctor_token_headers: dict,
-    doctor_staff: Staff,
     active_visit: Visit,
 ):
     """Staff cannot requeue an entry belonging to another department."""
-    # 1. Create a secondary department row
     other_dept = Department(name="Other Dept", department_code="OTHER_DEPT", is_active=True)
     db.add(other_dept)
     await db.commit()
     await db.refresh(other_dept)
 
-    # 2. Fetch the queue entry
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    # 3. Assign entry to other_dept without linking doctor_staff
-    entry.assigned_staff_id = None  # Unassigned, or assigned to staff in other_dept
+    entry.assigned_staff_id = None
     entry.dept_id = other_dept.dept_id
     entry.status = QueueEntryStatus.NO_SHOW
     await db.commit()
 
-    # 4. Requesting doctor attempts to operate on cross-department entry
     response = await client.patch(
         f"/api/queue/{entry.queue_entry_id}/requeue",
         headers=doctor_token_headers,
@@ -1109,11 +968,9 @@ async def test_unauthenticated_cannot_requeue(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    response = await client.patch(
-        f"/api/queue/{entry.queue_entry_id}/requeue",
-    )
+    response = await client.patch(f"/api/queue/{entry.queue_entry_id}/requeue")
 
     assert response.status_code == 401
 
@@ -1132,6 +989,11 @@ async def test_requeue_unknown_queue_entry(
     assert response.status_code == 404
 
 
+# ============================================================================
+# CANCEL (PATCH /api/queue/{id}/cancel)
+# ============================================================================
+
+
 @pytest.mark.asyncio
 async def test_cancel_in_progress_queue_entry_success(
     client: AsyncClient,
@@ -1144,7 +1006,7 @@ async def test_cancel_in_progress_queue_entry_success(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1175,11 +1037,11 @@ async def test_can_cancel_waiting_queue_entry(
     doctor_staff: Staff,
     active_visit: Visit,
 ):
-    """If your service permits cancelling WAITING entries, assert status code 200."""
+    """WAITING entries can be cancelled per current business rules."""
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1191,7 +1053,6 @@ async def test_can_cancel_waiting_queue_entry(
         headers=doctor_token_headers,
     )
 
-    # Adjust status check based on business logic (e.g., 200 if allowed, or keep 400 if strictly blocked)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == QueueEntryStatus.CANCELLED.value
@@ -1205,11 +1066,11 @@ async def test_can_cancel_called_queue_entry(
     doctor_staff: Staff,
     active_visit: Visit,
 ):
-    """If your service permits cancelling CALLED entries, assert status code 200."""
+    """CALLED entries can be cancelled per current business rules."""
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1238,7 +1099,7 @@ async def test_cannot_cancel_completed_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1266,7 +1127,7 @@ async def test_cannot_cancel_no_show_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1291,7 +1152,6 @@ async def test_cannot_cancel_entry_assigned_to_another_staff(
     active_visit: Visit,
 ):
     """Staff cannot cancel another staff member's active encounter."""
-    # Supply dummy hashed_password to satisfy non-null DB constraint
     other_staff = Staff(
         staff_id=uuid4(),
         dept_id=doctor_staff.dept_id,
@@ -1309,7 +1169,7 @@ async def test_cannot_cancel_entry_assigned_to_another_staff(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = other_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1332,7 +1192,6 @@ async def test_cannot_cancel_cross_department_entry(
     active_visit: Visit,
 ):
     """Staff cannot cancel an entry belonging to another department."""
-    # Create secondary department row in DB
     other_dept = Department(name="Other Dept", department_code="OTHER_DEPT", is_active=True)
     db.add(other_dept)
     await db.commit()
@@ -1341,7 +1200,7 @@ async def test_cannot_cancel_cross_department_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = None
     entry.dept_id = other_dept.dept_id
@@ -1366,11 +1225,9 @@ async def test_unauthenticated_cannot_cancel(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    response = await client.patch(
-        f"/api/queue/{entry.queue_entry_id}/cancel",
-    )
+    response = await client.patch(f"/api/queue/{entry.queue_entry_id}/cancel")
 
     assert response.status_code == 401
 
@@ -1389,6 +1246,11 @@ async def test_cancel_unknown_queue_entry(
     assert response.status_code == 404
 
 
+# ============================================================================
+# COMPLETE (PATCH /api/queue/{id}/complete)
+# ============================================================================
+
+
 @pytest.mark.asyncio
 async def test_complete_in_progress_queue_entry_success(
     client: AsyncClient,
@@ -1401,7 +1263,7 @@ async def test_complete_in_progress_queue_entry_success(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1436,7 +1298,7 @@ async def test_cannot_complete_waiting_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1464,7 +1326,7 @@ async def test_cannot_complete_called_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1492,7 +1354,7 @@ async def test_cannot_complete_completed_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1520,7 +1382,7 @@ async def test_cannot_complete_no_show_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1562,7 +1424,7 @@ async def test_cannot_complete_entry_assigned_to_another_staff(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = other_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1593,7 +1455,7 @@ async def test_cannot_complete_cross_department_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = None
     entry.dept_id = other_dept.dept_id
@@ -1618,11 +1480,9 @@ async def test_unauthenticated_cannot_complete_queue_entry(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
-    response = await client.patch(
-        f"/api/queue/{entry.queue_entry_id}/complete",
-    )
+    response = await client.patch(f"/api/queue/{entry.queue_entry_id}/complete")
 
     assert response.status_code == 401
 
@@ -1656,7 +1516,7 @@ async def test_completing_queue_entry_does_not_complete_visit(
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
-    entry = result.scalars().first()
+    entry = result.scalar_one()
 
     entry.assigned_staff_id = doctor_staff.staff_id
     entry.dept_id = doctor_staff.dept_id
@@ -1674,5 +1534,90 @@ async def test_completing_queue_entry_does_not_complete_visit(
     await db.refresh(active_visit)
 
     assert entry.status == QueueEntryStatus.COMPLETED
-    # Verify the visit stage remains active or unchanged
     assert active_visit.completed_at is None
+
+
+@pytest.mark.asyncio
+async def test_triage_nurse_can_transfer_patient(
+    client: AsyncClient,
+    db,
+    active_visit,
+    triage_nurse_staff,
+    triage_token_headers,
+    setup_departments,
+):
+    """A triage nurse can perform transfers across departments."""
+    # Ensure triage nurse staff is committed and visible to the session
+    db.add(triage_nurse_staff)
+    await db.commit()
+
+    result = await db.execute(
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
+    )
+    current_entry = result.scalar_one()
+    current_entry.status = QueueEntryStatus.IN_PROGRESS
+    current_entry.assigned_staff_id = triage_nurse_staff.staff_id
+    db.add(current_entry)
+    await db.commit()
+
+    target_department = setup_departments.get("CONSULT") or setup_departments.get("consult")
+
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        headers=triage_token_headers,
+        json={
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Triage nurse authorized transfer.",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+    assert data["dept_id"] == str(target_department.dept_id)
+    assert data["status"] == QueueEntryStatus.WAITING.value
+
+
+@pytest.mark.asyncio
+async def test_admin_can_transfer_patient(
+    client: AsyncClient,
+    db,
+    active_visit,
+    admin_staff,
+    admin_headers,
+    setup_departments,
+):
+    """An admin can perform transfers across departments."""
+    # Ensure admin staff is committed and visible to the session
+    db.add(admin_staff)
+    await db.commit()
+
+    result = await db.execute(
+        select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
+    )
+    current_entry = result.scalar_one()
+    current_entry.status = QueueEntryStatus.IN_PROGRESS
+    current_entry.assigned_staff_id = admin_staff.staff_id
+    db.add(current_entry)
+    await db.commit()
+
+    target_department = setup_departments.get("CONSULT") or setup_departments.get("consult")
+
+    response = await client.post(
+        f"/api/routing/{active_visit.visit_id}/transfer",
+        headers=admin_headers,
+        json={
+            "target_dept_id": str(target_department.dept_id),
+            "reason": "DEPARTMENT_TRANSFER",
+            "priority": "NORMAL",
+            "notes": "Admin override transfer.",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+    assert data["dept_id"] == str(target_department.dept_id)
+    assert data["status"] == QueueEntryStatus.WAITING.value

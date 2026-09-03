@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPQMS Staff Login - Horizon General Hospital</title>
+    <link rel="stylesheet" href="css/staff.css">
+</head>
+
+<body>
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+        <div class="header-left">
+            <div class="header-branding">
+                <div class="logo">
+                    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <circle cx="26" cy="26" r="25" fill="#0F5B78" />
+                        <circle cx="26" cy="26" r="25" fill="url(#loginLogoGrad)" />
+                        <circle cx="26" cy="26" r="17" fill="#FFFFFF" />
+                        <path d="M26 16V36M16 26H36" stroke="#13A6A6" stroke-width="5" stroke-linecap="round" />
+                        <defs>
+                            <linearGradient id="loginLogoGrad" x1="0" y1="0" x2="52" y2="52"
+                                gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#0F5B78" />
+                                <stop offset="1" stop-color="#13A6A6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="hospital-info">
+                    <h1>Horizon General Hospital</h1>
+                    <p>Quality Care. Every Patient.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div style="font-size: 13px; color: #64748b; font-weight: 500;">Staff Authentication</div>
+        </div>
+
+        <div class="header-right">
+            <a class="support-link" href="mailto:it-support@horizongeneralhospital.com">Need help? Contact IT
+                Support</a>
+        </div>
+    </header>
+
+    <!-- ===== MAIN LOGIN CONTAINER ===== -->
+    <div class="main-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h2 class="login-title">Staff Login</h2>
+                <p class="login-subtitle">Enter your staff credentials to access the Hospital Patient Queue Management
+                    System.</p>
+            </div>
+
+            <div class="success-message" id="successMessage">
+                Login successful! Redirecting...
+            </div>
+
+            <form class="login-form" id="loginForm" novalidate>
+                <!-- Employee ID Field -->
+                <div class="form-group">
+                    <label for="employeeId" class="form-label">
+                        Employee ID <span class="required">*</span>
+                    </label>
+                    <input type="text" id="employeeId" name="employeeId" class="form-input"
+                        placeholder="Enter your employee ID" autocomplete="username" required />
+                    <div class="error-message" id="employeeIdError"></div>
+                </div>
+
+                <!-- Password Field -->
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        Password <span class="required">*</span>
+                    </label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" class="form-input"
+                            placeholder="Enter your password" autocomplete="current-password" required />
+                        <button type="button" class="password-toggle" id="passwordToggle" aria-label="Show password"
+                            title="Show password">
+                            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="error-message" id="passwordError"></div>
+                </div>
+
+                <!-- Remember & Forgot Password -->
+                <div class="form-footer">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="rememberMe" name="rememberMe" />
+                        <label for="rememberMe">Remember me</label>
+                    </div>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="login-btn" id="submitBtn">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="login-footer">
+                Issues accessing your account? <a href="#">Contact Support</a>
+            </div>
+        </div>
+
+        <div class="security-badge" aria-label="Encrypted Enterprise Connection">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <rect x="4" y="10" width="16" height="10" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+            <span>Encrypted Enterprise Connection</span>
+        </div>
+    </div>
+
+    <script type="module" src="./js/staff-login.js"></script>
+</body>
+
+</html>

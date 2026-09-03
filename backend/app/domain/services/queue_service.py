@@ -281,19 +281,24 @@ class QueueService:
             )
 
         # ---------------------------------------------------------
-        # DEPARTMENT ISOLATION GUARD
+        # FETCH ACTING STAFF & DEPARTMENT ISOLATION GUARD
         # ---------------------------------------------------------
+        acting_staff = None
         if staff_id is not None:
             staff_stmt = select(Staff).where(Staff.staff_id == staff_id)
             staff_result = await self.db.execute(staff_stmt)
             acting_staff = staff_result.scalar_one_or_none()
 
-            if acting_staff and acting_staff.role != StaffRole.ADMIN:
-                if acting_staff.dept_id != entry.dept_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Cannot operate on queue entries outside your assigned department.",
-                    )
+        # Compute administrative bypass flag
+        is_admin = acting_staff is not None and acting_staff.role == StaffRole.ADMIN
+
+        # Reject non-admins operating outside their assigned department
+        if acting_staff and not is_admin:
+            if acting_staff.dept_id != entry.dept_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot operate on queue entries outside your assigned department.",
+                )
 
         # ---------------------------------------------------------
         # STATE TRANSITION VALIDATION
@@ -302,88 +307,80 @@ class QueueService:
         if new_status not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    f"Invalid state transition requested: "
-                    f"{entry.status} -> {new_status}."
-                ),
+                detail=f"Invalid state transition requested: {entry.status} -> {new_status}.",
             )
 
         # ---------------------------------------------------------
-        # STAFF OWNERSHIP / CLAIM VALIDATION
+        # STAFF OWNERSHIP / CLAIM VALIDATION (WITH ADMIN OVERRIDES)
         # ---------------------------------------------------------
+        # Enforce staff presence for actions that mutate operational/clinical state
+        operational_statuses = {
+            QueueEntryStatus.CALLED,
+            QueueEntryStatus.IN_PROGRESS,
+            QueueEntryStatus.COMPLETED,
+            QueueEntryStatus.NO_SHOW,
+        }
+        
+        if new_status in operational_statuses and staff_id is None:
+            action_verbs = {
+                QueueEntryStatus.CALLED: "call a patient.",
+                QueueEntryStatus.IN_PROGRESS: "start a patient.",
+                QueueEntryStatus.COMPLETED: "complete a patient.",
+                QueueEntryStatus.NO_SHOW: "mark a patient as no-show."
+            }
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A staff member is required to {action_verbs[new_status]}",
+            )
 
-        if new_status == QueueEntryStatus.CALLED:
-            if staff_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="A staff member is required to call a patient.",
-                )
-
-            if entry.assigned_staff_id is not None:
+        # Enforce strict assignment ownership checks for active and terminal phases
+        if not is_admin:
+            # Prevent stealing a patient already called or owned by someone else
+            if new_status == QueueEntryStatus.CALLED and entry.assigned_staff_id is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="This queue entry is already assigned to a staff member.",
                 )
 
-            active_staff_stmt = (
-                select(QueueEntry.queue_entry_id)
-                .where(
-                    QueueEntry.assigned_staff_id == staff_id,
-                    QueueEntry.status.in_(
-                        {
-                            QueueEntryStatus.CALLED,
-                            QueueEntryStatus.IN_PROGRESS,
-                        }
-                    ),
-                )
-                .limit(1)
-            )
-            active_staff_result = await self.db.execute(active_staff_stmt)
-            if active_staff_result.scalar_one_or_none() is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        "You already have an active patient. "
-                        "Complete or release the current patient before "
-                        "calling another patient."
-                    ),
-                )
-
-        elif new_status == QueueEntryStatus.IN_PROGRESS:
-            if staff_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="A staff member is required to start a patient.",
-                )
-            if entry.assigned_staff_id != staff_id:
+            # Ensure the operating staff is the one assigned to the current ticket
+            mismatched_owner = entry.assigned_staff_id is not None and entry.assigned_staff_id != staff_id
+            strict_ownership_statuses = {
+                QueueEntryStatus.IN_PROGRESS, 
+                QueueEntryStatus.COMPLETED, 
+                QueueEntryStatus.NO_SHOW
+            }
+            
+            if new_status in strict_ownership_statuses and mismatched_owner:
+                action_labels = {
+                    QueueEntryStatus.IN_PROGRESS: "start this patient",
+                    QueueEntryStatus.COMPLETED: "complete this patient",
+                    QueueEntryStatus.NO_SHOW: "mark this patient as no-show"
+                }
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You cannot start this patient because the patient is assigned to another staff member.",
+                    detail=f"You cannot {action_labels[new_status]} because the patient is assigned to another staff member.",
                 )
 
-        elif new_status == QueueEntryStatus.COMPLETED:
-            if staff_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="A staff member is required to complete a patient.",
+            # Block staff members from handling multiple active patients concurrently
+            if new_status == QueueEntryStatus.CALLED:
+                active_staff_stmt = (
+                    select(QueueEntry.queue_entry_id)
+                    .where(
+                        QueueEntry.assigned_staff_id == staff_id,
+                        QueueEntry.status.in_({QueueEntryStatus.CALLED, QueueEntryStatus.IN_PROGRESS}),
+                    )
+                    .limit(1)
                 )
-            if entry.assigned_staff_id != staff_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You cannot complete this patient because the patient is assigned to another staff member.",
-                )
+                active_staff_result = await self.db.execute(active_staff_stmt)
+                if active_staff_result.scalar_one_or_none() is not None:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=(
+                            "You already have an active patient. "
+                            "Complete or release the current patient before calling another patient."
+                        ),
+                    )
 
-        elif new_status == QueueEntryStatus.NO_SHOW:
-            if staff_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="A staff member is required to mark a patient as no-show.",
-                )
-            if entry.assigned_staff_id is not None and entry.assigned_staff_id != staff_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You cannot mark this patient as no-show because the patient is assigned to another staff member.",
-                )
         # ---------------------------------------------------------
         # APPLY CHANGES & REFLECT STATE
         # ---------------------------------------------------------
@@ -814,6 +811,97 @@ class QueueService:
         await self.db.flush()
         return entry
 
+
+
+    async def set_queue_priority(
+        self,
+        queue_entry_id: UUID,
+        priority: QueuePriority,
+        staff_id: Optional[UUID] = None,
+    ) -> QueueEntry:
+        """Update the priority of an active queue entry."""
+
+        # ---------------------------------------------------------
+        # 1. Fetch entry with row lock & eager loads
+        # ---------------------------------------------------------
+        stmt = (
+            select(QueueEntry)
+            .options(
+                selectinload(QueueEntry.visit).selectinload(Visit.patient),
+                selectinload(QueueEntry.department),
+            )
+            .where(QueueEntry.queue_entry_id == queue_entry_id)
+            .with_for_update()
+        )
+
+        result = await self.db.execute(stmt)
+        entry = result.scalar_one_or_none()
+
+        if not entry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Queue entry {queue_entry_id} not found.",
+            )
+
+        # ---------------------------------------------------------
+        # 2. Require acting staff
+        # ---------------------------------------------------------
+        if staff_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A staff member is required to change queue priority.",
+            )
+
+        # ---------------------------------------------------------
+        # 3. Fetch acting staff
+        # ---------------------------------------------------------
+        staff_stmt = select(Staff).where(Staff.staff_id == staff_id)
+        staff_result = await self.db.execute(staff_stmt)
+        acting_staff = staff_result.scalar_one_or_none()
+
+        if not acting_staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Staff member not found.",
+            )
+
+        # ---------------------------------------------------------
+        # 4. Department isolation
+        # ---------------------------------------------------------
+        is_admin = acting_staff.role == StaffRole.ADMIN
+
+        if not is_admin and acting_staff.dept_id != entry.dept_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Cannot change priority for queue entries "
+                    "outside your assigned department."
+                ),
+            )
+
+        # ---------------------------------------------------------
+        # 5. Priority can only change while the queue entry is active
+        # ---------------------------------------------------------
+        active_statuses = {
+            QueueEntryStatus.WAITING,
+            QueueEntryStatus.CALLED,
+            QueueEntryStatus.IN_PROGRESS,
+        }
+
+        if entry.status not in active_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Priority can only be changed for an active queue entry.",
+            )
+
+        # ---------------------------------------------------------
+        # 6. Apply priority
+        # ---------------------------------------------------------
+        entry.priority = priority
+
+        await self.db.flush()
+
+        return entry
     async def emit_department_event(
         self,
         entry: QueueEntry,

@@ -170,6 +170,14 @@ beforeEach(async () => {
 
     mockApi.getDepartmentNoShowQueue.mockResolvedValue([]);
 
+    window.sessionStorage.setItem(
+        "hpqms_staff_session",
+        JSON.stringify({
+            accessToken: "test-access-token",
+            rememberMe: false,
+        })
+    );
+
     mockWebSocket.on.mockReset();
     mockWebSocket.off.mockReset();
 
@@ -200,20 +208,7 @@ function getWebSocketHandler(eventName) {
 }
 
 async function initializeStaffSession() {
-    mockApi.login.mockResolvedValue({});
     mockApi.getCurrentUser.mockResolvedValue(currentUser);
-
-    const form = document.querySelector("#login-form");
-
-    document.querySelector("#employee-id").value = "EMP-001";
-    document.querySelector("#password").value = "password";
-
-    await form.dispatchEvent(
-        new Event("submit", {
-            bubbles: true,
-            cancelable: true,
-        })
-    );
 
     await vi.waitFor(() => {
         expect(mockWebSocket.connect).toHaveBeenCalled();

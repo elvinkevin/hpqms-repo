@@ -382,6 +382,12 @@ class QueueEntryStatusUpdate(BaseModel):
     status: QueueEntryStatus
     notes: Optional[str] = None
 
+
+class QueuePriorityUpdate(BaseModel):
+    """Used by authorized staff to update queue priority / acuity."""
+    priority: QueuePriority
+
+    
 class PatientMovementRequest(BaseModel):
     """Payload driving RoutingService.move_patient operations across rooms."""
     target_dept_id: UUID

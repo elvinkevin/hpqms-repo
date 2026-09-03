@@ -163,8 +163,17 @@ async def secondary_department(db):
 
 
 @pytest.fixture
-async def active_visit(db, patient):
-    """Creates and persists an active Visit record linked to a valid Patient."""
+async def active_visit(db, patient, department):
+    """
+    Creates and persists an active Visit record linked to a valid Patient,
+    with a default WAITING QueueEntry already attached in `department`.
+
+    Most routing/queue-transition tests operate on a visit that's already
+    queued, so this fixture ships with an entry by default. Tests that need
+    a bare Visit with no QueueEntry (e.g. queue_service creation tests that
+    exercise `create_queue_entry` itself) override this fixture locally in
+    their own test module — see test_queue_service.py.
+    """
     visit = Visit(
         patient_id=patient.patient_id,
         token_number="W-101",
@@ -174,6 +183,19 @@ async def active_visit(db, patient):
     )
     db.add(visit)
     await db.flush()
+
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        dept_id=department.dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
+    )
+    db.add(entry)
+    await db.flush()
+
+    visit.current_queue_entry_id = entry.queue_entry_id
+    await db.commit()
     await db.refresh(visit)
     return visit
 
@@ -516,39 +538,6 @@ async def queue_entry(db, existing_patient, setup_departments):
     await db.refresh(visit)
     await db.refresh(entry)
     return entry
-
-
-@pytest_asyncio.fixture
-async def active_visit_with_queue(db, existing_patient, setup_departments):
-    """
-    Creates a visit with an initial queue entry in WAITING status.
-    Useful for testing visit-level operations.
-    """
-    visit = Visit(
-        patient_id=existing_patient.patient_id,
-        token_number="W-101",
-        entry_type=EntryType.WALK_IN,
-        visit_reason="Routine Checkup",
-        stage=VisitStage.ACTIVE,
-    )
-    db.add(visit)
-    await db.flush()
-
-    # Create initial queue entry
-    entry = QueueEntry(
-        visit_id=visit.visit_id,
-        dept_id=setup_departments["RECEPTION"].dept_id,
-        sequence_number=1,
-        priority=QueuePriority.NORMAL,
-        status=QueueEntryStatus.WAITING,
-    )
-    db.add(entry)
-    await db.flush()
-
-    visit.current_queue_entry_id = entry.queue_entry_id
-    await db.commit()
-    await db.refresh(visit)
-    return visit
 
 
 # ============================================================================

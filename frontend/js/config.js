@@ -23,15 +23,22 @@
 
 function resolveDynamicUrls() {
     const isBrowser = typeof window !== "undefined" && window.location;
-    
-    // Fall back to localhost if not executing in a browser environment
-    const protocol = isBrowser ? window.location.protocol : "http:";
-    const host = isBrowser ? window.location.host : "localhost:8000";
+    const backendPort = "8000";
+    const protocol = isBrowser && window.location.protocol !== "file:"
+        ? window.location.protocol
+        : "http:";
+    const hostname = isBrowser && window.location.hostname
+        ? window.location.hostname
+        : "localhost";
+    const frontendPort = isBrowser ? window.location.port : "";
+    const backendHost = frontendPort === backendPort
+        ? window.location.host
+        : `${hostname}:${backendPort}`;
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
 
     return {
-        apiBaseUrl: `${protocol}//${host}/api`,
-        websocketUrl: `${wsProtocol}//${host}/ws/display`,
+        apiBaseUrl: `${protocol}//${backendHost}/api`,
+        websocketUrl: `${wsProtocol}//${backendHost}/ws/display`,
     };
 }
 
