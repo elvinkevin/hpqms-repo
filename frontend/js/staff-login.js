@@ -331,7 +331,7 @@ async function handleLogin(event) {
          * Authentication succeeded.
          * The dashboard now becomes responsible for loading /auth/me.
          */
-        window.location.href = "/static/staff-v2.html";
+        window.location.href = "./staff-v2.html";
 
     } catch (error) {
         console.error(
@@ -403,7 +403,7 @@ function redirectIfAlreadyAuthenticated() {
         return false;
     }
 
-    window.location.href = "/static/staff-v2.html";
+    window.location.href = "./staff-v2.html";
 
     return true;
 }

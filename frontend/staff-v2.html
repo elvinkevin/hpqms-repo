@@ -4,216 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HPQMS Header - Horizon General Hospital</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f8fafc;
-        }
-
-        /* Single-row Navbar matching reference */
-        .header {
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 0.75rem 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 64px;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .header-branding {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        /* Your Teal Cross Logo */
-        .logo {
-            width: 36px;
-            height: 36px;
-            background: #0F8B8E;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .logo svg {
-            width: 20px;
-            height: 20px;
-        }
-
-        .hospital-info h1 {
-            font-size: 15px;
-            font-weight: 600;
-            color: #1a1a1a;
-            line-height: 1.2;
-        }
-
-        .hospital-info p {
-            font-size: 11px;
-            color: #0F8B8E;
-            font-weight: 500;
-            letter-spacing: 0.2px;
-        }
-
-        .divider {
-            width: 1px;
-            height: 24px;
-            background-color: #e2e8f0;
-        }
-
-        /* Department Selector Dropdown Style */
-        .department-select-wrapper {
-            position: relative;
-        }
-
-        .department-select {
-            appearance: none;
-            background-color: #f1f5f9;
-            border: 1px solid transparent;
-            border-radius: 8px;
-            padding: 8px 32px 8px 12px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
-            cursor: pointer;
-            outline: none;
-            transition: all 0.15s ease;
-        }
-
-        .department-select:hover {
-            background-color: #e2e8f0;
-        }
-
-        .select-icon {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            pointer-events: none;
-            color: #64748b;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .staff-profile {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background-color: #e2e8f0;
-            object-fit: cover;
-        }
-
-        .staff-info {
-            text-align: left;
-        }
-
-        .staff-name {
-            font-size: 13px;
-            font-weight: 600;
-            color: #1a1a1a;
-            line-height: 1.2;
-        }
-
-        .staff-role {
-            font-size: 11px;
-            color: #0F8B8E;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-
-        .icon-btn-container {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        /* Notification Icon Button with Badge */
-        .notification-btn {
-            position: relative;
-            background: #f1f5f9;
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: #475569;
-            transition: background 0.15s ease;
-        }
-
-        .notification-btn:hover {
-            background: #e2e8f0;
-        }
-
-        .badge {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background-color: #ef4444;
-            color: white;
-            font-size: 10px;
-            font-weight: 700;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid #ffffff;
-        }
-
-        /* Logout Icon Button */
-        .logout-btn {
-            background: transparent;
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: #64748b;
-            transition: all 0.15s ease;
-        }
-
-        .logout-btn:hover {
-            background: #f1f5f9;
-            color: #1a1a1a;
-        }
-    </style>
+    <link rel="stylesheet" href="css/staff.css">
 </head>
 <body>
     <header class="header">
-        <!-- Left Side: Logo + Horizon General Hospital Branding + Department Dropdown -->
+        <!-- Left Side: Logo + Horizon General Hospital Branding + Current Department -->
         <div class="header-left">
             <div class="header-branding">
                 <!-- Teal Cross Logo -->
@@ -239,13 +34,10 @@
 
             <div class="divider"></div>
 
-            <!-- Interactive Department Selector -->
+            <!-- Department switching is not supported; backend context is authoritative. -->
             <div class="department-select-wrapper">
-                <select id="departmentSelect" class="department-select">
-                    <option value="REC">Reception Department</option>
-                    <option value="TRIAGE">Triage Station</option>
-                    <option value="ED">Emergency Dept (ED)</option>
-                    <option value="OPD">Outpatient Dept (OPD)</option>
+                <select id="departmentSelect" class="department-select" disabled aria-label="Current department">
+                    <option value="">Loading department...</option>
                 </select>
                 <svg class="select-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M6 9l6 6 6-6"/>
@@ -256,10 +48,10 @@
         <!-- Right Side: Staff Details + Notifications + Logout -->
         <div class="header-right">
             <div class="staff-profile">
-                <img class="avatar" src="https://ui-avatars.com/api/?name=Kevin+Axel&background=e2e8f0&color=1a1a1a" alt="Staff Avatar">
+                <div class="avatar" role="img" aria-label="Staff profile"></div>
                 <div class="staff-info">
-                    <p class="staff-name">Kevin Axel</p>
-                    <p class="staff-role">Receptionist</p>
+                    <p class="staff-name" id="staffName">Loading...</p>
+                    <p class="staff-role" id="staffRole">Staff</p>
                 </div>
             </div>
 
@@ -287,20 +79,6 @@
         </div>
     </header>
 
-    <script>
-        const deptSelect = document.getElementById('departmentSelect');
-        const logoutBtn = document.getElementById('logoutBtn');
-
-        // Department switch handler
-        deptSelect.addEventListener('change', (e) => {
-            console.log('Switching context to department:', e.target.value);
-            // Wire to staff-queue-state setContext(deptId, staffId)
-        });
-
-        // Logout handler
-        logoutBtn.addEventListener('click', () => {
-            console.log('Initiating logout action...');
-        });
-    </script>
+    <script type="module" src="js/staff-v2.js"></script>
 </body>
 </html>

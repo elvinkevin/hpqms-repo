@@ -42,6 +42,11 @@ import {
 } from "./staff-session.js";
 
 import {
+    clearStaffContext,
+    initializeStaffContext,
+} from "./staff-context.js";
+
+import {
     connect as connectStaffWebSocket,
     disconnect as disconnectStaffWebSocket,
     on as onStaffWebSocket,
@@ -601,14 +606,9 @@ async function identifyDepartment() {
         setStatus("Loading staff profile...");
 
         currentUser = await getCurrentUser();
+        const context = initializeStaffContext(currentUser);
 
-        if (!currentUser?.dept_id) {
-            throw new Error(
-                "Your staff account is not assigned to a department."
-            );
-        }
-
-        setContext(currentUser.dept_id, currentUser.staff_id);
+        setContext(context.departmentId, context.staffId);
 
         await syncFromServer();
 
@@ -639,6 +639,7 @@ function handleLogout() {
     logout();
 
     currentUser = null;
+    clearStaffContext();
 
     syncInProgress = false;
     syncPending = false;

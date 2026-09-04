@@ -114,8 +114,10 @@ const departmentId = "dept-reception";
 
 const currentUser = {
     staff_id: "staff-1",
+    employee_id: "EMP-001",
     first_name: "John",
     last_name: "Receptionist",
+    role: "RECEPTIONIST",
     dept_id: departmentId,
 };
 
