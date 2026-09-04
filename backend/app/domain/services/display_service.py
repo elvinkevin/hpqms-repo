@@ -48,8 +48,8 @@ class DisplayService:
     async def get_snapshot(
         self,
         *,
-        next_limit: int = 3,
-        recent_limit: int = 3,
+        next_limit: int = 4,
+        recent_limit: int = 4,
     ) -> DisplaySnapshot:
         """
         Build a complete display snapshot for all active departments.
@@ -99,8 +99,8 @@ class DisplayService:
         dept_id: UUID,
         department_name: str | None = None,
         *,
-        next_limit: int = 3,
-        recent_limit: int = 3,
+        next_limit: int = 4,
+        recent_limit: int = 4,
     ) -> DepartmentDisplay:
         """
         Build the public display state for one department.

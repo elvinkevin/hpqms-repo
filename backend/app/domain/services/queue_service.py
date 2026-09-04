@@ -320,7 +320,7 @@ class QueueService:
             QueueEntryStatus.COMPLETED,
             QueueEntryStatus.NO_SHOW,
         }
-        
+
         if new_status in operational_statuses and staff_id is None:
             action_verbs = {
                 QueueEntryStatus.CALLED: "call a patient.",
@@ -345,11 +345,11 @@ class QueueService:
             # Ensure the operating staff is the one assigned to the current ticket
             mismatched_owner = entry.assigned_staff_id is not None and entry.assigned_staff_id != staff_id
             strict_ownership_statuses = {
-                QueueEntryStatus.IN_PROGRESS, 
-                QueueEntryStatus.COMPLETED, 
+                QueueEntryStatus.IN_PROGRESS,
+                QueueEntryStatus.COMPLETED,
                 QueueEntryStatus.NO_SHOW
             }
-            
+
             if new_status in strict_ownership_statuses and mismatched_owner:
                 action_labels = {
                     QueueEntryStatus.IN_PROGRESS: "start this patient",
@@ -408,10 +408,12 @@ class QueueService:
                 entry.assigned_staff_id = staff_id
 
         # 2. Terminal or Waiting states: Unbind staff to free up capacity
+        #    NO_SHOW keeps its assignment so it still shows up in the
+        #    owner's no-show queue (get_department_no_show_queue filters
+        #    on assigned_staff_id). Ownership is released on requeue.
         elif new_status in (
             QueueEntryStatus.WAITING,
             QueueEntryStatus.COMPLETED,
-            QueueEntryStatus.NO_SHOW,
             QueueEntryStatus.CANCELLED,
         ):
             entry.assigned_staff_id = None

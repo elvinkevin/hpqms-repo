@@ -41,6 +41,16 @@ class RoutingService:
         self.queue_service = QueueService(db)
         self.department_service = DepartmentService(db)
 
+    async def _get_reception_department(self):
+        """Resolve the reception department across current seed/code aliases."""
+        try:
+            return await self.department_service.get_by_code("RECEPTION")
+        except HTTPException as error:
+            if error.status_code != status.HTTP_404_NOT_FOUND:
+                raise
+
+            return await self.department_service.get_by_code("REC")
+
     async def dispatch_initial_kiosk_route(
         self,
         visit_id: UUID,
@@ -79,7 +89,7 @@ class RoutingService:
             patient.registration_status == RegistrationStatus.INCOMPLETE 
             or visit.entry_type in (EntryType.WALK_IN, EntryType.REFERRAL)
         ):
-            reception = await self.department_service.get_by_code("RECEPTION")
+            reception = await self._get_reception_department()
             
             is_incomplete = patient.registration_status == RegistrationStatus.INCOMPLETE
             notes = "Patient requires registration." if is_incomplete else "Walk-in patient routed to Reception."
@@ -104,7 +114,7 @@ class RoutingService:
             )
             
         # 6. Fallback safety route to Reception
-        reception = await self.department_service.get_by_code("RECEPTION")
+        reception = await self._get_reception_department()
         return await self.transfer_patient(
             visit_id=visit.visit_id,
             target_dept_id=reception.dept_id,
