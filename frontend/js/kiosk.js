@@ -496,7 +496,8 @@ async function handleFormSubmit() {
         setSubmitting(false);
         console.error("Kiosk transaction breakdown:", error);
 
-        if (error.status === 404) {
+        const errorDetail = String(error.body?.detail || error.message || "").toLowerCase();
+        if (error.status === 404 && errorDetail.includes("patient")) {
             showScreen("notfound");
         } else {
             showScreen("error");

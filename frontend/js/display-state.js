@@ -48,6 +48,8 @@ const CONNECTION_STATUS = Object.freeze({
     ERROR: "ERROR",
 });
 
+const MAX_NEXT_TOKENS = 4;
+
 const QUEUE_STATUS = Object.freeze({
     WAITING: "WAITING",
     CALLED: "CALLED",
@@ -234,7 +236,7 @@ function findDepartment(departmentId) {
 
 
 /**
- * Safely extract a token string whether the token is an object 
+ * Safely extract a token string whether the token is an object
  * ({ token_number: "W-108" }) or a primitive string ("W-108").
  */
 function getTokenNumber(token) {
@@ -537,6 +539,16 @@ function handlePatientRouted(event) {
             token_number: event.token_number,
         });
 
+        /*
+         * Keep the optimistic next-token window capped to match the
+         * authoritative snapshot (_get_next_tokens limit=4). Without
+         * this, PATIENT_ROUTED events grow the list past the display
+         * limit until the next snapshot reconciliation.
+         */
+        if (targetDepartment.next_tokens.length > MAX_NEXT_TOKENS) {
+            targetDepartment.next_tokens.length = MAX_NEXT_TOKENS;
+        }
+
         if (typeof targetDepartment.waiting_count === "number") {
             targetDepartment.waiting_count += 1;
         }
@@ -703,6 +715,7 @@ function reset() {
 
 
 export {
+    MAX_NEXT_TOKENS,
     CONNECTION_STATUS,
     QUEUE_STATUS,
     EVENT_TYPE,

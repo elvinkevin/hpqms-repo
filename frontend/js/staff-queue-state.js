@@ -277,6 +277,7 @@ export function applyEvent(event) {
                     : existingEntry?.assigned_staff_id ?? null;
 
             const noShowEntry = {
+                ...(event.queue_entry || existingEntry || {}),
                 queue_entry_id,
                 assigned_staff_id: finalAssignedStaffId,
                 status: "NO_SHOW",

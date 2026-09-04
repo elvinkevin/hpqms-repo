@@ -1,224 +1,241 @@
- * {
-     margin: 0;
-     padding: 0;
-     box-sizing: border-box;
- }
 
- body {
-     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-     background-color: #f8fafc;
- }
-
- /* Single-row Navbar matching reference */
- .header {
-     background: #ffffff;
-     border-bottom: 1px solid #e2e8f0;
-     padding: 0.75rem 1.5rem;
-     display: flex;
-     align-items: center;
-     justify-content: space-between;
-     height: 64px;
- }
-
- .header-left {
-     display: flex;
-     align-items: center;
-     gap: 16px;
- }
-
- .header-branding {
-     display: flex;
-     align-items: center;
-     gap: 10px;
- }
-
- /* Your Teal Cross Logo */
- .logo {
-     width: 36px;
-     height: 36px;
-     background: #0F8B8E;
-     border-radius: 50%;
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     flex-shrink: 0;
- }
-
- .logo svg {
-     width: 20px;
-     height: 20px;
- }
-
- .hospital-info h1 {
-     font-size: 15px;
-     font-weight: 600;
-     color: #1a1a1a;
-     line-height: 1.2;
- }
-
- .hospital-info p {
-     font-size: 11px;
-     color: #0F8B8E;
-     font-weight: 500;
-     letter-spacing: 0.2px;
- }
-
- .divider {
-     width: 1px;
-     height: 24px;
-     background-color: #e2e8f0;
- }
-
- /* Department Selector Dropdown Style */
- .department-select-wrapper {
-     position: relative;
- }
-
- .department-select {
-     appearance: none;
-     background-color: #f1f5f9;
-     border: 1px solid transparent;
-     border-radius: 8px;
-     padding: 8px 32px 8px 12px;
-     font-size: 13px;
-     font-weight: 600;
-     color: #334155;
-     cursor: pointer;
-     outline: none;
-     transition: all 0.15s ease;
- }
-
- .department-select:hover {
-     background-color: #e2e8f0;
- }
-
- .select-icon {
-     position: absolute;
-     right: 10px;
-     top: 50%;
-     transform: translateY(-50%);
-     pointer-events: none;
-     color: #64748b;
- }
-
- .header-right {
-     display: flex;
-     align-items: center;
-     gap: 20px;
- }
-
- .staff-profile {
-     display: flex;
-     align-items: center;
-     gap: 10px;
- }
-
- .avatar {
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     width: 36px;
-     height: 36px;
-     border-radius: 50%;
-     background-color: #e2e8f0;
-     color: #0F5B78;
-     font-size: 13px;
-     font-weight: 700;
-     letter-spacing: 0.2px;
-     user-select: none;
- }
-
- .staff-info {
-     text-align: left;
- }
-
- .staff-name {
-     font-size: 13px;
-     font-weight: 600;
-     color: #1a1a1a;
-     line-height: 1.2;
- }
-
- .staff-role {
-     font-size: 11px;
-     color: #0F8B8E;
-     font-weight: 500;
-     text-transform: uppercase;
-     letter-spacing: 0.3px;
- }
-
- .icon-btn-container {
-     display: flex;
-     align-items: center;
-     gap: 12px;
- }
-
- /* Notification Icon Button with Badge */
- .notification-btn {
-     position: relative;
-     background: #f1f5f9;
-     border: none;
-     width: 36px;
-     height: 36px;
-     border-radius: 50%;
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     cursor: pointer;
-     color: #475569;
-     transition: background 0.15s ease;
- }
-
- .notification-btn:hover {
-     background: #e2e8f0;
- }
-
- .badge {
-     position: absolute;
-     top: 2px;
-     right: 2px;
-     background-color: #ef4444;
-     color: white;
-     font-size: 10px;
-     font-weight: 700;
-     width: 16px;
-     height: 16px;
-     border-radius: 50%;
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     border: 2px solid #ffffff;
- }
-
- /* Logout Icon Button */
- .logout-btn {
-     background: transparent;
-     border: none;
-     width: 36px;
-     height: 36px;
-     border-radius: 8px;
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     cursor: pointer;
-     color: #64748b;
-     transition: all 0.15s ease;
- }
-
- .logout-btn:hover {
-     background: #f1f5f9;
-     color: #1a1a1a;
- }
-
- * {
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        :root {
+            /* ===== HOSPITAL THEME TOKENS ===== */
+            --color-primary: #0F5B78;       /* deep clinical blue - primary actions, active states */
+            --color-primary-dark: #0B4258;
+            --color-accent: #0F8B8E;        /* teal - links, focus, token ids */
+            --color-accent-light: rgba(15, 139, 142, 0.1);
+
+            --color-bg: #f8fafc;         /* page background */
+            --color-surface: #ffffff;
+            --color-surface-subtle: #f1f5f9; /* hover/table-head backgrounds, kept distinct from page bg */
+            --color-border: #e2e8f0;
+            --color-text: #1a1a1a;
+            --color-text-muted: #64748b;
+            --color-text-soft: #94a3b8;
+
+            --status-waiting: #0F8B8E;
+            --status-called: #0284c7;
+            --status-in-progress: #0F5B78;
+
+            --priority-critical-bg: #fee2e2;
+            --priority-critical-text: #991b1b;
+            --priority-high-bg: #fef3c7;
+            --priority-high-text: #92400e;
+            --priority-medium-bg: #dbeafe;
+            --priority-medium-text: #1e40af;
+            --priority-low-bg: #dcfce7;
+            --priority-low-text: #166534;
+
+            --color-success: #16a34a;
+            --color-success-dark: #15803d;
+            --color-danger: #dc2626;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f8fafc;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+        }
+
+        /* ===== GLOBAL HEADER ===== */
+        .header {
+            min-height: 64px;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
+            background: var(--color-surface);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .header-left,
+        .header-right,
+        .header-branding,
+        .staff-profile,
+        .icon-btn-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .header-left,
+        .header-right {
+            gap: 1rem;
+        }
+
+        .header-branding {
+            gap: 0.65rem;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+        }
+
+        .logo svg {
+            display: block;
+            width: 36px;
+            height: 36px;
+        }
+
+        .hospital-info h1,
+        .hospital-info p,
+        .staff-name,
+        .staff-role {
+            margin: 0;
+        }
+
+        .hospital-info h1 {
+            color: var(--color-text);
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .hospital-info p {
+            color: var(--color-accent);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .divider {
+            width: 1px;
+            height: 24px;
+            flex: 0 0 1px;
+            background: var(--color-border);
+        }
+
+        .department-select-wrapper {
+            position: relative;
+        }
+
+        .department-select {
+            appearance: none;
+            min-width: 190px;
+            padding: 0.6rem 2rem 0.6rem 0.75rem;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: var(--color-surface-subtle);
+            color: #475569;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            opacity: 1;
+        }
+
+        .department-select:disabled {
+            cursor: default;
+        }
+
+        .select-icon {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            color: var(--color-text-muted);
+            pointer-events: none;
+            transform: translateY(-50%);
+        }
+
+        .staff-profile {
+            gap: 0.65rem;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: var(--color-primary);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .staff-name {
+            color: var(--color-text);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .staff-role {
+            color: var(--color-accent);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .notification-btn,
+        .logout-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            border-radius: 50%;
+            background: var(--color-surface-subtle);
+            color: var(--color-text-muted);
+            cursor: pointer;
+        }
+
+        .notification-btn:hover,
+        .logout-btn:hover {
+            color: var(--color-primary);
+            background: var(--color-border);
+        }
+
+        .badge {
+            position: absolute;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border: 2px solid var(--color-surface);
+            border-radius: 999px;
+            background: var(--color-danger);
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 12px;
+            text-align: center;
+            transform: translate(10px, -10px);
+        }
+
+        .notification-btn {
+            position: relative;
+        }
+
+        /* Thin, muted scrollbar for the one remaining internal scroll region
+           (the no-show list, once it grows past its max-height) */
+        .noshow-table-wrapper {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+
+        .noshow-table-wrapper::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .noshow-table-wrapper::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .noshow-table-wrapper::-webkit-scrollbar-track {
+            background: transparent;
         }
 
         /* ===== LAYOUT ===== */
@@ -228,23 +245,36 @@
             min-height: 100vh;
         }
 
+        /* Keep the nav visible while the page scrolls, without touching css/staff.css */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+
         header {
             flex-shrink: 0;
         }
 
+        /* 40/60 split: queue column / encounter workspace */
         .main-content {
-            flex: 1;
             padding: 1.5rem;
             display: grid;
-            grid-template-columns: 1fr 1.2fr;
+            grid-template-columns: 2fr 3fr;
+            align-items: start;
             gap: 1.5rem;
-            overflow-y: auto;
+        }
+
+        .queue-column {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
         /* ===== QUEUE PANEL ===== */
         .queue-panel {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
             border-radius: 12px;
             display: flex;
             flex-direction: column;
@@ -252,10 +282,10 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
-        /* Queue Panel Header */
         .queue-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--color-border);
+            flex-shrink: 0;
         }
 
         .queue-title-row {
@@ -263,84 +293,112 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
 
         .queue-title {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.6rem;
         }
 
         .queue-title h2 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
-            color: #1a1a1a;
+            color: var(--color-text);
         }
 
         .active-badge {
-            background-color: #3b82f6;
+            background-color: var(--color-primary);
             color: #ffffff;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
-            padding: 4px 10px;
+            padding: 3px 9px;
             border-radius: 20px;
         }
 
         .last-updated {
-            font-size: 12px;
-            color: #64748b;
+            font-size: 11px;
+            color: var(--color-text-muted);
         }
 
         /* Search Bar */
+        .search-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.85rem;
+        }
+
         .search-wrapper {
             position: relative;
-            margin-bottom: 1rem;
+            flex: 1;
         }
 
         .search-input {
             width: 100%;
-            padding: 8px 12px 8px 36px;
+            padding: 8px 12px 8px 34px;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
-            font-size: 14px;
-            background-color: #f8fafc;
+            font-size: 13px;
+            background-color: var(--color-surface-subtle);
             transition: all 0.15s ease;
         }
 
         .search-input:focus {
             outline: none;
-            border-color: #0F8B8E;
+            border-color: var(--color-accent);
             background-color: #ffffff;
-            box-shadow: 0 0 0 3px rgba(15, 139, 142, 0.1);
+            box-shadow: 0 0 0 3px var(--color-accent-light);
         }
 
         .search-input::placeholder {
-            color: #94a3b8;
+            color: var(--color-text-soft);
         }
 
         .search-icon {
             position: absolute;
-            left: 12px;
+            left: 11px;
             top: 50%;
             transform: translateY(-50%);
-            color: #94a3b8;
+            color: var(--color-text-soft);
             pointer-events: none;
+        }
+
+        .refresh-btn {
+            flex-shrink: 0;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: var(--color-surface);
+            color: var(--color-text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .refresh-btn:hover {
+            background-color: var(--color-surface-subtle);
+            color: var(--color-primary);
+            border-color: var(--color-primary);
         }
 
         /* Status Tabs */
         .status-tabs {
             display: flex;
-            gap: 0.5rem;
+            gap: 0.4rem;
             flex-wrap: wrap;
-            margin-bottom: 1rem;
         }
 
         .status-tab {
             background-color: transparent;
             border: 1px solid #cbd5e1;
             border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 13px;
+            padding: 5px 12px;
+            font-size: 12px;
             font-weight: 500;
             color: #475569;
             cursor: pointer;
@@ -350,183 +408,246 @@
 
         .status-tab:hover {
             border-color: #94a3b8;
-            background-color: #f1f5f9;
+            background-color: var(--color-surface-subtle);
         }
 
         .status-tab.active {
-            background-color: #3b82f6;
-            border-color: #3b82f6;
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
             color: #ffffff;
         }
 
         .status-count {
-            font-size: 12px;
-            color: #64748b;
-            margin-left: 4px;
+            font-size: 11px;
+            color: var(--color-text-muted);
+            margin-left: 3px;
         }
 
         .status-tab.active .status-count {
             color: rgba(255, 255, 255, 0.8);
         }
 
-        /* Queue Table */
+        .status-tab.no-show-tab.active {
+            background-color: var(--priority-critical-text);
+            border-color: var(--priority-critical-text);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Queue rows scroll independently so the workflow actions stay visible. */
         .queue-table-wrapper {
-            flex: 1;
-            overflow-x: auto;
-            border-bottom: 1px solid #e2e8f0;
+            max-height: clamp(220px, 42vh, 420px);
+            border-bottom: 1px solid var(--color-border);
+            overflow-x: hidden;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+
+        .queue-table-wrapper::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .queue-table-wrapper::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .queue-table-wrapper::-webkit-scrollbar-track {
+            background: transparent;
         }
 
         .queue-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 13px;
+            table-layout: fixed;
         }
 
         .queue-table thead {
-            background-color: #f1f5f9;
+            background-color: var(--color-surface-subtle);
             position: sticky;
             top: 0;
+            z-index: 1;
         }
 
         .queue-table th {
-            padding: 1rem 1.5rem;
+            padding: 0.85rem 0.65rem;
             text-align: left;
             font-weight: 600;
             color: #475569;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 12px;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
         }
 
         .queue-table td {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #e2e8f0;
-            color: #1a1a1a;
+            padding: 0.8rem 0.65rem;
+            border-bottom: 1px solid var(--color-border);
+            color: var(--color-text);
+            vertical-align: middle;
         }
 
         .queue-table tbody tr {
             transition: background-color 0.15s ease;
+            cursor: pointer;
         }
 
         .queue-table tbody tr:hover {
-            background-color: #f8fafc;
+            background-color: var(--color-surface-subtle);
+        }
+
+        .queue-table tbody tr.selected {
+            background-color: var(--color-accent-light);
         }
 
         .token-id {
             font-weight: 600;
-            color: #0F8B8E;
-            font-size: 13px;
+            color: var(--color-accent);
+            font-size: 12px;
+            white-space: nowrap;
         }
 
         .patient-name {
             font-weight: 500;
+            max-width: 130px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .wait-time {
-            color: #64748b;
-            font-size: 13px;
+            color: var(--color-text-muted);
+            font-size: 12px;
+            white-space: nowrap;
         }
 
         .priority {
             font-weight: 600;
-            font-size: 13px;
-            padding: 4px 8px;
+            font-size: 11px;
+            padding: 3px 7px;
             border-radius: 4px;
             display: inline-block;
             text-transform: capitalize;
+            white-space: nowrap;
         }
 
-        .priority.critical {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-
-        .priority.high {
-            background-color: #fef3c7;
-            color: #92400e;
-        }
-
-        .priority.medium {
-            background-color: #dbeafe;
-            color: #1e40af;
-        }
-
-        .priority.low {
-            background-color: #dcfce7;
-            color: #166534;
-        }
+        .priority.critical { background-color: var(--priority-critical-bg); color: var(--priority-critical-text); }
+        .priority.high { background-color: var(--priority-high-bg); color: var(--priority-high-text); }
+        .priority.medium { background-color: var(--priority-medium-bg); color: var(--priority-medium-text); }
+        .priority.low { background-color: var(--priority-low-bg); color: var(--priority-low-text); }
 
         .status {
             font-weight: 500;
-            font-size: 13px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            display: inline-block;
-            text-transform: capitalize;
+            font-size: 12px;
+            white-space: nowrap;
         }
 
-        .status.waiting {
-            color: #0F8B8E;
+        .status.waiting { color: var(--status-waiting); }
+        .status.in-progress { color: var(--status-in-progress); }
+        .status.called { color: var(--status-called); }
+
+        /* Row-level queue actions */
+        .row-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
-        .status.in-progress {
-            color: #7c3aed;
+        .row-action-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            background: var(--color-surface);
+            color: var(--color-text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
         }
 
-        .status.called {
-            color: #06b6d4;
+        .row-action-btn:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            background: var(--color-accent-light);
+        }
+
+        .row-action-btn.call:hover,
+        .row-action-btn.start:hover {
+            border-color: var(--color-success);
+            color: var(--color-success-dark);
+            background: rgba(22, 163, 74, 0.08);
+        }
+
+        .row-action-btn.no-show:hover {
+            border-color: var(--priority-critical-text);
+            color: var(--priority-critical-text);
+            background: var(--priority-critical-bg);
+        }
+
+        .row-action-none {
+            font-size: 12px;
+            color: var(--color-text-soft);
         }
 
         .empty-state {
             text-align: center;
-            padding: 3rem 1.5rem;
-            color: #64748b;
+            padding: 2.5rem 1rem;
+            color: var(--color-text-muted);
         }
 
         .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 1rem;
+            font-size: 40px;
+            margin-bottom: 0.75rem;
         }
 
         /* Queue Panel Footer */
         .queue-footer {
-            padding: 1.5rem;
+            padding: 1rem 1.25rem;
             display: flex;
-            gap: 1rem;
+            gap: 0.6rem;
             flex-wrap: wrap;
+            flex-shrink: 0;
         }
 
         .queue-btn {
             flex: 1;
-            min-width: 180px;
-            padding: 10px 16px;
+            min-width: 108px;
+            padding: 9px 8px;
             border: none;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.15s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 5px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
         }
 
         .queue-btn-primary {
-            background-color: #3b82f6;
+            background-color: var(--color-primary);
             color: #ffffff;
         }
 
         .queue-btn-primary:hover {
-            background-color: #2563eb;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+            background-color: var(--color-primary-dark);
+            box-shadow: 0 4px 12px rgba(15, 91, 120, 0.25);
         }
 
         .queue-btn-secondary {
-            background-color: #f1f5f9;
+            background-color: var(--color-surface-subtle);
             color: #475569;
             border: 1px solid #cbd5e1;
         }
@@ -537,8 +658,8 @@
 
         /* ===== NO-SHOW PANEL ===== */
         .noshow-panel {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
             border-radius: 12px;
             display: flex;
             flex-direction: column;
@@ -547,61 +668,61 @@
         }
 
         .noshow-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--color-border);
         }
 
         .noshow-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
-            color: #1a1a1a;
+            color: var(--color-text);
         }
 
         .noshow-table-wrapper {
-            flex: 1;
-            overflow-x: auto;
+            max-height: 260px;
+            overflow-y: auto;
         }
 
         .noshow-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .noshow-table thead {
-            background-color: #f1f5f9;
+            background-color: var(--color-surface-subtle);
             position: sticky;
             top: 0;
         }
 
         .noshow-table th {
-            padding: 1rem 1.5rem;
+            padding: 0.6rem 1.25rem;
             text-align: left;
             font-weight: 600;
             color: #475569;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 12px;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
         }
 
         .noshow-table td {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #e2e8f0;
-            color: #1a1a1a;
+            padding: 0.6rem 1.25rem;
+            border-bottom: 1px solid var(--color-border);
+            color: var(--color-text);
         }
 
         .noshow-table tbody tr:hover {
-            background-color: #f8fafc;
+            background-color: var(--color-surface-subtle);
         }
 
         .noshow-btn {
-            background-color: #fee2e2;
-            color: #991b1b;
+            background-color: var(--priority-critical-bg);
+            color: var(--priority-critical-text);
             border: 1px solid #fca5a5;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.15s ease;
@@ -611,86 +732,276 @@
             background-color: #fecaca;
         }
 
-        /* ===== DARK MODE ===== */
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #0f172a;
-            }
-
-            .queue-panel,
-            .noshow-panel {
-                background: #1a1a2e;
-                border-color: #334155;
-            }
-
-            .queue-header,
-            .queue-footer,
-            .noshow-header {
-                border-bottom-color: #334155;
-            }
-
-            .queue-title h2,
-            .noshow-title {
-                color: #f5f5f5;
-            }
-
-            .queue-table thead,
-            .noshow-table thead {
-                background-color: #0f172a;
-            }
-
-            .queue-table th,
-            .noshow-table th {
-                color: #cbd5e1;
-                border-bottom-color: #334155;
-            }
-
-            .queue-table td,
-            .noshow-table td {
-                color: #f5f5f5;
-                border-bottom-color: #334155;
-            }
-
-            .queue-table tbody tr:hover,
-            .noshow-table tbody tr:hover {
-                background-color: #0f172a;
-            }
-
-            .search-input {
-                background-color: #0f172a;
-                border-color: #334155;
-                color: #f5f5f5;
-            }
-
-            .search-input:focus {
-                background-color: #1a1a2e;
-            }
-
-            .status-tab {
-                border-color: #334155;
-                color: #cbd5e1;
-            }
-
-            .status-tab:hover {
-                background-color: #0f172a;
-                border-color: #475569;
-            }
-
-            .queue-btn-secondary {
-                background-color: #0f172a;
-                color: #cbd5e1;
-                border-color: #334155;
-            }
-
-            .queue-btn-secondary:hover {
-                background-color: #1a1a2e;
-            }
+        /* ===== ENCOUNTER WORKSPACE PANEL (placeholder) =====
+           Static placeholder content — vitals/patient data below are dummy
+           values standing in for the real fields until vitals.py + the
+           encounter endpoints are wired up. Sectioned to map cleanly onto
+           EncounterHeader / PatientSummary / VisitInformation + a
+           role-specific WorkspaceEncounter later. */
+        .encounter-panel {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
+        .encounter-scroll {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .encounter-panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--color-text);
+            padding: 1.25rem 1.5rem 0;
+        }
+
+        .encounter-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: var(--color-text-muted);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+        }
+
+        /* Encounter header */
+        .encounter-header-block {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .encounter-focus-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .encounter-eyebrow {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--color-accent);
+            margin-bottom: 0.35rem;
+        }
+
+        .patient-summary h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        .priority-flag {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            padding: 5px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        /* Visit information meta grid */
+        .visit-information {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            background: var(--color-surface-subtle);
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .meta-item .meta-label {
+            font-size: 11px;
+            color: var(--color-text-muted);
+            margin-bottom: 2px;
+        }
+
+        .meta-item .meta-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .room-banner {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--color-accent-light);
+            color: var(--color-primary);
+            border-radius: 8px;
+            padding: 0.6rem 0.9rem;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* Vitals */
+        .vitals-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .retake-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-accent);
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .retake-link:hover {
+            text-decoration: underline;
+        }
+
+        .vitals-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.9rem;
+        }
+
+        .vital-card {
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .vital-card .vital-label {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            margin-bottom: 4px;
+        }
+
+        .vital-card .vital-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        .vital-card .vital-unit {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--color-text-muted);
+        }
+
+        .vital-card .vital-icon {
+            color: var(--color-danger);
+            flex-shrink: 0;
+        }
+
+        /* Chief complaint */
+        .chief-complaint p {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #334155;
+            margin-top: 0.4rem;
+        }
+
+        /* Workflow controls */
+        .workflow-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            padding-top: 0.5rem;
+        }
+
+        .workflow-complete-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--color-success);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.15s ease;
+        }
+
+        .workflow-complete-btn:hover {
+            background: var(--color-success-dark);
+        }
+
+        .workflow-secondary-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.6rem;
+        }
+
+        .workflow-secondary-btn {
+            padding: 9px 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: var(--color-surface);
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .workflow-secondary-btn:hover {
+            background: var(--color-surface-subtle);
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+
+        /* Dark mode intentionally not auto-applied via prefers-color-scheme:
+           the dashboard should always render the light hospital theme
+           defined above, matching the Figma design, regardless of OS/browser
+           dark-mode settings. */
+
         /* ===== RESPONSIVE ===== */
-        @media (max-width: 1400px) {
+        @media (max-width: 1200px) {
             .main-content {
                 grid-template-columns: 1fr;
+            }
+
+            .queue-column {
+                order: 2;
+            }
+
+            .encounter-panel {
+                order: 1;
             }
         }
 
@@ -702,7 +1013,8 @@
 
             .queue-header,
             .queue-footer,
-            .noshow-header {
+            .noshow-header,
+            .encounter-scroll {
                 padding: 1rem;
             }
 
@@ -710,21 +1022,12 @@
             .queue-table td,
             .noshow-table th,
             .noshow-table td {
-                padding: 0.75rem 1rem;
-                font-size: 13px;
+                padding: 0.5rem 0.6rem;
             }
 
-            .queue-btn {
-                min-width: auto;
-                flex: 1;
-            }
-
-            .status-tabs {
-                gap: 0.25rem;
-            }
-
-            .status-tab {
-                padding: 4px 10px;
-                font-size: 12px;
+            .visit-information,
+            .vitals-grid,
+            .workflow-secondary-row {
+                grid-template-columns: 1fr 1fr;
             }
         }

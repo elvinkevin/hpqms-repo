@@ -53,7 +53,8 @@ const CONNECTION_STATES = Object.freeze({
 });
 
 
-const MAX_RECENT_TOKENS = 5;
+const MAX_NEXT_TOKENS = 4;
+const MAX_RECENT_TOKENS = 4;
 
 
 /* ==========================================================================
@@ -531,7 +532,10 @@ function renderDepartment(department) {
         Array.isArray(
             department.next_tokens
         )
-            ? department.next_tokens
+            ? department.next_tokens.slice(
+                0,
+                MAX_NEXT_TOKENS
+            )
             : [];
 
     nextTokens.forEach((token) => {

@@ -1,1158 +1,643 @@
 <!DOCTYPE html>
-
 <html lang="en">
-
 <head>
-
-    <meta charset="UTF-8" />
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <title>HPQMS Staff Dashboard</title>
-
-    <link rel="stylesheet" href="css/tokens.css" />
-    <link rel="stylesheet" href="css/layouts.css" />
-    <link rel="stylesheet" href="css/components.css" />
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPQMS - Queue Workspace</title>
+    <link rel="stylesheet" href="css/staff.css">
     <style>
-        :root {
-            --primary: #0F5B78;
-            --primary-dark: #0C4A62;
-            --secondary: #13A6A6;
-            --bg: #F4F8FA;
-            --card: #FFFFFF;
-            --text: #17324D;
-            --muted: #6B7C8A;
-            --success: #16855B;
-            --error: #C0392B;
-            --border: #DCE6EB;
-            --radius-lg: 20px;
-            --radius-md: 12px;
-            --shadow: 0 10px 30px rgba(15, 91, 120, 0.08), 0 2px 8px rgba(15, 91, 120, 0.06);
-            --shadow-drawer: -10px 0 30px rgba(15, 91, 120, 0.15);
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        .dashboard-shell {
-            display: grid;
-            grid-template-rows: auto 1fr;
-            min-height: 100vh;
-            gap: 20px;
-            padding: 20px;
-        }
-
-        .dashboard-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-            background: var(--card);
-            padding: 20px 28px;
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-        }
-
-        .dashboard-header h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .status-pill {
-            padding: 10px 18px;
-            border-radius: 999px;
-            background: var(--bg);
-            color: var(--text);
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.95rem;
-            border: 1px solid var(--border);
-        }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            align-items: stretch;
-            min-height: 0;
-        }
-
-        .panel {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 28px;
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            height: 100%;
-        }
-
-        .panel h2 {
-            margin-top: 0;
-            margin-bottom: 20px;
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        /* ============================================================
-           CURRENT PATIENT PANEL - SIMPLIFIED (NO REGISTRATION SECTION)
-           ============================================================ */
-
-        #current-patient-panel {
-            grid-column: 1;
-        }
-
-        .patient-info-grid {
-            display: grid;
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-
-        .patient-info-item {
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 12px;
-            align-items: baseline;
-        }
-
-        .patient-info-item strong {
-            color: var(--text);
-            font-weight: 700;
-            min-width: 100px;
-        }
-
-        .patient-info-item span {
-            color: var(--text);
-            font-weight: 500;
-        }
-
-        .patient-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .patient-actions button {
-            padding: 14px 18px;
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 0.95rem;
-            transition: background 0.15s ease, transform 0.1s ease;
-            min-height: 50px;
-        }
-
-        .patient-actions button:hover:not(:disabled) {
-            transform: translateY(-1px);
-        }
-
-        .button-primary {
-            background: var(--primary);
-            color: #fff;
-        }
-
-        .button-primary:hover:not(:disabled) {
-            background: var(--primary-dark);
-        }
-
-        .button-secondary {
-            background: var(--secondary);
-            color: #fff;
-        }
-
-        .button-secondary:hover:not(:disabled) {
-            background: #0d8f8f;
-        }
-
-        .button-danger {
-            background: var(--error);
-            color: #fff;
-        }
-
-        .button-danger:hover:not(:disabled) {
-            background: #b81b1b;
-        }
-
-        .button-disabled {
-            background: var(--muted);
-            color: #fff;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .current-owner {
-            margin-top: 12px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            padding: 10px 14px;
-            border-radius: var(--radius-md);
-            display: inline-block;
-        }
-
-        .current-owner.owner {
-            color: var(--success);
-            background: rgba(22, 133, 91, 0.1);
-        }
-
-        .current-owner.other-owner {
-            color: #d97706;
-            background: rgba(217, 119, 6, 0.1);
-        }
-
-        .current-owner.unassigned {
-            color: var(--muted);
-            background: var(--bg);
-        }
-
-        .error-text {
-            color: var(--error);
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin: 12px 0 0;
-        }
-
-        /* ============================================================
-           QUEUE PANEL
-           ============================================================ */
-
-        #queue-panel {
-            grid-column: 2;
-        }
-
-        .queue-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .queue-table th,
-        .queue-table td {
-            padding: 14px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .queue-table th {
-            font-size: 0.9rem;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            font-weight: 700;
-        }
-
-        .queue-table tbody tr:hover {
-            background: var(--bg);
-        }
-
-        .queue-row {
-            cursor: pointer;
-            transition: background 0.15s ease;
-        }
-
-        .queue-row.selected {
-            background: rgba(19, 166, 166, 0.08);
-        }
-
-        .empty-state {
-            color: var(--muted);
-            padding: 20px;
-            border-radius: var(--radius-md);
-            background: var(--bg);
-            text-align: center;
-            font-size: 0.95rem;
-        }
-
-        /* ============================================================
-           NO-SHOW QUEUE
-           ============================================================ */
-
-        #no-show-panel {
-            grid-column: 2;
-        }
-
-        .queue-table td button {
-            padding: 10px 14px;
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 700;
-            cursor: pointer;
-            color: #fff;
-            background: var(--primary);
-            transition: background 0.15s ease, transform 0.1s ease;
-            font-size: 0.9rem;
-        }
-
-        .queue-table td button:hover:not(:disabled) {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-        }
-
-        .requeue-button {
-            min-width: 110px;
-        }
-
-        /* ============================================================
-           MODAL OVERLAY (BACKDROP)
-           ============================================================ */
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.3);
-            display: none;
-            z-index: 999;
-            animation: fadeIn 0.2s ease;
-        }
-
-        .modal-overlay.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-
-        /* ============================================================
-           REGISTRATION DRAWER (SLIDE-OVER PANEL)
-           ============================================================ */
-
-        .registration-drawer {
-            position: fixed;
-            top: 0;
-            right: 0;
-            height: 100vh;
-            width: 420px;
-            background: var(--card);
-            box-shadow: var(--shadow-drawer);
-            z-index: 1000;
-            display: none;
-            flex-direction: column;
-            animation: slideIn 0.3s ease;
-            overflow: hidden;
-        }
-
-        .registration-drawer.active {
-            display: flex;
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-            }
-            to {
-                transform: translateX(0);
-            }
-        }
-
-        @keyframes slideOut {
-            from {
-                transform: translateX(0);
-            }
-            to {
-                transform: translateX(100%);
-            }
-        }
-
-        .registration-drawer.closing {
-            animation: slideOut 0.3s ease forwards;
-        }
-
-        .drawer-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
-        }
-
-        .drawer-header h3 {
-            margin: 0;
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .drawer-close-button {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--muted);
-            padding: 0;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: var(--radius-md);
-            transition: background 0.15s ease, color 0.15s ease;
-        }
-
-        .drawer-close-button:hover {
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        .drawer-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            min-height: 0;
-        }
-
-        .drawer-content::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .drawer-content::-webkit-scrollbar-track {
-            background: var(--bg);
-            border-radius: 10px;
-        }
-
-        .drawer-content::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 10px;
-        }
-
-        .drawer-content::-webkit-scrollbar-thumb:hover {
-            background: var(--muted);
-        }
-
-        .drawer-footer {
-            display: flex;
-            gap: 12px;
-            padding: 20px;
-            border-top: 1px solid var(--border);
-            flex-shrink: 0;
-        }
-
-        .drawer-footer button {
-            flex: 1;
-            padding: 12px 18px;
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 0.95rem;
-            transition: background 0.15s ease, transform 0.1s ease;
-        }
-
-        .drawer-footer button:hover:not(:disabled) {
-            transform: translateY(-1px);
-        }
-
-        .drawer-submit {
-            background: var(--primary);
-            color: #fff;
-        }
-
-        .drawer-submit:hover:not(:disabled) {
-            background: var(--primary-dark);
-        }
-
-        .drawer-submit:disabled {
-            background: var(--muted);
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .drawer-cancel {
-            background: var(--bg);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .drawer-cancel:hover:not(:disabled) {
-            background: var(--border);
-        }
-
-        .registration-description {
-            margin-top: 0;
-            margin-bottom: 18px;
-            color: var(--muted);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        .registration-form {
-            display: grid;
-            gap: 16px;
-        }
-
-        .registration-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
-        }
-
-        .form-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .form-field label {
-            font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .form-field input,
-        .form-field select,
-        .form-field textarea {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 12px 14px;
-            border: 2px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 0.95rem;
-            font-family: inherit;
-            background: var(--card);
-            color: var(--text);
-            transition: border-color 0.15s ease;
-        }
-
-        .form-field textarea {
-            min-height: 90px;
-            resize: vertical;
-        }
-
-        .form-field input:focus,
-        .form-field select:focus,
-        .form-field textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(15, 91, 120, 0.12);
-        }
-
-        .required-mark {
-            color: var(--error);
-        }
-
-        .drawer-error {
-            background: rgba(192, 57, 43, 0.1);
-            border: 1px solid var(--error);
-            border-radius: var(--radius-md);
-            padding: 12px;
-            color: var(--error);
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 16px;
-            display: none;
-        }
-
-        .drawer-error.active {
-            display: block;
-        }
-
-        .keyboard-hint {
-            font-size: 0.75rem;
-            color: var(--muted);
-            margin-top: 8px;
-            font-style: italic;
-        }
-
-        /* ============================================================
-           MISCELLANEOUS
-           ============================================================ */
-
-        .hidden {
-            display: none !important;
-        }
-
-        #logout-button {
-            background: var(--error);
-            color: #fff;
-            padding: 12px 20px;
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 0.95rem;
-            transition: background 0.15s ease;
-        }
-
-        #logout-button:hover {
-            background: #b81b1b;
-        }
-
-        /* ============================================================
-           LOGIN PANEL
-           ============================================================ */
-
-        .login-panel {
-            display: grid;
-            gap: 16px;
-        }
-
-        .login-panel label {
-            display: block;
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 6px;
-        }
-
-        .login-panel input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 1rem;
-            box-sizing: border-box;
-            font-family: inherit;
-            transition: border-color 0.15s ease;
-        }
-
-        .login-panel input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(15, 91, 120, 0.12);
-        }
-
-        .login-panel button {
-            padding: 14px 18px;
-            margin-top: 6px;
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 0.95rem;
-            transition: background 0.15s ease;
-        }
-
-        .login-panel button:hover {
-            background: var(--primary-dark);
-        }
-
-        /* ============================================================
-           RESPONSIVE DESIGN
-           ============================================================ */
-
-        @media (max-width: 1200px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-
-            #current-patient-panel {
-                grid-column: 1;
-            }
-
-            #queue-panel,
-            #no-show-panel {
-                grid-column: 1;
-            }
-
-            .patient-actions {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .registration-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .dashboard-shell {
-                gap: 16px;
-                padding: 16px;
-            }
-
-            .dashboard-header {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 16px;
-            }
-
-            .panel {
-                padding: 20px;
-            }
-
-            .patient-actions {
-                grid-template-columns: 1fr;
-            }
-
-            .registration-grid {
-                grid-template-columns: 1fr;
-            }
-
-            /* Make drawer full-width on mobile */
-            .registration-drawer {
-                width: 100%;
-            }
-        }
+        
     </style>
-
 </head>
-
 <body>
+    <div class="page-wrapper">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                <div class="header-branding">
+                    <div class="logo">
+                        <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <circle cx="26" cy="26" r="25" fill="#0F5B78"/>
+                            <circle cx="26" cy="26" r="25" fill="url(#staffLogoGrad)"/>
+                            <circle cx="26" cy="26" r="17" fill="#FFFFFF"/>
+                            <path d="M26 16V36M16 26H36" stroke="#13A6A6" stroke-width="5" stroke-linecap="round"/>
+                            <defs>
+                                <linearGradient id="staffLogoGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#0F5B78"/>
+                                    <stop offset="1" stop-color="#13A6A6"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <div class="hospital-info">
+                        <h1>Horizon General Hospital</h1>
+                        <p>Quality Care. Every Patient.</p>
+                    </div>
+                </div>
 
-    <div class="dashboard-shell">
+                <div class="divider"></div>
 
-        <header class="dashboard-header">
-
-            <div>
-                <h1>HPQMS Staff Dashboard</h1>
-
-                <div id="dashboard-subtitle" class="status-pill">
-                    Please sign in to manage the queue
+                <div class="department-select-wrapper">
+                    <select id="departmentSelect" class="department-select" disabled aria-label="Current department">
+                        <option value="">Reception Desk</option>
+                    </select>
+                    <svg class="select-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
                 </div>
             </div>
 
-            <div>
-                <button
-                    id="logout-button"
-                    class="hidden"
-                >
-                    Logout
-                </button>
-            </div>
+            <div class="header-right">
+                <div class="staff-profile">
+                    <div class="avatar" role="img" aria-label="Staff profile"></div>
+                    <div class="staff-info">
+                        <p class="staff-name" id="staffName">Jane Moraa</p>
+                        <p class="staff-role" id="staffRole">Receptionist</p>
+                    </div>
+                </div>
 
+                <div class="divider"></div>
+
+                <div class="icon-btn-container">
+                    <button class="notification-btn" title="Notifications">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                        <span class="badge">3</span>
+                    </button>
+
+                    <button id="logoutBtn" class="logout-btn" title="Log Out">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </header>
 
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
 
-        <main class="content-grid">
+            <!-- LEFT: QUEUE COLUMN -->
+            <div class="queue-column">
+                <!-- QUEUE PANEL -->
+                <div class="queue-panel">
+                    <div class="queue-header">
+                        <div class="queue-title-row">
+                            <div class="queue-title">
+                                <h2>Department Flow Queue</h2>
+                                <span class="active-badge" id="activeCount">18 Active</span>
+                            </div>
+                            <div class="last-updated" id="lastUpdated">Last updated: Just Now</div>
+                        </div>
 
-            <!-- ======================================================
-                 LOGIN
-                 ====================================================== -->
+                        <div class="search-row">
+                            <div class="search-wrapper">
+                                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                <input
+                                    type="text"
+                                    class="search-input"
+                                    id="searchInput"
+                                    placeholder="Search patient name, token ID..."
+                                    aria-label="Search queue"
+                                />
+                            </div>
+                            <button class="refresh-btn" id="refreshBtn" title="Refresh queue">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                            </button>
+                        </div>
 
-            <section class="panel" id="login-panel">
+                        <div class="status-tabs">
+                            <button class="status-tab active" data-status="all">
+                                All
+                                <span class="status-count">18</span>
+                            </button>
+                            <button class="status-tab" data-status="waiting">
+                                Waiting
+                                <span class="status-count">10</span>
+                            </button>
+                            <button class="status-tab" data-status="called">
+                                Called
+                                <span class="status-count">4</span>
+                            </button>
+                            <button class="status-tab" data-status="in-progress">
+                                In Progress
+                                <span class="status-count">4</span>
+                            </button>
+                        </div>
+                    </div>
 
-                <h2>Staff Login</h2>
+                    <div class="queue-table-wrapper">
+                        <table class="queue-table">
+                            <colgroup>
+                                <col style="width: 14%">
+                                <col style="width: 24%">
+                                <col style="width: 14%">
+                                <col style="width: 16%">
+                                <col style="width: 16%">
+                                <col style="width: 16%">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>Token</th>
+                                    <th>Patient</th>
+                                    <th>Wait</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="queueTableBody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
 
-                <form id="login-form" class="login-panel">
+                    <div class="queue-footer">
+                        <button class="queue-btn queue-btn-primary" id="callNextBtn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                            </svg>
+                            Call Next Token
+                        </button>
+                        <button class="queue-btn queue-btn-secondary" id="startServiceBtn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            Start Active Service
+                        </button>
+                        <button class="queue-btn queue-btn-secondary" id="markNoShowBtn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                            </svg>
+                            Mark Patient No-Show
+                        </button>
+                    </div>
+                </div>
 
+                <!-- NO-SHOW PANEL -->
+                <div class="noshow-panel">
+                    <div class="noshow-header">
+                        <h3 class="noshow-title">No-Show</h3>
+                    </div>
+
+                    <div class="noshow-table-wrapper">
+                        <table class="noshow-table">
+                            <thead>
+                                <tr>
+                                    <th>Token ID</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="noshowTableBody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: ACTIVE ENCOUNTER WORKSPACE (placeholder - static dummy data) -->
+            <div class="encounter-panel">
+                <h2 class="encounter-panel-title">Active Encounter Workspace</h2>
+
+                <div class="encounter-scroll">
+
+                    <!-- EncounterHeader + PatientSummary -->
+                    <div class="encounter-header-block">
+                        <div class="encounter-focus-row">
+                            <div>
+                                <div class="encounter-eyebrow">Encounter Focus (T-204)</div>
+                                <div class="patient-summary">
+                                    <h2>Aria Montgomery</h2>
+                                </div>
+                            </div>
+                            <span class="priority-flag priority critical">Critical Priority</span>
+                        </div>
+                    </div>
+
+                    <!-- VisitInformation -->
+                    <div class="visit-information">
+                        <div class="meta-item">
+                            <div class="meta-label">DOB / Age</div>
+                            <div class="meta-value">Oct 12, 1991 (32Y)</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Gender</div>
+                            <div class="meta-value">Female</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Visit / Encounter ID</div>
+                            <div class="meta-value">#VID-2024-98402</div>
+                        </div>
+                    </div>
+
+                    <div class="room-banner">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Assigned Treatment Room: Trauma Bay 02
+                    </div>
+
+                    <!-- Vitals (dummy values - placeholder until vitals.py is wired up) -->
                     <div>
-                        <label for="employee-id">
-                            Employee ID
-                        </label>
-
-                        <input
-                            id="employee-id"
-                            name="employee_id"
-                            type="text"
-                            autocomplete="username"
-                            required
-                        />
+                        <div class="vitals-section-header">
+                            <span class="section-label">Recorded Vitals (09:15 AM)</span>
+                            <button class="retake-link" id="retakeVitalsBtn">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                                Retake
+                            </button>
+                        </div>
+                        <div class="vitals-grid">
+                            <div class="vital-card">
+                                <div>
+                                    <div class="vital-label">Heart Rate</div>
+                                    <span class="vital-value">112</span> <span class="vital-unit">bpm</span>
+                                </div>
+                                <svg class="vital-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                                </svg>
+                            </div>
+                            <div class="vital-card">
+                                <div>
+                                    <div class="vital-label">Blood Pressure</div>
+                                    <span class="vital-value">142/95</span> <span class="vital-unit">mmHg</span>
+                                </div>
+                                <svg class="vital-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                                </svg>
+                            </div>
+                            <div class="vital-card">
+                                <div>
+                                    <div class="vital-label">Temperature</div>
+                                    <span class="vital-value">38.4</span> <span class="vital-unit">&deg;C</span>
+                                </div>
+                                <svg class="vital-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"></path>
+                                </svg>
+                            </div>
+                            <div class="vital-card">
+                                <div>
+                                    <div class="vital-label">SpO2 Oxygen</div>
+                                    <span class="vital-value">94</span> <span class="vital-unit">%</span>
+                                </div>
+                                <svg class="vital-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2C8 6 5 10.5 5 14a7 7 0 0 0 14 0c0-3.5-3-8-7-12z"></path>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
 
-                    <div>
-                        <label for="password">
-                            Password
-                        </label>
-
-                        <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            autocomplete="current-password"
-                            required
-                        />
+                    <!-- Chief complaint -->
+                    <div class="chief-complaint">
+                        <span class="section-label">Chief Complaint &amp; Notes</span>
+                        <p>32yo female patient presenting with acute shortness of breath and mild palpitations. History of asthmatic episodes. Wheezing present upon auscultation. Albuterol treatment initiated at triage. Patient reports symptoms began suddenly 1hr post-exertion.</p>
                     </div>
 
-                    <button
-                        type="submit"
-                        class="button-primary"
-                    >
-                        Sign in
-                    </button>
-
-                    <p
-                        id="login-error"
-                        class="error-text hidden"
-                    ></p>
-
-                </form>
-
-            </section>
-
-
-            <!-- ======================================================
-                 CURRENT PATIENT - SIMPLIFIED
-                 ====================================================== -->
-
-            <section
-                class="panel hidden"
-                id="current-patient-panel"
-            >
-
-                <h2>Current Patient</h2>
-
-                <div class="patient-info-grid">
-
-                    <div class="patient-info-item">
-                        <strong>Token:</strong>
-                        <span id="current-token">—</span>
-                    </div>
-
-                    <div class="patient-info-item">
-                        <strong>Status:</strong>
-                        <span id="current-status">—</span>
-                    </div>
-
-                    <div class="patient-info-item">
-                        <strong>Patient:</strong>
-                        <span id="current-patient">—</span>
-                    </div>
-
-                    <div class="patient-info-item">
-                        <strong>Priority:</strong>
-                        <span id="current-priority">—</span>
+                    <!-- Workflow controls -->
+                    <div class="workflow-controls">
+                        <span class="section-label">Encounter Workflow Controls</span>
+                        <button class="workflow-complete-btn" id="completeEncounterBtn">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            Complete Encounter / Visit
+                        </button>
+                        <div class="workflow-secondary-row">
+                            <button class="workflow-secondary-btn" id="transferDeptBtn">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="17 1 21 5 17 9"></polyline>
+                                    <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                                    <polyline points="7 23 3 19 7 15"></polyline>
+                                    <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                                </svg>
+                                Transfer Dept
+                            </button>
+                            <button class="workflow-secondary-btn" id="adjustPriorityBtn">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="4" y1="21" x2="4" y2="14"></line>
+                                    <line x1="4" y1="10" x2="4" y2="3"></line>
+                                    <line x1="12" y1="21" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12" y2="3"></line>
+                                    <line x1="20" y1="21" x2="20" y2="16"></line>
+                                    <line x1="20" y1="12" x2="20" y2="3"></line>
+                                </svg>
+                                Adjust Priority
+                            </button>
+                            <button class="workflow-secondary-btn" id="dischargePatientBtn">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                                </svg>
+                                Discharge Patient
+                            </button>
+                        </div>
                     </div>
 
                 </div>
+            </div>
 
-                <div
-                    id="current-owner"
-                    class="current-owner unassigned"
-                >
-                    Owner: Unassigned
-                </div>
-
-                <div class="patient-actions">
-
-                    <button
-                        id="call-button"
-                        class="button-primary"
-                    >
-                        CALL
-                    </button>
-
-                    <button
-                        id="start-button"
-                        class="button-secondary"
-                    >
-                        START SERVICE
-                    </button>
-
-                    <button
-                        id="noshow-button"
-                        class="button-danger"
-                    >
-                        MARK NO-SHOW
-                    </button>
-
-                    <button
-                        id="complete-button"
-                        class="button-danger"
-                    >
-                        COMPLETE
-                    </button>
-
-                </div>
-
-                <p
-                    id="action-error"
-                    class="error-text hidden"
-                ></p>
-
-            </section>
-
-
-            <!-- ======================================================
-                 RECEPTION QUEUE
-                 ====================================================== -->
-
-            <section
-                class="panel hidden"
-                id="queue-panel"
-            >
-
-                <h2>Reception Queue</h2>
-
-                <div
-                    id="queue-state"
-                    class="empty-state"
-                >
-                    Log in to view department queue entries.
-                </div>
-
-                <table
-                    class="queue-table hidden"
-                    id="queue-table"
-                >
-
-                    <thead>
-
-                        <tr>
-                            <th>Token</th>
-                            <th>Patient</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                        </tr>
-
-                    </thead>
-
-                    <tbody id="queue-body"></tbody>
-
-                </table>
-
-            </section>
-
-
-            <!-- ======================================================
-                 NO-SHOW QUEUE
-                 ====================================================== -->
-
-            <section
-                class="panel hidden"
-                id="no-show-panel"
-            >
-
-                <h2>Missed / No-Show Patients</h2>
-
-                <div
-                    id="no-show-state"
-                    class="empty-state"
-                >
-                    No patients are currently marked as no-show.
-                </div>
-
-                <table
-                    id="no-show-table"
-                    class="queue-table hidden"
-                >
-
-                    <thead>
-
-                        <tr>
-                            <th>TOKEN</th>
-                            <th>PATIENT</th>
-                            <th>PRIORITY</th>
-                            <th>STATUS</th>
-                            <th>ACTION</th>
-                        </tr>
-
-                    </thead>
-
-                    <tbody id="no-show-body"></tbody>
-
-                </table>
-
-            </section>
-
-        </main>
-
+        </div>
     </div>
 
+    <script>
+        // Sample queue data (mock tokens)
+        const queueData = [
+            { tokenId: 'T-204', name: 'Aria Montgomery', waitTime: '42m', priority: 'critical', status: 'in-progress' },
+            { tokenId: 'T-205', name: 'Liam Henderson', waitTime: '28m', priority: 'high', status: 'called' },
+            { tokenId: 'T-206', name: 'Marcus Vance', waitTime: '1h 15m', priority: 'critical', status: 'waiting' },
+            { tokenId: 'T-207', name: 'Sienna Brooks', waitTime: '12m', priority: 'medium', status: 'in-progress' },
+            { tokenId: 'T-208', name: 'Elena Rostova', waitTime: '54m', priority: 'high', status: 'waiting' },
+            { tokenId: 'T-209', name: 'Damian Thorne', waitTime: '1h 45m', priority: 'low', status: 'waiting' },
+            { tokenId: 'T-210', name: 'Olivia Sterling', waitTime: '05m', priority: 'medium', status: 'called' },
+            { tokenId: 'T-211', name: 'Noah Kimani', waitTime: '38m', priority: 'high', status: 'waiting' },
+            { tokenId: 'T-212', name: 'Grace Wanjiru', waitTime: '22m', priority: 'medium', status: 'waiting' },
+            { tokenId: 'T-213', name: 'Peter Otieno', waitTime: '09m', priority: 'low', status: 'called' },
+            { tokenId: 'T-214', name: 'Fatima Ali', waitTime: '1h 02m', priority: 'critical', status: 'in-progress' },
+            { tokenId: 'T-215', name: 'Samuel Kiptoo', waitTime: '17m', priority: 'medium', status: 'in-progress' },
+        ];
 
-    <!-- ======================================================
-         MODAL OVERLAY (BACKDROP)
-         ====================================================== -->
+        let currentFilter = 'all';
 
-    <div id="registration-overlay" class="modal-overlay"></div>
+        // Sample no-show data
+        const noshowData = [
+            { tokenId: 'T-203' },
+            { tokenId: 'T-198' },
+            { tokenId: 'T-191' },
+        ];
 
+        // Icon buttons for each row, contextual to the patient's current status
+        function renderRowActions(patient) {
+            const callIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
+            const startIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            const noShowIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
 
-    <!-- ======================================================
-         REGISTRATION DRAWER (SLIDE-OVER PANEL)
-         ====================================================== -->
+            let primaryBtn = '';
+            if (patient.status === 'waiting') {
+                primaryBtn = `<button class="row-action-btn call" data-action="call" data-token="${patient.tokenId}" title="Call patient">${callIcon}</button>`;
+            } else if (patient.status === 'called') {
+                primaryBtn = `<button class="row-action-btn start" data-action="start" data-token="${patient.tokenId}" title="Start active service">${startIcon}</button>`;
+            }
 
-    <div id="registration-drawer" class="registration-drawer">
+            const noShowBtn = patient.status !== 'in-progress'
+                ? `<button class="row-action-btn no-show" data-action="no-show" data-token="${patient.tokenId}" title="Mark no-show">${noShowIcon}</button>`
+                : '';
 
-        <div class="drawer-header">
-            <h3>Complete Patient Registration</h3>
-            <button
-                id="drawer-close-button"
-                class="drawer-close-button"
-                aria-label="Close registration"
-            >
-                ✕
-            </button>
-        </div>
+            if (!primaryBtn && !noShowBtn) {
+                return '<span class="row-action-none">&mdash;</span>';
+            }
 
-        <div class="drawer-content">
+            return `<div class="row-actions">${primaryBtn}${noShowBtn}</div>`;
+        }
 
-            <p class="registration-description">
-                This patient has incomplete registration information.
-                Verify and complete the patient's administrative details.
-            </p>
+        // Populate queue table
+        function populateQueueTable(data = queueData) {
+            const tbody = document.getElementById('queueTableBody');
 
-            <div
-                id="drawer-error"
-                class="drawer-error"
-            ></div>
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No patients in queue</td></tr>';
+                return;
+            }
 
-            <form id="patient-registration-form" class="registration-form">
+            tbody.innerHTML = data.map(patient => `
+                <tr data-token="${patient.tokenId}">
+                    <td class="token-id">${patient.tokenId}</td>
+                    <td class="patient-name" title="${patient.name}">${patient.name}</td>
+                    <td class="wait-time">${patient.waitTime}</td>
+                    <td>
+                        <span class="priority ${patient.priority}">
+                            ${patient.priority.charAt(0).toUpperCase() + patient.priority.slice(1)}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status ${patient.status.replace(' ', '-')}">
+                            ${patient.status.charAt(0).toUpperCase() + patient.status.slice(1)}
+                        </span>
+                    </td>
+                    <td>${renderRowActions(patient)}</td>
+                </tr>
+            `).join('');
+        }
 
-                <div class="registration-grid">
+        // Populate no-show table
+        function populateNoshowTable(data = noshowData) {
+            const tbody = document.getElementById('noshowTableBody');
 
-                    <div class="form-field">
-                        <label for="registration-first-name">
-                            First Name
-                            <span class="required-mark">*</span>
-                        </label>
-                        <input
-                            id="registration-first-name"
-                            name="first_name"
-                            type="text"
-                            autocomplete="given-name"
-                            required
-                        />
-                    </div>
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" class="empty-state">No no-show records</td></tr>';
+                return;
+            }
 
-                    <div class="form-field">
-                        <label for="registration-last-name">
-                            Last Name
-                            <span class="required-mark">*</span>
-                        </label>
-                        <input
-                            id="registration-last-name"
-                            name="last_name"
-                            type="text"
-                            autocomplete="family-name"
-                            required
-                        />
-                    </div>
+            tbody.innerHTML = data.map(record => `
+                <tr>
+                    <td>${record.tokenId}</td>
+                    <td>
+                        <button class="noshow-btn" data-token="${record.tokenId}">
+                            Requeue
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
 
-                    <div class="form-field">
-                        <label for="registration-date-of-birth">
-                            Date of Birth
-                            <span class="required-mark">*</span>
-                        </label>
-                        <input
-                            id="registration-date-of-birth"
-                            name="date_of_birth"
-                            type="date"
-                            required
-                        />
-                    </div>
+        // Recompute tab counts + active badge from the live queueData array
+        function updateCounts() {
+            const counts = { waiting: 0, called: 0, 'in-progress': 0 };
+            queueData.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
 
-                    <div class="form-field">
-                        <label for="registration-gender">
-                            Gender
-                            <span class="required-mark">*</span>
-                        </label>
-                        <select
-                            id="registration-gender"
-                            name="gender"
-                            required
-                        >
-                            <option value="">Select gender</option>
-                            <option value="MALE">Male</option>
-                            <option value="FEMALE">Female</option>
-                            <option value="OTHER">Other</option>
-                        </select>
-                    </div>
+            document.querySelector('.status-tab[data-status="all"] .status-count').textContent = queueData.length;
+            document.querySelector('.status-tab[data-status="waiting"] .status-count').textContent = counts.waiting;
+            document.querySelector('.status-tab[data-status="called"] .status-count').textContent = counts.called;
+            document.querySelector('.status-tab[data-status="in-progress"] .status-count').textContent = counts['in-progress'];
+            document.getElementById('activeCount').textContent = `${queueData.length} Active`;
+        }
 
-                    <div class="form-field">
-                        <label for="registration-national-id">
-                            National ID
-                        </label>
-                        <input
-                            id="registration-national-id"
-                            name="national_id"
-                            type="text"
-                        />
-                    </div>
+        // Applies the active status tab + search box together, then re-renders
+        function renderFilteredQueue() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            let filtered = currentFilter === 'all'
+                ? queueData
+                : queueData.filter(p => p.status === currentFilter);
 
-                    <div class="form-field">
-                        <label for="registration-phone">
-                            Phone
-                        </label>
-                        <input
-                            id="registration-phone"
-                            name="phone"
-                            type="tel"
-                            autocomplete="tel"
-                        />
-                    </div>
+            if (searchTerm) {
+                filtered = filtered.filter(p =>
+                    p.tokenId.toLowerCase().includes(searchTerm) ||
+                    p.name.toLowerCase().includes(searchTerm)
+                );
+            }
 
-                    <div class="form-field">
-                        <label for="registration-email">
-                            Email
-                        </label>
-                        <input
-                            id="registration-email"
-                            name="email"
-                            type="email"
-                            autocomplete="email"
-                        />
-                    </div>
+            populateQueueTable(filtered);
+            updateCounts();
+        }
 
-                    <div class="form-field">
-                        <label for="registration-blood-type">
-                            Blood Type
-                        </label>
-                        <input
-                            id="registration-blood-type"
-                            name="blood_type"
-                            type="text"
-                        />
-                    </div>
+        // Status tab filtering
+        document.querySelectorAll('.status-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.status;
+                renderFilteredQueue();
+            });
+        });
 
-                </div>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', renderFilteredQueue);
 
-                <div class="form-field">
-                    <label for="registration-allergies">
-                        Allergies
-                    </label>
-                    <textarea
-                        id="registration-allergies"
-                        name="allergies"
-                    ></textarea>
-                </div>
+        // Row selection - swaps which patient the Encounter Workspace is
+        // focused on. Currently just highlights the row; wiring this up to
+        // actually replace the placeholder panel content comes later.
+        document.getElementById('queueTableBody').addEventListener('click', (e) => {
+            if (e.target.closest('.row-action-btn')) return; // handled separately below
+            const row = e.target.closest('tr[data-token]');
+            if (!row) return;
+            document.querySelectorAll('.queue-table tbody tr').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+        });
 
-            </form>
+        // Per-row queue actions: Call, Start Active Service, Mark No-Show
+        document.getElementById('queueTableBody').addEventListener('click', (e) => {
+            const btn = e.target.closest('.row-action-btn');
+            if (!btn) return;
 
-            <p class="keyboard-hint">
-                💡 Tip: Press <kbd>Ctrl+Enter</kbd> to save, or <kbd>Esc</kbd> to cancel
-            </p>
+            const { action, token } = btn.dataset;
+            const patient = queueData.find(p => p.tokenId === token);
+            if (!patient) return;
 
-        </div>
+            if (action === 'call') {
+                patient.status = 'called';
+                console.log('Calling token:', token);
+            } else if (action === 'start') {
+                patient.status = 'in-progress';
+                console.log('Starting active service for:', token);
+            } else if (action === 'no-show') {
+                const idx = queueData.findIndex(p => p.tokenId === token);
+                queueData.splice(idx, 1);
+                noshowData.unshift({ tokenId: token });
+                console.log('Marked no-show:', token);
+                populateNoshowTable();
+            }
 
-        <div class="drawer-footer">
-            <button
-                id="drawer-cancel-button"
-                class="drawer-cancel"
-            >
-                Cancel
-            </button>
-            <button
-                id="drawer-submit-button"
-                class="drawer-submit"
-            >
-                Save & Close
-            </button>
-        </div>
+            renderFilteredQueue();
+        });
 
-    </div>
+        // Call Next Token - pulls the longest-waiting patient still marked "waiting"
+        document.getElementById('callNextBtn').addEventListener('click', () => {
+            const firstWaiting = queueData.find(p => p.status === 'waiting');
+            if (firstWaiting) {
+                firstWaiting.status = 'called';
+                console.log('Calling token:', firstWaiting.tokenId);
+                renderFilteredQueue();
+            } else {
+                alert('No patients waiting');
+            }
+        });
 
+        // Returns the currently row-selected patient, if any
+        function getSelectedPatient() {
+            const selectedRow = document.querySelector('.queue-table tbody tr.selected');
+            if (!selectedRow) return null;
+            return queueData.find(p => p.tokenId === selectedRow.dataset.token) || null;
+        }
 
-    <script
-        type="module"
-        src="js/staff.js"
-    ></script>
+        // Start Active Service - acts on the selected row if it's "called",
+        // otherwise falls back to the first "called" patient in the queue
+        document.getElementById('startServiceBtn').addEventListener('click', () => {
+            const selected = getSelectedPatient();
+            const target = (selected && selected.status === 'called')
+                ? selected
+                : queueData.find(p => p.status === 'called');
 
+            if (target) {
+                target.status = 'in-progress';
+                console.log('Starting active service for:', target.tokenId);
+                renderFilteredQueue();
+            } else {
+                alert('No called patients are ready to start service');
+            }
+        });
+
+        // Mark Patient No-Show - acts on the selected row
+        document.getElementById('markNoShowBtn').addEventListener('click', () => {
+            const selected = getSelectedPatient();
+            if (!selected) {
+                alert('Select a patient in the queue first');
+                return;
+            }
+            if (selected.status === 'in-progress') {
+                alert('Patient is already in progress and cannot be marked no-show');
+                return;
+            }
+
+            const idx = queueData.findIndex(p => p.tokenId === selected.tokenId);
+            queueData.splice(idx, 1);
+            noshowData.unshift({ tokenId: selected.tokenId });
+            console.log('Marked no-show:', selected.tokenId);
+            populateNoshowTable();
+            renderFilteredQueue();
+        });
+
+        // Requeue button (No-Show panel)
+        document.getElementById('noshowTableBody').addEventListener('click', (e) => {
+            const btn = e.target.closest('.noshow-btn');
+            if (!btn) return;
+            const token = btn.dataset.token;
+
+            const idx = noshowData.findIndex(r => r.tokenId === token);
+            if (idx > -1) noshowData.splice(idx, 1);
+            queueData.push({ tokenId: token, name: 'Requeued Patient', waitTime: '0m', priority: 'medium', status: 'waiting' });
+
+            console.log('Requeueing token:', token);
+            populateNoshowTable();
+            renderFilteredQueue();
+        });
+
+        // Logout button
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            console.log('Logging out...');
+            // Implement logout logic
+        });
+
+        // Refresh button (placeholder - re-renders sample data)
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            renderFilteredQueue();
+            document.getElementById('lastUpdated').textContent = 'Last updated: Just Now';
+        });
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            renderFilteredQueue();
+            populateNoshowTable();
+
+            // Update timestamp periodically
+            let secondsSinceUpdate = 0;
+            setInterval(() => {
+                secondsSinceUpdate += 30;
+                const el = document.getElementById('lastUpdated');
+                if (secondsSinceUpdate < 60) {
+                    el.textContent = 'Last updated: Just Now';
+                } else {
+                    el.textContent = `Last updated: ${Math.floor(secondsSinceUpdate / 60)}m ago`;
+                }
+            }, 30000);
+        });
+    </script>
 </body>
-
 </html>
