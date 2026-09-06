@@ -127,7 +127,32 @@ describe("role gating", () => {
         expect(mockApi.setQueuePriority).not.toHaveBeenCalled();
     });
 
-    it("denies transfer for a receptionist", async () => {
+    it("allows transfer for a receptionist", async () => {
+        /*
+         * Policy: reception routes patients (TRANSFER) but never sets
+         * clinical priority (SET_PRIORITY). The priority-gating test above
+         * covers the denial side; this covers the routing side.
+         */
+        setStaffContext({
+            staff_id: STAFF_A,
+            role: STAFF_ROLE.RECEPTIONIST,
+            dept_id: DEPT,
+        });
+
+        mockApi.transferPatient.mockResolvedValue(
+            makeEntry({ queue_entry_id: "q2" })
+        );
+
+        await transferToDepartment("visit-1", { target_dept_id: "dept-2" });
+
+        expect(mockApi.transferPatient).toHaveBeenCalledWith(
+            "visit-1",
+            { target_dept_id: "dept-2" }
+        );
+        expect(reconcileSpy).toHaveBeenCalled();
+    });
+
+    it("denies priority updates for a receptionist", async () => {
         setStaffContext({
             staff_id: STAFF_A,
             role: STAFF_ROLE.RECEPTIONIST,
@@ -135,10 +160,10 @@ describe("role gating", () => {
         });
 
         await expect(
-            transferToDepartment("visit-1", { target_dept_id: "dept-2" })
+            updatePriority("q1", "URGENT")
         ).rejects.toMatchObject({ status: 403 });
 
-        expect(mockApi.transferPatient).not.toHaveBeenCalled();
+        expect(mockApi.setQueuePriority).not.toHaveBeenCalled();
     });
 
     it("allows priority for a triage nurse", async () => {

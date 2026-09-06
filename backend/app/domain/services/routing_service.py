@@ -62,7 +62,7 @@ class RoutingService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Visit not found.",
             )
-        
+
         # 2. Validate that the visit is active prior to routing
         # This prevents 404 leakage from downstream transfer_patient calls
         if visit.stage in (VisitStage.COMPLETED, VisitStage.CANCELLED):
@@ -86,14 +86,14 @@ class RoutingService:
 
         # 4. Handle paths that skip triage (Incomplete registration or Walk-ins / Referrals)
         if (
-            patient.registration_status == RegistrationStatus.INCOMPLETE 
+            patient.registration_status == RegistrationStatus.INCOMPLETE
             or visit.entry_type in (EntryType.WALK_IN, EntryType.REFERRAL)
         ):
             reception = await self._get_reception_department()
-            
+
             is_incomplete = patient.registration_status == RegistrationStatus.INCOMPLETE
             notes = "Patient requires registration." if is_incomplete else "Walk-in patient routed to Reception."
-            
+
             return await self.transfer_patient(
                 visit_id=visit.visit_id,
                 target_dept_id=reception.dept_id,
@@ -112,7 +112,7 @@ class RoutingService:
                 priority=QueuePriority.NORMAL,
                 notes="Appointment patient routed directly to Triage.",
             )
-            
+
         # 6. Fallback safety route to Reception
         reception = await self._get_reception_department()
         return await self.transfer_patient(
@@ -133,18 +133,21 @@ class RoutingService:
         visit_id: UUID,
         target_dept_id: UUID,  # ← FIX: Changed from target_department_id
         reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER,
-        priority: QueuePriority = QueuePriority.NORMAL,
+        priority: Optional[QueuePriority] = None,
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
     ) -> QueueEntry:
         """
         Transfer a patient to a target department.
-        
+
         Args:
             visit_id: The visit to transfer
             target_dept_id: The target department UUID (not department_id)
             reason: Transfer reason
-            priority: Queue priority
+            priority: New queue priority. When None, the patient's
+                CURRENT priority is preserved on the new queue entry —
+                this is how administrative roles (Reception) transfer
+                patients without making a clinical priority decision.
             notes: Optional clinical notes
             initiated_by_staff_id: Staff member initiating transfer
         """
@@ -164,11 +167,23 @@ class RoutingService:
                 detail="Target department is inactive or does not exist.",
             )
 
-        # 3. Apply Priority Escalation Rules
+        # 3. Fetch the current encounter BEFORE the transaction so its
+        #    priority can be preserved when no explicit priority is given.
+        current_entry_for_priority = await self.queue_service.get_active_queue_entry(visit_id)
+
+        # 4. Resolve priority: explicit (clinical decision) or preserved.
+        if priority is None:
+            priority = (
+                current_entry_for_priority.priority
+                if current_entry_for_priority
+                else QueuePriority.NORMAL
+            )
+
+        # 5. Apply Priority Escalation Rules
         if reason == TransferReason.RETURN_TO_DEPARTMENT and priority == QueuePriority.NORMAL:
             priority = QueuePriority.URGENT
 
-        # 4. Safety Guardrails - CRITICAL priority requires notes
+        # 6. Safety Guardrails - CRITICAL priority requires notes
         if priority == QueuePriority.CRITICAL and not (notes and notes.strip()):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -176,7 +191,7 @@ class RoutingService:
             )
 
         async with self.db.begin_nested():
-            # 5. Fetch Active Encounter & Complete It
+            # 7. Fetch Active Encounter & Complete It
             current_entry = await self.queue_service.get_active_queue_entry(visit_id)
 
             if current_entry:
@@ -215,7 +230,7 @@ class RoutingService:
                     notes=completion_note,
                 )
 
-            # 6. Create Target Department Encounter
+            # 8. Create Target Department Encounter
             # FIX: Use dept_id parameter name (not department_id)
             new_entry = await self.queue_service.create_queue_entry(
                 visit_id=visit.visit_id,
@@ -224,7 +239,7 @@ class RoutingService:
                 notes=notes,
             )
 
-            # 7. Update Visit's Current Active Queue Reference
+            # 9. Update Visit's Current Active Queue Reference
             visit.current_queue_entry_id = new_entry.queue_entry_id
             await self.db.flush()
 
@@ -252,7 +267,7 @@ class RoutingService:
         self,
         visit_id: UUID,
         target_dept_id: UUID,  # ← FIX: Changed from target_department_id
-        priority: QueuePriority = QueuePriority.NORMAL,
+        priority: Optional[QueuePriority] = None,
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
     ) -> QueueEntry:

@@ -60,11 +60,13 @@ export function subscribe(listener) {
 }
 
 /**
- * Reset local state back to initial default and notify subscribers.
+ * Reset local state back to initial default.
+ *
+ * Deliberately silent: callers that need subscribers notified
+ * (e.g. setContext) invoke notify() themselves exactly once.
  */
 export function clear() {
     state = createInitialState();
-    notify();
 }
 
 /**

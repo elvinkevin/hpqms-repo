@@ -50,7 +50,7 @@ async def dispatch_patient_from_kiosk(
 
     The frontend does NOT provide department IDs. Only managed kiosk
     devices with a valid X-Kiosk-API-Key may dispatch a visit.
-    
+
     Required Header:
         X-Kiosk-API-Key: <valid-api-key>
     """
@@ -77,7 +77,10 @@ async def dispatch_patient_from_kiosk(
             require_role(
                 StaffRole.TRIAGE_NURSE,
                 StaffRole.DOCTOR,
-                StaffRole.ADMIN,  
+                StaffRole.ADMIN,
+                StaffRole.RECEPTIONIST,
+                StaffRole.NURSE
+
             )
         )
     ],
@@ -97,16 +100,22 @@ async def transfer_patient(
     • creates the next queue entry
     • updates Visit.current_queue_entry_id
     • preserves the patient's token number
-    
+
     Required Role: RECEPTIONIST, NURSE, TRIAGE_NURSE, DOCTOR, or ADMIN
-    
+
     Payload:
         {
             "target_dept_id": "uuid",
             "reason": "DEPARTMENT_TRANSFER" | "RETURN_TO_DEPARTMENT" | "DIRECT_ROUTING",
-            "priority": "NORMAL" | "URGENT" | "CRITICAL",
+            "priority": "NORMAL" | "SEMI_URGENT" | "URGENT" | "CRITICAL" | omitted,
             "notes": "optional clinical notes"
         }
+
+    Priority semantics:
+        Priority is a clinical decision. When "priority" is omitted the
+        patient's CURRENT priority is preserved on the new queue entry.
+        Administrative roles (RECEPTIONIST) should omit it; clinical
+        roles (TRIAGE_NURSE, DOCTOR) may set it explicitly.
     """
 
     routing_service = RoutingService(db)
@@ -152,7 +161,7 @@ async def move_patient_deprecated(
 ):
     """
     ⚠️  DEPRECATED: Use POST /{visit_id}/transfer instead.
-    
+
     Transfers an in-progress patient to another department queue.
     This is an alias for the /transfer endpoint for backward compatibility.
     """
@@ -198,21 +207,21 @@ async def get_current_location(
 ):
     """
     Get the patient's current location in the queue system.
-    
+
     Returns the active queue entry, department info, and position in line.
-    
+
     Required Role: Any authenticated staff member
     """
     routing_service = RoutingService(db)
-    
+
     location = await routing_service.get_current_location(visit_id)
-    
+
     if not location:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Visit not found."
         )
-    
+
     return location
 
 
@@ -238,10 +247,10 @@ async def get_patient_history(
 ):
     """
     Returns the complete routing history of a patient's visit.
-    
+
     Shows all departments the patient has visited and their status
     at each stage.
-    
+
     Required Role: ADMIN or RECEPTIONIST
     """
 
@@ -276,9 +285,9 @@ async def discharge_patient(
 ):
     """
     Discharge a patient and complete their visit.
-    
+
     Completes the current queue entry and marks the visit as COMPLETED.
-    
+
     Required Role: DOCTOR or ADMIN
     """
     service = RoutingService(db)

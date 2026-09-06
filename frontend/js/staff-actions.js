@@ -1,4 +1,3 @@
-
 /* ==========================================================================
    HPQMS Staff Dashboard — Action Layer (Phase 4 / A4.1d)
    js/staff-actions.js
@@ -50,10 +49,15 @@ import {
     requeueQueueEntry,
     cancelQueueEntry,
     setQueuePriority,
-    completePatientRegistration,
     transferPatient,
     dischargePatient,
+    getDepartments,
 } from "./staff-api.js";
+
+import {
+    completePatientRegistration as apiCompletePatientRegistration,
+} from "./staff-api.js";
+
 
 import {
     applyEvent,
@@ -127,6 +131,15 @@ export function registerReconcileHandler(handler) {
 
 /**
  * Reconcile local queue state with the authoritative backend snapshot.
+ *
+ * This is the ONE mechanism this module uses to refresh
+ * staff-queue-state after a mutation. There is deliberately no second,
+ * differently-named refresh path — a `refreshQueueState()` call was
+ * previously introduced in a duplicate registration function below
+ * without ever being defined or imported anywhere, which threw
+ * `ReferenceError: refreshQueueState is not defined` at runtime. If a
+ * future change needs a different refresh strategy, change what
+ * reconcile() does here rather than adding a second entry point.
  */
 async function reconcile() {
     if (reconcileHandler) {
@@ -372,6 +385,23 @@ async function ingestAndReconcile(entry, eventType) {
 
 
 /* ==========================================================================
+   DATA LOADING
+   ========================================================================== */
+
+/**
+ * Load the list of available departments.
+ *
+ * This is a read operation. No reconciliation is needed.
+ * Backend RBAC may filter the department list based on role/permissions.
+ */
+export async function loadDepartments() {
+    assertStaffContext();
+
+    return getDepartments();
+}
+
+
+/* ==========================================================================
    QUEUE ACTIONS
    ========================================================================== */
 
@@ -566,6 +596,17 @@ export async function updatePriority(entryId, priority) {
  *
  * Registration is a patient-domain mutation rather than a queue-entry
  * lifecycle transition, so it is followed by authoritative reconciliation.
+ *
+ * This is the ONLY registration action UI components should call. A
+ * second copy of this function — completePatientRegistration(), further
+ * down this file in an earlier revision — bypassed assertActionContext()
+ * entirely (no role/permission/department check) and called a
+ * `refreshQueueState()` that was never defined or imported anywhere in
+ * this module, which threw `ReferenceError: refreshQueueState is not
+ * defined` on every real registration attempt. It has been removed
+ * rather than patched, since patching it would still have left the
+ * missing permission check in place. Callers (e.g.
+ * reception-workspace.js) should import `completeRegistration`.
  */
 export async function completeRegistration(
     patientId,
@@ -593,7 +634,7 @@ export async function completeRegistration(
         );
     }
 
-    const result = await completePatientRegistration(
+    const result = await apiCompletePatientRegistration(
         patientId,
         registrationData
     );
@@ -702,4 +743,3 @@ export {
     canPerformAction as canPerform,
     ACTION,
 };
-

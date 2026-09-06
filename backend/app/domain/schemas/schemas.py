@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field, model_validator
 from sqlalchemy import Integer
 from app.domain.models.models import (
-    StaffRole, DeptType, EntryType, VisitStage, 
+    StaffRole, DeptType, EntryType, VisitStage,
     QueueEntryStatus, QueuePriority, RegistrationStatus
 )
 from enum import Enum
@@ -73,7 +73,7 @@ class PatientRead(ORMBase):
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
     blood_type: Optional[str] = None
-    allergies: Optional[str] = None  
+    allergies: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     registration_status: str
@@ -85,9 +85,9 @@ class PatientRead(ORMBase):
 class PatientSummary(ORMBase):
     """Lightweight version embedded inside token/queue responses."""
     patient_id: UUID
-    national_id: Optional[str]      
-    first_name: Optional[str]       
-    last_name: Optional[str]        
+    national_id: Optional[str]
+    first_name: Optional[str]
+    last_name: Optional[str]
     phone: Optional[str]
 
 class PatientUpdate(BaseModel):
@@ -167,7 +167,7 @@ class CompletePatientRegistration(BaseModel):
             )
 
         return self
-    
+
 
 class PatientActiveStatusUpdate(BaseModel):
     """Used by authorized staff to activate or deactivate a patient record."""
@@ -281,8 +281,8 @@ class CurrentUser(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(
-        ..., 
-        min_length=8, 
+        ...,
+        min_length=8,
         description="Password must be at least 8 characters long"
     )
 
@@ -387,7 +387,7 @@ class QueuePriorityUpdate(BaseModel):
     """Used by authorized staff to update queue priority / acuity."""
     priority: QueuePriority
 
-    
+
 class PatientMovementRequest(BaseModel):
     """Payload driving RoutingService.move_patient operations across rooms."""
     target_dept_id: UUID
@@ -844,7 +844,13 @@ class TransferPatientRequest(BaseModel):
 
     reason: TransferReason = TransferReason.DEPARTMENT_TRANSFER
 
-    priority: QueuePriority = QueuePriority.NORMAL
+    """
+    Priority is a clinical decision. When omitted (None) the transfer
+    PRESERVES the patient's current priority — this is how Reception
+    routes patients without exercising clinical authority. Explicit
+    values should only be sent by clinical roles (triage nurse, doctor).
+    """
+    priority: Optional[QueuePriority] = None
 
     notes: Optional[str] = Field(
         default=None,

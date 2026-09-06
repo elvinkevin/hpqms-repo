@@ -17,6 +17,10 @@ import {
     getStaffContext,
 } from "./staff-context.js";
 import { onLogout, renderStaffHeader } from "./components/staff-header.js";
+import { mount as mountEncounterPanel, unmount as unmountEncounterPanel } from "./components/encounter-panel.js";
+import {
+    getWorkspaceForRole,
+} from "./staff-workspace-config.js";
 import {
     initializeQueuePanel,
     renderQueuePanel,
@@ -202,6 +206,15 @@ async function initializeDashboard() {
         setContext(context.departmentId, context.staffId);
         registerReconcileHandler(synchronizeQueue);
         renderStaffHeader(context);
+
+        /*
+         * The shell resolves the workspace from the authenticated
+         * role — the encounter panel never performs authorization.
+         */
+        mountEncounterPanel(
+            document.getElementById("encounterMount"),
+            { workspace: getWorkspaceForRole(user.role) }
+        );
         await synchronizeQueue();
         startStaffWebSocket();
         setStatus(`Ready - ${context.firstName} ${context.lastName}`);
@@ -215,6 +228,7 @@ async function initializeDashboard() {
 
 function handleLogout() {
     stopStaffWebSocket();
+    unmountEncounterPanel();
     logout();
     setStaffContext(null);
     clearStaffContext();

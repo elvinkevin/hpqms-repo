@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HPQMS Header - Horizon General Hospital</title>
     <link rel="stylesheet" href="css/staff.css">
+    <link rel="stylesheet" href="css/registration-drawer.css">
+    <link rel="stylesheet" href="css/workspaces/reception.css">
+    
 </head>
 
 <body>
@@ -82,9 +85,9 @@
         </header>
 
         <!-- MAIN CONTENT -->
-        <div class="main-content">
+        <main class="main-content">
 
-            <!-- LEFT: QUEUE COLUMN -->
+            <!-- LEFT: QUEUE COLUMN (Existing & Intact) -->
             <div class="queue-column">
                 <!-- QUEUE PANEL -->
                 <div class="queue-panel">
@@ -194,30 +197,38 @@
                         </button>
                     </div>
 
-                <!-- NO-SHOW PANEL -->
-                <div class="noshow-panel hidden" id="noshowPanel">
-                    <div class="noshow-header">
-                        <h3 class="noshow-title">No-Show</h3>
-                    </div>
+                    <!-- NO-SHOW PANEL -->
+                    <div class="noshow-panel hidden" id="noshowPanel">
+                        <div class="noshow-header">
+                            <h3 class="noshow-title">No-Show</h3>
+                        </div>
 
-                    <div class="noshow-table-wrapper">
-                        <table class="noshow-table">
-                            <thead>
-                                <tr>
-                                    <th>Token ID</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="noshowTableBody">
-                                <!-- Populated by JavaScript -->
-                            </tbody>
-                        </table>
-                        <div id="noshowState" class="empty-state"></div>
+                        <div class="noshow-table-wrapper">
+                            <table class="noshow-table">
+                                <thead>
+                                    <tr>
+                                        <th>Token ID</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="noshowTableBody">
+                                    <!-- Populated by JavaScript -->
+                                </tbody>
+                            </table>
+                            <div id="noshowState" class="empty-state"></div>
+                        </div>
                     </div>
-                </div>
                 </div>
             </div>
-        </div>
+
+            <!-- RIGHT: ENCOUNTER COLUMN (NEW MOUNT CONTAINER) -->
+            <section class="encounter-column">
+                <div id="encounterMount">
+                    <!-- Managed dynamically by encounter-panel.js -->
+                </div>
+            </section>
+
+        </main>
 
         <script type="module" src="js/staff-v2.js"></script>
 </body>

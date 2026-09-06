@@ -1,0 +1,756 @@
+/* ==========================================================================
+   HPQMS Reception Workspace Styles (Complete)
+   Includes: scrollable content, fixed action buttons, routing drawer
+
+   Single stylesheet combining all Reception UI styling.
+   No need to import multiple files.
+   ========================================================================== */
+
+/* ===== RECEPTION WORKSPACE CONTAINER ===== */
+.reception-workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.reception-workspace.reception-no-patient {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: 2rem;
+    min-height: 320px;
+}
+
+.reception-empty-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #f1f5f9;
+    font-size: 24px;
+    color: #64748b;
+    margin-bottom: 0.75rem;
+}
+
+.reception-workspace h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.reception-workspace p {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+
+/* ===== SCROLLABLE CONTENT AREA ===== */
+.reception-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+    display: flex;
+    flex-direction: column;
+    /* gap: 0.5rem; */
+    padding: 1.5rem;
+}
+
+.reception-scroll-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.reception-scroll-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+.reception-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+
+/* ===== SECTIONS ===== */
+.reception-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.reception-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.reception-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.reception-section-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.reception-section-header>div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.reception-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.reception-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 0.5rem 0;
+}
+
+
+/* ===== REGISTRATION STATUS BADGE ===== */
+.registration-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.registration-status.registration-complete {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.registration-status.registration-incomplete {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+
+/* ===== REGISTRATION ALERT (INCOMPLETE) ===== */
+.registration-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #fde68a;
+    border-radius: 9px;
+    background: #fffbeb;
+    margin-bottom: 0.75rem;
+}
+
+.registration-alert-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.registration-alert-content {
+    flex: 1;
+}
+
+.registration-alert-content strong {
+    display: block;
+    color: #92400e;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.registration-alert-content p {
+    margin: 0;
+    color: #78716c;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.reception-primary-action {
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--color-primary);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 1rem;
+}
+
+.reception-primary-action:hover {
+    background: var(--color-primary-dark);
+    box-shadow: 0 4px 12px rgba(15, 91, 120, 0.25);
+}
+
+.reception-primary-action:active {
+    transform: scale(0.98);
+}
+
+.reception-primary-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* ===== REGISTRATION COMPLETE ===== */
+.registration-complete-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #bbf7d0;
+    border-radius: 9px;
+    background: #f0fdf4;
+}
+
+.registration-check {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #15803d;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.registration-complete-message strong {
+    display: block;
+    color: #15803d;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.registration-complete-message p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+
+/* ===== ENCOUNTER INFORMATION GRID ===== */
+.reception-encounter-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem 1.5rem;
+    padding: 1rem;
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+.reception-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.reception-info-item span {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.reception-info-item strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    word-break: break-word;
+}
+
+
+/* ===== ERROR MESSAGE ===== */
+.reception-action-error {
+    background: var(--priority-critical-bg);
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--priority-critical-text);
+    font-size: 13px;
+    margin-bottom: 1rem;
+}
+
+
+/* ===== FIXED ACTION CONTROLS ===== */
+.reception-action-controls {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.reception-workflow-btn {
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+    padding: 12px 14px;
+    text-transform: capitalize;
+}
+
+.reception-workflow-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Primary button (Complete Encounter) */
+.reception-workflow-primary {
+    width: 100%;
+    background: var(--color-success);
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.reception-workflow-primary:hover {
+    background: var(--color-success-dark);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+}
+
+.reception-workflow-primary:active {
+    transform: scale(0.98);
+}
+
+/* Secondary buttons row (Transfer / Cancel — no priority for Reception) */
+.reception-workflow-secondary-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.reception-workflow-secondary {
+    background: var(--color-surface-subtle);
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    font-size: 12px;
+    padding: 10px 8px;
+}
+
+.reception-workflow-secondary:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.reception-workflow-secondary:active {
+    transform: scale(0.96);
+}
+
+.action-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+
+/* ===== ROUTING DRAWER SIDEBAR ===== */
+.reception-routing-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1000;
+    display: flex;
+    animation: slideInFromRight 0.3s ease-out;
+}
+
+@keyframes slideInFromRight {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.reception-routing-drawer-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+}
+
+.reception-routing-panel {
+    position: relative;
+    z-index: 1001;
+    margin-left: auto;
+    width: 100%;
+    max-width: 420px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+    animation: slidePanel 0.3s ease-out;
+}
+
+@keyframes slidePanel {
+    from {
+        transform: translateX(100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+
+/* ===== ROUTING DRAWER HEADER ===== */
+.reception-routing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.reception-routing-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.reception-routing-header>div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.reception-routing-close {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.reception-routing-close:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+
+/* ===== ROUTING DRAWER FORM ===== */
+.reception-routing-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 1.5rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.reception-routing-form::-webkit-scrollbar {
+    width: 6px;
+}
+
+.reception-routing-form::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+.reception-routing-form::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.reception-routing-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+}
+
+.reception-routing-section label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.reception-optional {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+.reception-routing-select,
+.reception-routing-textarea {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    transition: all 0.15s ease;
+}
+
+.reception-routing-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23475569' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+}
+
+.reception-routing-select:focus,
+.reception-routing-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    background-color: #ffffff;
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.reception-routing-select:focus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230F8B8E' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");
+}
+
+.reception-routing-select:disabled,
+.reception-routing-textarea:disabled {
+    background: var(--color-surface-subtle);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+
+/* ===== READ-ONLY PRIORITY (Reception transfer drawer) ===== */
+.reception-routing-priority-readonly {
+    padding: 10px 12px;
+    border: 1px dashed var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-subtle);
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.reception-routing-priority-note {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+}
+
+.reception-routing-textarea {
+    resize: vertical;
+    min-height: 100px;
+    font-family: inherit;
+}
+
+
+/* ===== ROUTING ERROR MESSAGE ===== */
+.reception-routing-error {
+    background: var(--priority-critical-bg);
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--priority-critical-text);
+    font-size: 12px;
+    margin-bottom: 1rem;
+}
+
+
+/* ===== ROUTING ACTION BUTTONS ===== */
+.reception-routing-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+    margin-top: auto;
+}
+
+.reception-routing-btn {
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.reception-routing-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.reception-routing-btn.secondary {
+    border: 1px solid #cbd5e1;
+    background: var(--color-surface-subtle);
+    color: #475569;
+}
+
+.reception-routing-btn.secondary:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.reception-routing-btn.primary {
+    border: none;
+    background: var(--color-primary);
+    color: #ffffff;
+}
+
+.reception-routing-btn.primary:hover {
+    background: var(--color-primary-dark);
+    box-shadow: 0 4px 12px rgba(15, 91, 120, 0.25);
+}
+
+.reception-routing-btn.primary:active {
+    transform: scale(0.98);
+}
+
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+@media (max-width: 768px) {
+    .reception-scroll-container {
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .reception-section {
+        padding-bottom: 1rem;
+    }
+
+    .reception-action-controls {
+        padding: 1rem;
+        gap: 0.5rem;
+    }
+
+    .reception-workflow-secondary-row {
+        grid-template-columns: 1fr;
+    }
+
+    .reception-routing-panel {
+        max-width: 100%;
+    }
+
+    .reception-encounter-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem 1rem;
+    }
+
+    .reception-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .registration-status {
+        align-self: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .reception-routing-panel {
+        max-width: 100%;
+        border-radius: 12px 12px 0 0;
+        max-height: 90vh;
+    }
+
+    .reception-scroll-container {
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+
+    .reception-action-controls {
+        padding: 0.75rem;
+        gap: 0.5rem;
+    }
+
+    .reception-workflow-btn {
+        padding: 10px 12px;
+        font-size: 12px;
+    }
+
+    .reception-encounter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .reception-routing-form {
+        padding: 1rem;
+    }
+
+    .reception-routing-section {
+        margin-bottom: 1rem;
+    }
+}
