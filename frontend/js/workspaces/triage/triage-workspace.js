@@ -24,16 +24,6 @@
    means onRetakeVitals is no longer called by this workspace at all —
    if a parent still wires that callback, it's now dead code there.
 
-   -----------------------------------------------------------------------
-   Note on persistence
-   -----------------------------------------------------------------------
-   There is no confirmed backend endpoint yet for saving vitals or a
-   triage assessment — this file only has actions wired for priority,
-   no-show, discharge, and routing so far. Confirming in the drawer
-   updates local state immediately so the workflow isn't blocked, but
-   this should be wired to a real triage-actions.js function (e.g.
-   saveAssessment(queueEntryId, payload)) once that endpoint is
-   confirmed — see handleConfirmAssessment().
    ========================================================================== */
 
 import {

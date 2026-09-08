@@ -1,0 +1,967 @@
+/* ==========================================================================
+   HPQMS Doctor Workspace Styles
+   Theme matches triage-workspace.css: same CSS custom properties, same
+   section/eyebrow/card/drawer/confirm-modal visual language, same
+   responsive breakpoints (768px / 480px).
+   ========================================================================== */
+
+/* ===== WORKSPACE CONTAINER ===== */
+.doctor-workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.doctor-workspace.doctor-no-patient {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: 2rem;
+    min-height: 320px;
+}
+
+.doctor-empty-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #f1f5f9;
+    font-size: 24px;
+    color: #64748b;
+    margin-bottom: 0.75rem;
+}
+
+.doctor-workspace h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.doctor-workspace p {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+
+/* ===== SCROLLABLE CONTENT AREA ===== */
+.doctor-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.25rem;
+}
+
+.doctor-scroll-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.doctor-scroll-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+.doctor-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+
+/* ===== SECTIONS ===== */
+.doctor-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.doctor-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.doctor-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.doctor-section-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.doctor-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.doctor-readonly-badge {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+
+
+/* ===== SUMMARY BLOCKS (Chief Complaint / Triage Assessment) ===== */
+.doctor-summary-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.doctor-field-label {
+    font-size: 11px;
+    color: var(--color-black);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+}
+
+.doctor-summary-text,
+.doctor-empty-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 0.9rem;
+    border-radius: 8px;
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border);
+}
+
+.doctor-summary-text {
+    color: #334155;
+}
+
+.doctor-empty-text {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+
+/* ===== VITALS ===== */
+.doctor-vitals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.9rem;
+}
+
+.doctor-vital-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: var(--color-surface-subtle);
+}
+
+.doctor-vital-label {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.doctor-vital-value {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.doctor-vital-value small {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.doctor-vital-empty {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+
+/* ===== PRIORITY CONTAINER ===== */
+.doctor-priority-row {
+    display: flex;
+    flex-direction: column; /* Keeps labels on top, buttons on bottom */
+    gap: 1rem;
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.9rem;
+}
+
+/* ===== TOP ROW LABEL BLOCK ===== */
+.doctor-priority-row > div:first-child {
+    display: flex;
+    flex-direction: row; /* Normal row alignment: Label on left, Badge on right */
+    justify-content: space-between; /* Pushes them to the absolute outer edges */
+    align-items: center;
+    width: 100%;
+}
+
+/* "Current Priority" Text Header */
+.doctor-field-label {
+    text-align: left; /* Aligns text cleanly to the left edge */
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: black;
+}
+
+/* "NORMAL" Status Badge Placement */
+.doctor-priority-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* ===== BOTTOM ROW OPTION BUTTONS ===== */
+.doctor-priority-options {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* 4 identical columns stretching across */
+    gap: 0.5rem;
+    width: 100%;
+}
+
+/* Individual Interactive Button Styles */
+.doctor-priority-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+
+.doctor-priority-option input[type="radio"] {
+    margin: 0;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.doctor-priority-option:hover {
+    border-color: var(--color-primary);
+    background: #f8fafc;
+}
+
+/* :has() support is broad in evergreen browsers; without it the option
+   still works fine, it just won't get the filled "checked" treatment —
+   the native radio dot still shows state. */
+.doctor-priority-option:has(input:checked) {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #ffffff;
+}
+
+
+/* ===== CONSULTATION FORM ===== */
+.doctor-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.1rem;
+}
+
+.doctor-form-field:last-of-type {
+    margin-bottom: 0.75rem;
+}
+
+.doctor-form-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.doctor-form-field textarea {
+    padding: 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    transition: all 0.15s ease;
+}
+
+.doctor-form-field textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.doctor-form-field textarea:disabled {
+    background: var(--color-surface-subtle);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.doctor-form-field textarea::placeholder {
+    color: var(--color-text-soft);
+}
+
+.doctor-form-field small {
+    align-self: flex-end;
+    font-size: 11px;
+    color: var(--color-text-muted);
+}
+
+.doctor-form-error,
+.doctor-error {
+    background: var(--priority-critical-bg);
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--priority-critical-text);
+    font-size: 13px;
+    margin-bottom: 0.75rem;
+}
+
+.doctor-save-btn {
+    width: 100%;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--color-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.doctor-save-btn:hover:not(:disabled) {
+    background: var(--color-primary-dark);
+    box-shadow: 0 4px 12px rgba(15, 91, 120, 0.25);
+}
+
+.doctor-save-btn:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.doctor-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* ===== FIXED ENCOUNTER ACTIONS ===== */
+.doctor-action-controls {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    padding: 1.25rem;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.doctor-workflow-btn {
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 14px;
+    transition: all 0.15s ease;
+}
+
+.doctor-workflow-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.doctor-workflow-btn:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.doctor-transfer-btn {
+    background: transparent;
+    color: var(--color-primary);
+    border: 2px solid var(--color-primary);
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doctor-transfer-btn:hover:not(:disabled) {
+    background: var(--color-primary-light, rgba(0, 90, 135, 0.08));
+    color: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+    box-shadow: 0 4px 12px rgba(15, 91, 120, 0.15);
+}
+
+.doctor-discharge-btn {
+     background: var(--color-success-muted, #1e8549); 
+    color: #ffffff;
+}
+
+.doctor-discharge-btn:hover:not(:disabled) {
+    background: var(--color-success-dark);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+}
+
+
+/* ===== PRIORITY CHANGE CONFIRMATION BANNER ===== */
+.doctor-priority-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.55);
+    animation: doctorConfirmFadeIn 0.15s ease-out;
+}
+
+@keyframes doctorConfirmFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.doctor-priority-confirm-banner {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    padding: 1.25rem 1.5rem;
+    width: calc(100% - 2rem);
+    max-width: 380px;
+    animation: doctorConfirmPop 0.15s ease-out;
+}
+
+@keyframes doctorConfirmPop {
+    from { transform: scale(0.96); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.doctor-priority-confirm-banner h4 {
+    margin: 0 0 0.5rem;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.doctor-priority-confirm-banner p {
+    margin: 0 0 1.1rem;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+.doctor-priority-confirm-banner p strong {
+    color: var(--color-text);
+}
+
+.doctor-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+.doctor-confirm-cancel,
+.doctor-confirm-apply {
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.doctor-confirm-cancel:disabled,
+.doctor-confirm-apply:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.doctor-confirm-cancel {
+    background: var(--color-surface-subtle);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.doctor-confirm-cancel:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.doctor-confirm-apply {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #ffffff;
+}
+
+.doctor-confirm-apply:hover {
+    filter: brightness(1.08);
+}
+
+
+/* ===== ROUTING / REFERRAL DRAWER ===== */
+.doctor-routing-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    animation: doctorSlideIn 0.3s ease-out;
+}
+
+@keyframes doctorSlideIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.doctor-routing-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+}
+
+.doctor-routing-panel {
+    position: relative;
+    z-index: 1001;
+    margin-left: auto;
+    width: 100%;
+    max-width: 420px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+    animation: doctorSlidePanel 0.3s ease-out;
+}
+
+@keyframes doctorSlidePanel {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+.doctor-routing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.doctor-routing-header > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.doctor-routing-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.doctor-routing-close {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.doctor-routing-close:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.doctor-routing-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.doctor-routing-form::-webkit-scrollbar {
+    width: 6px;
+}
+
+.doctor-routing-form::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+.doctor-routing-form::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.doctor-routing-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+}
+
+.doctor-routing-section label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* No class attributes on the actual <select>/<textarea> in the markup,
+   so these are targeted via descendant selectors within the section. */
+.doctor-routing-section select,
+.doctor-routing-section textarea {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 13px;
+    transition: all 0.15s ease;
+}
+
+.doctor-routing-section select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23475569' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+}
+
+.doctor-routing-section select:focus,
+.doctor-routing-section textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    background-color: #ffffff;
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.doctor-routing-section select:disabled,
+.doctor-routing-section textarea:disabled {
+    background: var(--color-surface-subtle);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.doctor-routing-section textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.doctor-routing-priority {
+    padding: 10px 12px;
+    background: var(--color-surface-subtle);
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.doctor-routing-error {
+    background: var(--priority-critical-bg);
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--priority-critical-text);
+    font-size: 12px;
+    margin-bottom: 1rem;
+}
+
+.doctor-routing-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+    margin-top: auto;
+}
+
+.doctor-routing-btn {
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.doctor-routing-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.doctor-routing-btn.secondary {
+    border: 1px solid #cbd5e1;
+    background: var(--color-surface-subtle);
+    color: #475569;
+}
+
+.doctor-routing-btn.secondary:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.doctor-routing-btn.primary {
+    border: none;
+    background: var(--color-primary);
+    color: #ffffff;
+}
+
+.doctor-routing-btn.primary:hover {
+    background: var(--color-primary-dark);
+    box-shadow: 0 4px 12px rgba(15, 91, 120, 0.25);
+}
+
+.doctor-routing-btn.primary:active {
+    transform: scale(0.98);
+}
+
+
+/* ===== DISCHARGE CONFIRMATION DIALOG ===== */
+.doctor-discharge-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.55);
+    animation: doctorConfirmFadeIn 0.15s ease-out;
+}
+
+.doctor-discharge-dialog {
+    position: relative;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    padding: 1.5rem;
+    width: calc(100% - 2rem);
+    max-width: 420px;
+    animation: doctorConfirmPop 0.15s ease-out;
+}
+
+.doctor-discharge-dialog h3 {
+    margin: 0 0 0.6rem;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.doctor-discharge-dialog p {
+    margin: 0 0 1.25rem;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+}
+
+.doctor-discharge-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+.doctor-discharge-cancel,
+.doctor-discharge-confirm {
+    padding: 0.55rem 1.2rem;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.doctor-discharge-cancel:disabled,
+.doctor-discharge-confirm:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.doctor-discharge-cancel {
+    background: var(--color-surface-subtle);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.doctor-discharge-cancel:hover {
+    background: #e2e8f0;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.doctor-discharge-confirm {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    color: #ffffff;
+}
+
+.doctor-discharge-confirm:hover {
+    background: var(--color-success-dark);
+}
+
+.doctor-discharge-error {
+    background: var(--priority-critical-bg);
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--priority-critical-text);
+    font-size: 13px;
+    margin-bottom: 1rem;
+}
+
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .doctor-scroll-container {
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .doctor-section {
+        padding-bottom: 0.75rem;
+    }
+
+    .doctor-action-controls {
+        padding: 1rem;
+        gap: 0.5rem;
+        grid-template-columns: 1fr;
+    }
+
+    .doctor-priority-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .doctor-priority-options {
+        grid-template-columns: repeat(2, 1fr);
+        min-width: 0;
+    }
+
+    .doctor-routing-panel {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .doctor-scroll-container {
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+
+    .doctor-action-controls {
+        padding: 0.75rem;
+        gap: 0.5rem;
+    }
+
+    .doctor-vitals-grid {
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+    }
+
+    .doctor-vital-card {
+        padding: 0.7rem;
+    }
+
+    .doctor-vital-value {
+        font-size: 18px;
+    }
+
+    .doctor-routing-form {
+        padding: 1rem;
+    }
+
+    .doctor-routing-section {
+        margin-bottom: 1rem;
+    }
+
+    .doctor-priority-options {
+        grid-template-columns: 1fr;
+    }
+
+    .doctor-priority-confirm-banner,
+    .doctor-discharge-dialog {
+        padding: 1.1rem;
+    }
+}
