@@ -1,6 +1,7 @@
+from datetime import datetime
 import uuid
 from enum import Enum as PyEnum
-from sqlalchemy import Column, String, Date, DateTime, Text, ForeignKey, Enum, Integer, Index, UniqueConstraint, Boolean, text, true, false
+from sqlalchemy import Column, String, Date, DateTime, Text, ForeignKey, Enum, Integer, Index, UniqueConstraint, Boolean, Float, text, true, false
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -80,6 +81,7 @@ class ArrivalMode(str, PyEnum):
 
     AIR_AMBULANCE = "AIR_AMBULANCE"
 
+
 # ── 2. IDENTITY PATIENT MODEL ───────────────────────────────────────────
 
 class Patient(Base):
@@ -153,7 +155,7 @@ class Patient(Base):
     # Relationships
     visits = relationship("Visit", back_populates="patient")
     appointments = relationship("Appointment", back_populates="patient")
-    
+
     # FIXED: Use the Python Class Name "Staff" (or explicit Patient.reconciled_by)
     reconciler = relationship(
         "Staff", foreign_keys="[Patient.reconciled_by]", backref="reconciled_patients"
@@ -171,16 +173,34 @@ class Visit(Base):
     token_number = Column(String(20), unique=True, nullable=False)
     entry_type = Column(Enum(EntryType), nullable=False)
     visit_reason = Column(String(255), nullable=True)
+
+    # ── T1 Additions ───────────────────────────────────────────────────────
+    chief_complaint = Column(String(500), nullable=True)
+    triage_assessment = Column(Text, nullable=True)
+    # ───────────────────────────────────────────────────────────────────────
+
+    @property
+    def latest_vitals(self):
+        """Returns the most recent Vitals entry from the loaded vitals collection."""
+        if hasattr(self, "vitals") and self.vitals:
+            sorted_vitals = sorted(
+                self.vitals,
+                key=lambda v: v.recorded_at if v.recorded_at else datetime.min,
+                reverse=True,
+            )
+            return sorted_vitals[0]
+        return None
+
     stage = Column(Enum(VisitStage), nullable=False, server_default=VisitStage.ACTIVE.value, index=True)
-    
-    # 1. Database-level fix for DDL & Alembic migrations
+
+    # Database-level fix for DDL & Alembic migrations
     current_queue_entry_id = Column(
-        UUID(as_uuid=True), 
+        UUID(as_uuid=True),
         ForeignKey(
-            "queue_entries.queue_entry_id", 
-            use_alter=True, 
+            "queue_entries.queue_entry_id",
+            use_alter=True,
             name="fk_visits_current_queue_entry_id"
-        ), 
+        ),
         nullable=True
     )
 
@@ -193,20 +213,32 @@ class Visit(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     patient = relationship("Patient", back_populates="visits")
-    
-    # 2. ORM-level fix for insert/update ordering in application logic
+
+    # ORM-level fix for insert/update ordering in application logic
     current_queue_entry = relationship(
-        "QueueEntry", 
-        foreign_keys=[current_queue_entry_id], 
+        "QueueEntry",
+        foreign_keys=[current_queue_entry_id],
         post_update=True
     )
     queue_entries = relationship(
-        "QueueEntry", 
-        back_populates="visit", 
-        foreign_keys="QueueEntry.visit_id", 
+        "QueueEntry",
+        back_populates="visit",
+        foreign_keys="QueueEntry.visit_id",
         order_by="QueueEntry.entered_at"
     )
 
+    # ── T3 Relationship ───────────────────────────────────────────────────
+    # lazy="selectin" so vitals are eagerly loaded; the latest_vitals
+    # property is read during response serialization (outside the async
+    # session's greenlet context) and must never trigger a lazy load.
+    vitals = relationship(
+        "Vitals",
+        back_populates="visit",
+        order_by="Vitals.recorded_at",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    # ───────────────────────────────────────────────────────────────────────
 
 class QueueEntry(Base):
     __tablename__ = "queue_entries"
@@ -246,7 +278,7 @@ class QueueEntry(Base):
     priority = Column(Enum(QueuePriority), nullable=False, server_default=QueuePriority.NORMAL.value)
     status = Column(Enum(QueueEntryStatus), nullable=False, server_default=QueueEntryStatus.WAITING.value)
     notes = Column(Text)
-    
+
     entered_at = Column(DateTime(timezone=True), server_default=func.now())
     called_at = Column(DateTime(timezone=True), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -294,14 +326,14 @@ class Department(Base):
     type = Column(Enum(DeptType), nullable=False, server_default=DeptType.OPD.value)
     is_active = Column(Boolean, nullable=False, server_default=true())
     max_capacity = Column(Integer, nullable=False, server_default="50")
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
     )
-    
+
     staff = relationship("Staff", back_populates="department")
     queue_entries = relationship("QueueEntry", back_populates="department")
 
@@ -330,6 +362,46 @@ class Staff(Base):
     department = relationship("Department", back_populates="staff")
     queue_entries = relationship("QueueEntry", back_populates="assigned_staff")
     appointments = relationship("Appointment", back_populates="assigned_staff")
+
+
+class Vitals(Base):
+    __tablename__ = "vitals"
+
+    vitals_id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    visit_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("visits.visit_id"),
+        nullable=False,
+        index=True,
+    )
+    recorded_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("staff.staff_id"),
+        nullable=True,
+    )
+
+    temperature = Column(Float, nullable=True)                   # °C / °F
+    systolic_bp = Column(Integer, nullable=True)                 # mmHg
+    diastolic_bp = Column(Integer, nullable=True)                # mmHg
+    heart_rate = Column(Integer, nullable=True)                  # bpm
+    respiratory_rate = Column(Integer, nullable=True)            # breaths/min
+    oxygen_saturation = Column(Integer, nullable=True)           # %
+    weight = Column(Float, nullable=True)                        # kg / lbs
+    height = Column(Float, nullable=True)                        # cm / in
+
+    recorded_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # Relationships
+    visit = relationship("Visit", back_populates="vitals")
+    recorder = relationship("Staff")
 
 
 # ── 5. MISSING APPOINTMENTS DEFINITION ───────────────────────────────────
@@ -384,4 +456,3 @@ class AuditLog(Base):
     payload = Column(JSONB)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-

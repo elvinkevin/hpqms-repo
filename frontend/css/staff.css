@@ -816,7 +816,8 @@ header {
     max-height: calc(100vh - var(--encounter-offset));
 }
 
-.encounter-workspace {
+.encounter-workspace,
+#encounterMount {
     flex: 1;
     min-height: 0;
     display: flex;

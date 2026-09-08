@@ -1,44 +1,49 @@
 /* ==========================================================================
-   HPQMS Staff Dashboard — Encounter Panel
-   components/encounter-panel.js
+   HPQMS Encounter Panel
+   js/encounter-panel.js
 
-   Owns the common active-encounter presentation.
+   Manages the encounter workspace display and lifecycle.
 
-   It does NOT:
-   - call the API
-   - perform staff actions
-   - implement clinical workflows
-   - own queue state
+   Responsibilities:
+   - Identify current staff role
+   - Load appropriate workspace from registry
+   - Mount/update/unmount workspace on patient change
+   - Handle workspace callbacks
+   - Manage state transitions
 
-   It consumes staff-queue-state and mounts the appropriate role workspace.
+   Does NOT:
+   - Call staff-api.js directly
+   - Manage queue state
+   - Handle authentication
+
    ========================================================================== */
 
 import {
-    subscribe,
     getMyActivePatient,
+    subscribe as subscribeToQueueState,
 } from "../staff-queue-state.js";
 
 import {
-    getWorkspaceModule,
-} from "../workspace-registry.js";
-
+    getStaffContext,
+} from "../staff-actions.js";
 
 import {
-    getWorkspaceForRole,
+    getWorkspaceModule,
+    hasWorkspace,
+} from "../workspace-registry.js";
+
+import {
+    WORKSPACE,
+    STAFF_ROLE,
 } from "../staff-workspace-config.js";
 
-/* ==========================================================================
-   MODULE STATE
-   ========================================================================== */
 
 let container = null;
-let unsubscribe = null;
-
-let workspaceKey = null;
 let workspaceModule = null;
-
-let activePatientId = null;
-let emptyStateVisible = false;
+let panelRoot = null;
+let workspaceMount = null;
+let unsubscribeFromQueue = null;
+let currentPatient = null;
 
 
 /* ==========================================================================
@@ -46,271 +51,266 @@ let emptyStateVisible = false;
    ========================================================================== */
 
 /**
- * Mount the encounter panel.
+ * Initialize the encounter panel.
  *
- * @param {HTMLElement} target
- * @param {Object} options
- * @param {string} options.workspace
+ * @param {HTMLElement} target - Container element
  */
-export function mount(target, options = {}) {
+export function initialize(target /*, options */) {
     if (!(target instanceof HTMLElement)) {
         throw new TypeError(
-            "EncounterPanel mount target must be an HTMLElement."
+            "EncounterPanel target must be an HTMLElement."
         );
     }
 
-    unmount();
-
     container = target;
-    workspaceKey = options.workspace ?? null;
-    activePatientId = null;
-    emptyStateVisible = false;
+    panelRoot = container;
+    workspaceMount = panelRoot;
 
-    unsubscribe = subscribe(() => {
-        handleStateChange();
+    if (!container.querySelector("#encounterWorkspaceMount")) {
+        console.info(
+            "EncounterPanel: No #encounterWorkspaceMount element found — " +
+            "rendering into the provided container instead."
+        );
+    }
+
+    // Subscribe to queue state changes
+    unsubscribeFromQueue = subscribeToQueueState(() => {
+        handleQueueStateChange();
     });
 
-    handleStateChange();
+    // Initial render
+    handleQueueStateChange();
 }
 
 
 /**
- * Unmount the entire encounter panel.
+ * Clean up the encounter panel.
  */
-export function unmount() {
-    if (unsubscribe) {
-        unsubscribe();
-        unsubscribe = null;
-    }
+export const mount = initialize;
+export const unmount = destroy;
 
-    destroyWorkspace();
+export function destroy() {
+    unmountWorkspace();
 
-    if (container) {
-        container.innerHTML = "";
+    if (unsubscribeFromQueue) {
+        unsubscribeFromQueue();
+        unsubscribeFromQueue = null;
     }
 
     container = null;
-    workspaceKey = null;
-    activePatientId = null;
-    emptyStateVisible = false;
-}
-
-
-/**
- * Change the active workspace without rebuilding the shell.
- *
- * Useful if the staff context changes.
- */
-export function setWorkspace(nextWorkspaceKey) {
-    if (workspaceKey === nextWorkspaceKey) {
-        return;
-    }
-
-    workspaceKey = nextWorkspaceKey;
-
-    const patient = getMyActivePatient();
-
-    if (!patient) {
-        activePatientId = null;
-        renderEmptyState();
-        return;
-    }
-
-    /*
-     * Workspace changed while the same patient remains active.
-     * Rebuild the role-specific workspace only.
-     */
-    renderEncounter(patient);
-}
-
-
-/**
- * Render the current encounter state.
- */
-export function render() {
-    handleStateChange();
+    panelRoot = null;
+    workspaceMount = null;
 }
 
 
 /* ==========================================================================
-   STATE CHANGE HANDLING
+   STATE MANAGEMENT
    ========================================================================== */
 
-function handleStateChange() {
-    if (!container) {
-        return;
-    }
-
+/**
+ * Called whenever queue state changes.
+ * Determines if we need to mount a new workspace or update the current one.
+ */
+function handleQueueStateChange() {
     const patient = getMyActivePatient();
 
-    if (!patient) {
-        /*
-         * Render the empty state whenever it is not already on
-         * screen. This includes the very first state change after
-         * mount — otherwise the panel stays completely blank for
-         * any role that has not started a patient yet.
-         */
-        if (activePatientId !== null || workspaceModule || !emptyStateVisible) {
-            activePatientId = null;
-            renderEmptyState();
+    // Check if patient changed
+    if (patient?.queue_entry_id !== currentPatient?.queue_entry_id) {
+        currentPatient = patient;
+
+        // Patient changed (or patient became null)
+        if (!patient) {
+            unmountWorkspace();
+            renderNoPatient();
+            return;
         }
 
+        // New patient: mount fresh workspace
+        mountWorkspace(patient);
         return;
     }
 
-    const patientIdentity = getPatientIdentity(patient);
+    // Same patient: refresh the common summary + workspace update()
+    if (patient) {
+        updateEncounterSummary(patient);
 
-    /*
-     * Same patient:
-     *
-     * Do NOT destroy/recreate the workspace.
-     *
-     * This protects unsaved form input inside Reception/Triage/Doctor
-     * workspaces.
-     */
-    if (activePatientId === patientIdentity) {
-        updateEncounter(patient);
-        return;
+        if (workspaceModule?.update) {
+            workspaceModule.update(workspaceMount, { patient });
+        }
     }
-
-    /*
-     * Different patient:
-     * rebuild the encounter workspace.
-     */
-    activePatientId = patientIdentity;
-
-    renderEncounter(patient);
 }
 
 
 /* ==========================================================================
-   EMPTY STATE
+   WORKSPACE LIFECYCLE
    ========================================================================== */
 
-function renderEmptyState() {
-    destroyWorkspace();
+/**
+ * Mount the appropriate workspace for the current staff role.
+ *
+ * @param {Object} patient - The active patient
+ */
+function mountWorkspace(patient) {
+    const staffContext = getStaffContext();
 
-    emptyStateVisible = true;
-
-    if (!container) {
+    if (!staffContext.role) {
+        renderError("Staff role not available.");
         return;
     }
 
-    container.innerHTML = `
-        <section class="encounter-panel encounter-empty">
+    // Determine which workspace to use
+    const workspaceKey = roleToWorkspaceKey(staffContext.role);
 
-            <header class="encounter-panel-header">
-                <h2>Active Encounter Workspace</h2>
-            </header>
+    if (!workspaceKey) {
+        renderError(`No workspace found for role: ${staffContext.role}`);
+        return;
+    }
 
-            <div class="encounter-empty-content">
+    if (!hasWorkspace(workspaceKey)) {
+        renderError(`Workspace not registered: ${workspaceKey}`);
+        return;
+    }
 
-                <div
-                    class="encounter-empty-icon"
-                    aria-hidden="true">
+    // Get the workspace module from the registry
+    workspaceModule = getWorkspaceModule(workspaceKey);
 
-                </div>
+    if (!workspaceModule?.mount) {
+        renderError(
+            `Workspace module does not have mount() function: ${workspaceKey}`
+        );
+        return;
+    }
 
-                <h3>No Active Patient</h3>
+    // Render the shared encounter shell (header + patient summary),
+    // then mount the role workspace into the inner mount point.
+    renderEncounterShell(patient);
 
-                <p>
-                    Call and start a patient to begin an active encounter.
-                </p>
+    try {
+        // Mount the workspace with callbacks
+        workspaceModule.mount(workspaceMount, {
+            onRegistrationCompleted: async () => {
+                // Called after registration is completed in Reception workspace
+                console.log("Registration completed");
+            },
 
-            </div>
+            onPriorityChanged: async (newPriority) => {
+                // Called when priority changes in Triage workspace
+                console.log("Priority changed to:", newPriority);
+            },
 
-        </section>
-    `;
+            onRetakeVitals: async () => {
+                // Called when vitals are retaken in Triage workspace
+                // Open vitals entry modal/drawer here
+                console.log("Vitals retake requested");
+            },
+
+            onActionCompleted: async () => {
+                // Called after any workflow action completes
+                // (route, discharge, no-show, complete, cancel, etc.)
+                console.log("Action completed, refreshing state...");
+                // Queue state will update via subscription, triggering re-render
+            },
+        });
+
+    } catch (error) {
+        console.error(`Error mounting workspace (${workspaceKey}):`, error);
+        renderError(`Failed to load workspace: ${error.message}`);
+    }
+}
+
+
+/**
+ * Unmount the current workspace.
+ */
+function unmountWorkspace() {
+    if (workspaceModule?.unmount) {
+        try {
+            workspaceModule.unmount();
+        } catch (error) {
+            console.error("Error unmounting workspace:", error);
+        }
+    }
+
+    workspaceModule = null;
+
+    if (panelRoot) {
+        panelRoot.innerHTML = "";
+    }
+
+    workspaceMount = panelRoot;
 }
 
 
 /* ==========================================================================
-   ACTIVE ENCOUNTER
+   ENCOUNTER SHELL (shared header + patient summary)
    ========================================================================== */
 
-function renderEncounter(patient) {
-    destroyWorkspace();
+/*
+ * Restores the common "Active Encounter Workspace" header and the
+ * patient summary strip (DOB/Age, Gender, Visit ID). These used to
+ * be rendered by this panel for every role; they were dropped during
+ * the workspace-registry refactor, which removed them from BOTH the
+ * receptionist and triage encounter views.
+ */
+function renderEncounterShell(patient) {
+    const details = getPatientDetails(patient);
 
-    emptyStateVisible = false;
-
-    if (!container) {
-        return;
-    }
-
-    const details =
-        patient.visit?.patient ||
-        patient.patient ||
-        patient;
-
-    container.innerHTML = `
+    panelRoot.innerHTML = `
         <section class="encounter-panel encounter-active">
 
             <header class="encounter-panel-header">
-
                 <div class="encounter-header-main">
-
                     <h2>
                         Active Encounter Workspace
-
                         <span
                             class="encounter-focus"
                             data-encounter-token>
                             ${escapeHtml(getToken(patient))}
                         </span>
                     </h2>
-
                     <h3
                         class="encounter-patient-name"
                         data-encounter-patient-name>
                         ${escapeHtml(getPatientName(patient))}
                     </h3>
-
                 </div>
-
                 <span
                     class="priority-badge ${getPriorityClass(patient)}"
                     data-encounter-priority>
                     ${escapeHtml(getPriorityLabel(patient))}
                 </span>
-
             </header>
 
-
             <section class="patient-summary">
-
                 <div class="patient-summary-item">
                     <span>DOB/Age</span>
                     <strong data-encounter-dob>
                         ${escapeHtml(getDobOrAge(patient))}
                     </strong>
                 </div>
-
                 <div class="patient-summary-item">
                     <span>Gender</span>
                     <strong data-encounter-gender>
                         ${escapeHtml(details.gender ?? "—")}
                     </strong>
                 </div>
-
                 <div class="patient-summary-item">
                     <span>Visit ID</span>
                     <strong
                         data-encounter-visit-id
                         title="${escapeHtml(
-        patient.visit?.visit_id ??
-        patient.visit_id ??
-        ""
-    )}">
+                            patient.visit?.visit_id ??
+                            patient.visit_id ??
+                            ""
+                        )}">
                         ${escapeHtml(
-        patient.visit?.visit_id ??
-        patient.visit_id ??
-        "—"
-    )}
+                            patient.visit?.visit_id ??
+                            patient.visit_id ??
+                            "—"
+                        )}
                     </strong>
                 </div>
-
             </section>
-
 
             <section
                 id="encounterWorkspaceMount"
@@ -321,227 +321,35 @@ function renderEncounter(patient) {
         </section>
     `;
 
-    mountWorkspace(patient);
+    workspaceMount =
+        panelRoot.querySelector("#encounterWorkspaceMount") || panelRoot;
 }
 
 
-/* ==========================================================================
-   COMMON ENCOUNTER UPDATE
-   ========================================================================== */
+function updateEncounterSummary(patient) {
+    if (!panelRoot) return;
 
-function updateEncounter(patient) {
-    if (!container) {
-        return;
-    }
+    const details = getPatientDetails(patient);
 
-    const details =
-        patient.visit?.patient ||
-        patient.patient ||
-        patient;
+    const tokenElement = panelRoot.querySelector("[data-encounter-token]");
+    const nameElement = panelRoot.querySelector("[data-encounter-patient-name]");
+    const priorityElement = panelRoot.querySelector("[data-encounter-priority]");
+    const dobElement = panelRoot.querySelector("[data-encounter-dob]");
+    const genderElement = panelRoot.querySelector("[data-encounter-gender]");
+    const visitIdElement = panelRoot.querySelector("[data-encounter-visit-id]");
 
-    const tokenElement =
-        container.querySelector("[data-encounter-token]");
-
-    const nameElement =
-        container.querySelector("[data-encounter-patient-name]");
-
-    const priorityElement =
-        container.querySelector("[data-encounter-priority]");
-
-    const dobElement =
-        container.querySelector("[data-encounter-dob]");
-
-    const genderElement =
-        container.querySelector("[data-encounter-gender]");
-
-    const visitIdElement =
-        container.querySelector("[data-encounter-visit-id]");
-
-
-    if (tokenElement) {
-        tokenElement.textContent = getToken(patient);
-    }
-
-    if (nameElement) {
-        nameElement.textContent = getPatientName(patient);
-    }
-
+    if (tokenElement) tokenElement.textContent = getToken(patient);
+    if (nameElement) nameElement.textContent = getPatientName(patient);
     if (priorityElement) {
-        priorityElement.textContent =
-            getPriorityLabel(patient);
-
-        priorityElement.className =
-            `priority-badge ${getPriorityClass(patient)}`;
+        priorityElement.textContent = getPriorityLabel(patient);
+        priorityElement.className = `priority-badge ${getPriorityClass(patient)}`;
     }
-
-    if (dobElement) {
-        dobElement.textContent =
-            getDobOrAge(patient);
-    }
-
-    if (genderElement) {
-        genderElement.textContent =
-            details.gender ?? "—";
-    }
-
+    if (dobElement) dobElement.textContent = getDobOrAge(patient);
+    if (genderElement) genderElement.textContent = details.gender ?? "—";
     if (visitIdElement) {
         visitIdElement.textContent =
-            patient.visit?.visit_id ??
-            patient.visit_id ??
-            "—";
+            patient.visit?.visit_id ?? patient.visit_id ?? "—";
     }
-
-
-    /*
-     * Give the mounted workspace a chance to react to state changes
-     * without destroying its DOM.
-     */
-    if (
-        workspaceModule &&
-        typeof workspaceModule.update === "function"
-    ) {
-        workspaceModule.update(
-            container.querySelector("#encounterWorkspaceMount"),
-            {
-                patient,
-            }
-        );
-    }
-}
-
-
-/* ==========================================================================
-   WORKSPACE MOUNTING
-   ========================================================================== */
-
-function resolveWorkspace(role) {
-    /*
-     * Prefer the workspace key assigned to the logged-in staff
-     * member at panel mount time. The active patient does not
-     * carry a staff role, so role-based resolution is only a
-     * fallback (and returns null for real patients).
-     */
-    const key =
-        workspaceKey ??
-        (role ? getWorkspaceForRole(role) : null);
-
-    if (!key) {
-        return null;
-    }
-
-    return getWorkspaceModule(key);
-}
-
-
-async function mountWorkspace(patient) {
-    const workspaceMount = container?.querySelector(
-        "#encounterWorkspaceMount"
-    );
-
-    if (!workspaceMount) {
-        return;
-    }
-
-    const role =
-        patient?.staff_role ??
-        patient?.role ??
-        null;
-
-    const workspace = resolveWorkspace(role);
-
-    if (!workspace) {
-        workspaceMount.innerHTML = `
-            <div class="workspace-placeholder">
-                <h3>Encounter Workspace</h3>
-                <p>
-                    No workspace is available for this staff role.
-                </p>
-            </div>
-        `;
-
-        return;
-    }
-
-    workspaceModule = workspace;
-
-    try {
-        workspace.mount(workspaceMount);
-    } catch (error) {
-        console.error(
-            "[EncounterPanel] Workspace failed to mount:",
-            error
-        );
-
-        workspaceModule = null;
-
-        renderWorkspaceError(
-            workspaceMount,
-            "The workspace for this role could not be loaded."
-        );
-    }
-}
-
-/* ==========================================================================
-   WORKSPACE CLEANUP
-   ========================================================================== */
-
-function destroyWorkspace() {
-    if (
-        workspaceModule &&
-        typeof workspaceModule.unmount === "function"
-    ) {
-        try {
-            workspaceModule.unmount();
-        } catch (error) {
-            console.error(
-                "[EncounterPanel] Workspace cleanup failed:",
-                error
-            );
-        }
-    }
-
-    workspaceModule = null;
-}
-
-
-/* ==========================================================================
-   WORKSPACE ERROR
-   ========================================================================== */
-
-function renderWorkspaceError(containerElement, message) {
-    if (!containerElement) {
-        return;
-    }
-
-    containerElement.innerHTML = `
-        <div class="workspace-placeholder workspace-error">
-
-            <h3>
-                Encounter Workspace Unavailable
-            </h3>
-
-            <p>
-                ${escapeHtml(message)}
-            </p>
-
-        </div>
-    `;
-}
-
-
-/* ==========================================================================
-   PATIENT IDENTITY
-   ========================================================================== */
-
-function getPatientIdentity(patient) {
-    return (
-        patient?.queue_entry_id ??
-        patient?.visit?.visit_id ??
-        patient?.visit_id ??
-        patient?.patient_id ??
-        patient?.id ??
-        null
-    );
 }
 
 
@@ -549,75 +357,172 @@ function getPatientIdentity(patient) {
    PATIENT DISPLAY HELPERS
    ========================================================================== */
 
+function getPatientDetails(patient) {
+    return patient?.visit?.patient || patient?.patient || patient || {};
+}
+
 function getToken(patient) {
     return (
-        patient.visit?.token_number ??
-        patient.token_number ??
-        patient.token ??
+        patient?.visit?.token_number ??
+        patient?.token_number ??
+        patient?.token ??
         "—"
     );
 }
 
-
 function getPatientName(patient) {
-    const details =
-        patient.visit?.patient ||
-        patient.patient ||
-        patient;
+    const details = getPatientDetails(patient);
+    const explicitName = patient?.patient_name ?? details?.patient_name;
 
-    if (
-        patient.patient_name ||
-        details.patient_name
-    ) {
-        return (
-            patient.patient_name ||
-            details.patient_name
-        );
+    if (explicitName) {
+        return explicitName;
     }
 
-    const firstName =
-        details.first_name ?? "";
-
-    const lastName =
-        details.last_name ?? "";
-
-    const name =
-        `${firstName} ${lastName}`.trim();
-
-    return name || "Patient";
+    return [
+        details?.first_name,
+        details?.last_name,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "Patient";
 }
 
-
 function getDobOrAge(patient) {
-    const details =
-        patient.visit?.patient ||
-        patient.patient ||
-        patient;
+    const details = getPatientDetails(patient);
 
-    if (details.date_of_birth) {
+    if (details?.date_of_birth) {
         return details.date_of_birth;
     }
 
-    if (
-        details.estimated_age !== undefined &&
-        details.estimated_age !== null
-    ) {
+    if (details?.estimated_age !== undefined && details?.estimated_age !== null) {
         return `${details.estimated_age} years`;
     }
 
     return "—";
 }
 
-
 function getPriorityLabel(patient) {
-    return patient.priority ?? "NORMAL";
+    return patient?.priority ?? "NORMAL";
+}
+
+function getPriorityClass(patient) {
+    return `priority-${String(patient?.priority ?? "NORMAL").toLowerCase()}`;
 }
 
 
-function getPriorityClass(patient) {
-    return `priority-${String(
-        patient.priority ?? "NORMAL"
-    ).toLowerCase()}`;
+/* ==========================================================================
+   ROLE TO WORKSPACE MAPPING
+   ========================================================================== */
+
+/**
+ * Map staff role to workspace key.
+ *
+ * @param {string} role - Staff role (from staff context)
+ * @returns {string|null} - Workspace key or null if no mapping
+ */
+function roleToWorkspaceKey(role) {
+    const roleToWorkspaceMap = {
+        [STAFF_ROLE.RECEPTIONIST]: WORKSPACE.RECEPTION,
+        [STAFF_ROLE.TRIAGE_NURSE]: WORKSPACE.TRIAGE,
+        [STAFF_ROLE.DOCTOR]: WORKSPACE.DOCTOR,
+        [STAFF_ROLE.NURSE]: WORKSPACE.DOCTOR,   // Same workspace as doctor (extensible)
+        [STAFF_ROLE.ADMIN]: WORKSPACE.ADMIN,
+    };
+
+    return roleToWorkspaceMap[role] ?? null;
+}
+
+
+/* ==========================================================================
+   RENDERING HELPERS
+   ========================================================================== */
+
+/**
+ * Render "no patient" state.
+ */
+function renderNoPatient() {
+    if (!workspaceMount) {
+        return;
+    }
+
+    workspaceMount.innerHTML = `
+        <div style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 1rem;
+            color: #64748b;
+            text-align: center;
+            padding: 2rem;
+        ">
+            <div style="
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                background: #f1f5f9;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+            ">
+                +
+            </div>
+            <h3 style="margin: 0; font-size: 16px; color: #1a1a1a;">
+                No Active Patient
+            </h3>
+            <p style="margin: 0; font-size: 13px;">
+                Call and start a patient to begin.
+            </p>
+        </div>
+    `;
+}
+
+
+/**
+ * Render error state.
+ *
+ * @param {string} message - Error message
+ */
+function renderError(message) {
+    if (!workspaceMount) {
+        return;
+    }
+
+    workspaceMount.innerHTML = `
+        <div style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 1rem;
+            color: #991b1b;
+            text-align: center;
+            padding: 2rem;
+        ">
+            <div style="
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                background: #fee2e2;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+                color: #991b1b;
+            ">
+                !
+            </div>
+            <h3 style="margin: 0; font-size: 16px; color: #991b1b;">
+                Error Loading Workspace
+            </h3>
+            <p style="margin: 0; font-size: 13px; color: #64748b;">
+                ${escapeHtml(message)}
+            </p>
+        </div>
+    `;
 }
 
 

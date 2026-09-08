@@ -52,10 +52,13 @@ import {
     transferPatient,
     dischargePatient,
     getDepartments,
+
 } from "./staff-api.js";
 
 import {
     completePatientRegistration as apiCompletePatientRegistration,
+    recordVitals as apiRecordVitals,
+    updateTriageAssessment as apiPatchTriageAssessment,
 } from "./staff-api.js";
 
 
@@ -64,6 +67,9 @@ import {
     getState,
     getMyActivePatient,
     getSelectedQueueEntry,
+    hasActivePatient,
+    patchActivePatientVitals,
+    patchActivePatientAssessment,
 } from "./staff-queue-state.js";
 
 import {
@@ -728,6 +734,60 @@ export async function dischargeFromCare(visitId) {
     return visit;
 }
 
+/* ==========================================================================
+   3. TRIAGE & CLINICAL ASSESSMENT INTENTS
+   ========================================================================== */
+
+/**
+ * Records vital signs for a visit.
+ *
+ * @param {string|number} visitId
+ * @param {Object} vitalsData - Flat vitals payload matching DB schema
+ */
+export async function recordVitals(visitId, vitalsData) {
+    if (!visitId) {
+        throw new Error("Cannot record vitals: Missing visit identifier.");
+    }
+
+    // 1. Delegate API network request to staff-api.js
+    const response = await apiRecordVitals(visitId, vitalsData);
+
+    // 2. Update local state if the patient is currently loaded
+    if (hasActivePatient(visitId)) {
+        patchActivePatientVitals(response);
+    }
+
+    return response;
+}
+
+/**
+ * Saves triage clinical assessment notes.
+ *
+ * @param {string|number} visitId
+ * @param {Object} assessmentPayload - { chief_complaint, triage_assessment }
+ */
+export async function saveTriageAssessment(visitId, assessmentPayload) {
+    if (!visitId) {
+        throw new Error("Cannot save assessment: Missing visit identifier.");
+    }
+
+    if (!assessmentPayload?.triage_assessment) {
+        throw new Error("Clinical assessment notes are required.");
+    }
+
+    // 1. Delegate API network request to staff-api.js
+    const response = await apiPatchTriageAssessment(visitId, {
+        chief_complaint: assessmentPayload.chief_complaint || null,
+        triage_assessment: assessmentPayload.triage_assessment
+    });
+
+    // 2. Update local state and active workspace model
+    if (hasActivePatient(visitId)) {
+        patchActivePatientAssessment(response);
+    }
+
+    return response;
+}
 
 /* ==========================================================================
    PUBLIC POLICY EXPORTS

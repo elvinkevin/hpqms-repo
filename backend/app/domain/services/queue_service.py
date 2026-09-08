@@ -161,7 +161,9 @@ class QueueService:
             select(QueueEntry)
             .options(
                 selectinload(QueueEntry.visit)
-                .selectinload(Visit.patient)
+                .selectinload(Visit.patient),
+                selectinload(QueueEntry.visit)
+                .selectinload(Visit.vitals),
             )
             .where(
                 and_(
@@ -184,6 +186,10 @@ class QueueService:
         """Returns the active queue step running for an active visit encounter."""
         stmt = (
             select(QueueEntry)
+            .options(
+                selectinload(QueueEntry.visit).selectinload(Visit.patient),
+                selectinload(QueueEntry.department),
+            )
             .where(
                 and_(
                     QueueEntry.visit_id == visit_id,

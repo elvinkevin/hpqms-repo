@@ -1,5 +1,4 @@
-/* ==========================================================================
-   HPQMS Staff Dashboard API Helpers
+ /*HPQMS Staff Dashboard API Helpers
    js/staff-api.js
    --------------------------------------------------------------------------
    Responsibility:
@@ -346,6 +345,12 @@ async function cancelQueueEntry(queueEntryId) {
  * {
  *     priority: "NORMAL" | "SEMI_URGENT" | "URGENT" | "CRITICAL"
  * }
+ *
+ * NOTE: this is QueueEntry-level ordering priority, not the clinical
+ * triage acuity recorded on the Visit via updateTriageAssessment()
+ * below. Whether the two actually share one enum on the backend or are
+ * tracked independently hasn't been confirmed — don't assume they're
+ * interchangeable.
  */
 async function setQueuePriority(queueEntryId, priority) {
     return request(`/queue/${queueEntryId}/priority`, {
@@ -466,6 +471,112 @@ async function completeVisit(visitId) {
 
 
 /* ==========================================================================
+   VITALS & TRIAGE ASSESSMENT
+   --------------------------------------------------------------------------
+   These previously used raw fetch() + localStorage.getItem('token')
+   directly, bypassing buildAuthHeaders()/staff-session.js — if the
+   session token isn't literally stored under the key 'token' (that's
+   staff-session.js's business, not this file's), every call silently
+   sent "Authorization: Bearer null" and would 401. They also hit
+   `/api/visits/...`, but nothing else in this file uses an `/api`
+   prefix — completeVisit() above already correctly calls
+   `/visits/${visitId}/complete`, confirming the real path is
+   `/visits/{visit_id}/...`, not `/api/visits/{visit_id}/...`. Rewritten
+   to match this file's own request()/buildAuthHeaders() convention.
+   ========================================================================== */
+
+/**
+ * Record a new vitals entry for a visit.
+ *
+ * POST /visits/{visit_id}/vitals
+ *
+ * Body fields mirror the Vitals ORM model directly (all optional):
+ * { temperature, systolic_bp, diastolic_bp, heart_rate,
+ *   respiratory_rate, oxygen_saturation, weight, height }
+ *
+ * Note: systolic_bp/diastolic_bp are flat top-level fields on the
+ * backend, not a nested blood_pressure object.
+ */
+async function recordVitals(visitId, vitalsPayload) {
+    return request(`/visits/${visitId}/vitals`, {
+        method: HTTP_METHOD.POST,
+        headers: buildAuthHeaders(),
+        body: vitalsPayload,
+    });
+}
+
+
+/**
+ * Get the most recently recorded vitals for a visit (or null/None if
+ * none have been recorded yet).
+ *
+ * GET /visits/{visit_id}/vitals/latest
+ */
+async function getLatestVitals(visitId) {
+    return request(`/visits/${visitId}/vitals/latest`, {
+        method: HTTP_METHOD.GET,
+        headers: buildAuthHeaders(),
+    });
+}
+
+
+/**
+ * Get all vitals entries recorded for a visit, most recent first.
+ *
+ * GET /visits/{visit_id}/vitals
+ */
+async function getAllVitals(visitId) {
+    return request(`/visits/${visitId}/vitals`, {
+        method: HTTP_METHOD.GET,
+        headers: buildAuthHeaders(),
+    });
+}
+
+
+/**
+ * Update chief complaint and/or triage assessment notes for
+ * a visit. Supports partial updates — only send the fields you want to
+ * change.
+ *
+ * PATCH /visits/{visit_id}/triage-assessment
+ *
+ * The response (VisitRead) includes latest_vitals for clinical context
+ * — if vitals were just recorded via recordVitals() first, this
+ * response will reflect them.
+ *
+ * UNCONFIRMED: exact field names on TriageAssessmentUpdate weren't
+ * available — { chief_complaint, assessment, priority } is inferred
+ * from the endpoint's docstring wording. Verify against the actual
+ * Pydantic schema and correct if it doesn't match (in particular the
+ * assessment-text field name).
+ */
+async function updateTriageAssessment(visitId, assessmentPayload) {
+    return request(`/visits/${visitId}/triage-assessment`, {
+        method: HTTP_METHOD.PATCH,
+        headers: buildAuthHeaders(),
+        body: assessmentPayload,
+    });
+}
+
+
+/**
+ * Fetch a hydrated visit record.
+ *
+ * GET /visits/{visit_id}
+ *
+ * UNCONFIRMED: this endpoint wasn't in the router shown — kept as a
+ * best guess matching the /visits/{visit_id}/... pattern used above.
+ * Remove or correct if it doesn't actually exist.
+ */
+// async function getVisitDetails(visitId) {
+//     return request(`/visits/${visitId}`, {
+//         method: HTTP_METHOD.GET,
+//         headers: buildAuthHeaders(),
+//     });
+// }
+
+
+/* ==========================================================================
    EXPORTS
    ========================================================================== */
 
@@ -506,4 +617,11 @@ export {
 
     /* Visits */
     completeVisit,
+    // getVisitDetails,
+
+    /* Vitals & Triage Assessment */
+    recordVitals,
+    getLatestVitals,
+    getAllVitals,
+    updateTriageAssessment,
 };

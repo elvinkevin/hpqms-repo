@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field, model_validator
 from sqlalchemy import Integer
@@ -184,19 +184,27 @@ class VisitCreate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class VisitRead(ORMBase):
+# --- Read Schema ---
+class VisitRead(BaseModel):
     visit_id: UUID
     patient_id: UUID
     token_number: str
     entry_type: EntryType
-    visit_reason: Optional[str]
+    visit_reason: Optional[str] = None
     stage: VisitStage
-    current_queue_entry_id: Optional[UUID]
-    created_at: datetime
-    updated_at: Optional[datetime]
-    completed_at: Optional[datetime]
-
+    chief_complaint: Optional[str] = None
+    triage_assessment: Optional[str] = None
+    latest_vitals: Optional[VitalsRead] = None
+    # Patient details for reception/registration workflows. The ORM
+    # relationship is already eagerly loaded via selectinload; without
+    # this field the frontend cannot resolve patient_id from a queue
+    # entry payload.
     patient: Optional[PatientRead] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 class VisitUpdate(BaseModel):
     visit_reason: Optional[str] = Field(default=None, max_length=255)
@@ -416,26 +424,43 @@ class LiveLocationRead(BaseModel):
     entered_at: Optional[datetime] = None
 
 
-# ── VITALS SCHEMAS ────────────────────────────────────────────────────────
+# ── Vitals Schemas ────────────────────────────────────────────────────────────
 
-class VitalsCreate(BaseModel):
-    visit_id: UUID
-    temperature: Optional[str] = None
-    blood_pressure: Optional[str] = None
+class VitalsBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    temperature: Optional[float] = None
+    systolic_bp: Optional[int] = None
+    diastolic_bp: Optional[int] = None
     heart_rate: Optional[int] = None
+    respiratory_rate: Optional[int] = None
     oxygen_saturation: Optional[int] = None
-    weight: Optional[str] = None
+    weight: Optional[float] = None
+    height: Optional[float] = None
 
-class VitalsRead(ORMBase):
-    vital_id: UUID
+
+class VitalsCreate(VitalsBase):
+    """Payload for POST /visits/{visit_id}/vitals
+
+    Note: visit_id comes from the URL path, recorded_by comes from auth context.
+    """
+    pass
+
+
+class VitalsRead(VitalsBase):
+    vitals_id: UUID
     visit_id: UUID
-    recorded_by: Optional[UUID]
-    temperature: Optional[str]
-    blood_pressure: Optional[str]
-    heart_rate: Optional[int]
-    oxygen_saturation: Optional[int]
-    weight: Optional[str]
+    recorded_by: Optional[UUID] = None
     recorded_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Triage Assessment Schemas ─────────────────────────────────────────────────
+
+class TriageAssessmentUpdate(BaseModel):
+    chief_complaint: Optional[str] = None
+    triage_assessment: Optional[str] = None
 
 # ── AUDIT LOG SCHEMAS ─────────────────────────────────────────────────────
 

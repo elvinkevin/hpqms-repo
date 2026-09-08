@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.models import (
@@ -24,7 +25,7 @@ class VisitService:
     ----------------
     - Start a visit
     - Generate a visit token
-    - Retrieve visits
+    - Retrieve visits (hydrated with patient & vitals)
     - Retrieve active visits
     - Complete visits
     - Cancel visits
@@ -39,7 +40,16 @@ class VisitService:
     # ==========================================================
 
     async def get_visit(self, visit_id: UUID) -> Visit:
-        visit = await self.db.get(Visit, visit_id)
+        stmt = (
+            select(Visit)
+            .options(
+                selectinload(Visit.patient),
+                selectinload(Visit.vitals),
+            )
+            .where(Visit.visit_id == visit_id)
+        )
+        result = await self.db.execute(stmt)
+        visit = result.scalar_one_or_none()
 
         if not visit:
             raise HTTPException(
@@ -53,14 +63,20 @@ class VisitService:
         self,
         patient_id: UUID,
     ) -> Visit | None:
-
-        result = await self.db.execute(
-            select(Visit).where(
+        stmt = (
+            select(Visit)
+            .options(
+                selectinload(Visit.patient),
+                selectinload(Visit.vitals),
+            )
+            .where(
                 Visit.patient_id == patient_id,
                 Visit.stage == VisitStage.ACTIVE,
             )
+            .order_by(Visit.created_at.desc())
+            .limit(1)
         )
-
+        result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     # ==========================================================
@@ -122,6 +138,7 @@ class VisitService:
         await self.db.refresh(visit)
 
         return visit
+
     # ==========================================================
     # UPDATE
     # ==========================================================

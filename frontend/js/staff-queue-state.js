@@ -202,6 +202,63 @@ export function getMyActivePatient() {
 /**
  * Get no-show entries assigned to current staff member.
  */
+/**
+ * Whether the active patient currently loaded matches the given visit.
+ *
+ * @param {string} visitId
+ */
+export function hasActivePatient(visitId) {
+    if (!visitId || !state.activePatient) {
+        return false;
+    }
+
+    return state.activePatient.visit_id === visitId ||
+        state.activePatient.visit?.visit_id === visitId;
+}
+
+/**
+ * Patch the active patient's vitals after a successful vitals POST.
+ *
+ * @param {Object} vitals - Recorded vitals payload (flat ORM schema).
+ */
+export function patchActivePatientVitals(vitals) {
+    if (!vitals || !state.activePatient) {
+        return;
+    }
+
+    state.activePatient = {
+        ...state.activePatient,
+        vitals: {
+            ...state.activePatient.vitals,
+            ...vitals,
+        },
+    };
+
+    notify();
+}
+
+/**
+ * Patch the active patient's assessment fields after a successful
+ * triage assessment PATCH. Accepts the VisitRead response, from which
+ * chief_complaint and triage_assessment are read.
+ *
+ * @param {Object} assessment - Visit response with updated assessment fields.
+ */
+export function patchActivePatientAssessment(assessment) {
+    if (!assessment || !state.activePatient) {
+        return;
+    }
+
+    state.activePatient = {
+        ...state.activePatient,
+        chief_complaint: assessment.chief_complaint ?? state.activePatient.chief_complaint,
+        triage_assessment: assessment.triage_assessment ?? state.activePatient.triage_assessment,
+        ...(assessment.latest_vitals ? { vitals: assessment.latest_vitals } : {}),
+    };
+
+    notify();
+}
+
 export function getMyNoShowEntries() {
     return state.noShowEntries
         .filter((entry) => isMyPatient(entry))

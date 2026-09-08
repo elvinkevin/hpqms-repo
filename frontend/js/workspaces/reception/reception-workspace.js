@@ -300,9 +300,11 @@ function renderReceptionEncounter(patient) {
                     </div>
 
                     ${
-                        registrationComplete && !wasBannerShown(getPatientDetails(patient)?.patient_id)
-                            ? renderRegistrationComplete(patient)
-                            : ""
+                        registrationComplete
+                            ? wasBannerShown(getPatientDetails(patient)?.patient_id)
+                                ? ""
+                                : renderRegistrationComplete(patient)
+                            : renderRegistrationRequired()
                     }
 
                 </div>

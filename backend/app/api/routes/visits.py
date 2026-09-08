@@ -39,13 +39,11 @@ async def create_visit(
     data: VisitCreate,
     db: AsyncSession = Depends(get_db),
 ):
-
     service = VisitService(db)
     visit = await service.start_visit(data)
-
     await db.commit()
-
-    return visit
+    # Return hydrated VisitRead
+    return await service.get_visit(visit.visit_id)
 
 
 # ==========================================================
@@ -61,10 +59,14 @@ async def get_visit(
     visit_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-
     service = VisitService(db)
-
-    return await service.get_visit(visit_id)
+    visit_read = await service.get_visit(visit_id)
+    if not visit_read:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Visit with ID {visit_id} not found.",
+        )
+    return visit_read
 
 
 # ==========================================================
@@ -80,9 +82,7 @@ async def get_active_visit(
     patient_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-
     service = VisitService(db)
-
     visit = await service.get_active_visit(patient_id)
 
     if not visit:
@@ -114,14 +114,10 @@ async def complete_visit(
     visit_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-
     service = VisitService(db)
-
     visit = await service.complete_visit(visit_id)
-
     await db.commit()
-
-    return visit
+    return await service.get_visit(visit_id)
 
 
 # ==========================================================
@@ -144,11 +140,7 @@ async def cancel_visit(
     visit_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-
     service = VisitService(db)
-
     visit = await service.cancel_visit(visit_id)
-
     await db.commit()
-
-    return visit
+    return await service.get_visit(visit_id)

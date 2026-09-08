@@ -12,6 +12,12 @@
 
    It only answers:
        "Which workspace module belongs here?"
+
+   Supported workspaces:
+   - RECEPTION (receptionist staff)
+   - TRIAGE (triage nurse)
+   - DOCTOR (doctor/clinical staff)
+   - ADMIN (administrator)
    ========================================================================== */
 
 import { WORKSPACE } from "./staff-workspace-config.js";
@@ -37,14 +43,40 @@ const WORKSPACE_MODULES = Object.freeze({
 });
 
 
+/**
+ * Get the workspace module for a given workspace key.
+ *
+ * @param {string} workspaceKey - The workspace identifier
+ * @returns {Object|null} - The workspace module or null if not found
+ */
 export function getWorkspaceModule(workspaceKey) {
+    if (!workspaceKey) {
+        return null;
+    }
+
     return WORKSPACE_MODULES[workspaceKey] ?? null;
 }
 
 
+/**
+ * Check if a workspace exists in the registry.
+ *
+ * @param {string} workspaceKey - The workspace identifier
+ * @returns {boolean}
+ */
 export function hasWorkspace(workspaceKey) {
     return Object.prototype.hasOwnProperty.call(
         WORKSPACE_MODULES,
         workspaceKey
     );
+}
+
+
+/**
+ * Get all available workspaces.
+ *
+ * @returns {Array<string>} - Array of workspace keys
+ */
+export function getAvailableWorkspaces() {
+    return Object.keys(WORKSPACE_MODULES);
 }
