@@ -227,3 +227,35 @@ async def test_create_visit_validation_error(
         headers=receptionist_token_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+# Append to tests/api/test_visits_api.py
+
+@pytest.mark.asyncio
+async def test_update_clinical_assessment_success(client: AsyncClient, doctor_token_headers, active_visit):
+    payload = {
+        "clinical_findings": "Patient exhibits mild fever and persistent cough.",
+        "diagnosis": "Acute Bronchitis",
+        "treatment_plan": "Rest, hydration, and prescribed antibiotics."
+    }
+    response = await client.patch(
+        f"/api/visits/{active_visit.visit_id}/assessment",
+        json=payload,
+        headers=doctor_token_headers
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["clinical_findings"] == payload["clinical_findings"]
+    assert data["diagnosis"] == payload["diagnosis"]
+    assert data["treatment_plan"] == payload["treatment_plan"]
+
+
+@pytest.mark.asyncio
+async def test_update_clinical_assessment_forbidden_role(client: AsyncClient, receptionist_token_headers, active_visit):
+    payload = {"diagnosis": "Unauthorized diagnosis entry"}
+    response = await client.patch(
+        f"/api/visits/{active_visit.visit_id}/assessment",
+        json=payload,
+        headers=receptionist_token_headers
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN

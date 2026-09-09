@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.models import StaffRole
 from app.domain.schemas.schemas import (
+    ClinicalAssessmentRead,
+    ClinicalAssessmentUpdate,
     VisitCreate,
     VisitRead,
 )
@@ -144,3 +146,35 @@ async def cancel_visit(
     visit = await service.cancel_visit(visit_id)
     await db.commit()
     return await service.get_visit(visit_id)
+
+
+
+
+@router.patch(
+    "/{visit_id}/assessment",
+    response_model=ClinicalAssessmentRead,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(
+            require_role(
+                StaffRole.DOCTOR,
+                StaffRole.ADMIN,
+            )
+        )
+    ]
+)
+async def update_visit_clinical_assessment(
+    visit_id: UUID,
+    payload: ClinicalAssessmentUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Persists doctor clinical findings, diagnosis, and treatment plan for a visit.
+    Restricted to DOCTOR and ADMIN staff roles.
+    """
+    updated_visit = await VisitService.update_clinical_assessment(
+        db=db,
+        visit_id=visit_id,
+        payload=payload
+    )
+    return updated_visit

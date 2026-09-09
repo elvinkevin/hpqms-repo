@@ -191,7 +191,13 @@ class Visit(Base):
             return sorted_vitals[0]
         return None
 
+
     stage = Column(Enum(VisitStage), nullable=False, server_default=VisitStage.ACTIVE.value, index=True)
+
+    # D3.1 Clinical Assessment Fields
+    clinical_findings = Column(Text, nullable=True)
+    diagnosis = Column(Text, nullable=True)
+    treatment_plan = Column(Text, nullable=True)
 
     # Database-level fix for DDL & Alembic migrations
     current_queue_entry_id = Column(

@@ -199,6 +199,12 @@ class VisitRead(BaseModel):
     # relationship is already eagerly loaded via selectinload; without
     # this field the frontend cannot resolve patient_id from a queue
     # entry payload.
+
+    # D3 Hydration Fields
+    clinical_findings: Optional[str] = None
+    diagnosis: Optional[str] = None
+    treatment_plan: Optional[str] = None
+    
     patient: Optional[PatientRead] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
@@ -461,6 +467,24 @@ class VitalsRead(VitalsBase):
 class TriageAssessmentUpdate(BaseModel):
     chief_complaint: Optional[str] = None
     triage_assessment: Optional[str] = None
+
+
+
+# clinical assessment schemas
+class ClinicalAssessmentUpdate(BaseModel):
+    clinical_findings: Optional[str] = None
+    diagnosis: Optional[str] = None
+    treatment_plan: Optional[str] = None
+
+class ClinicalAssessmentRead(BaseModel):
+    visit_id: UUID
+    clinical_findings: Optional[str] = None
+    diagnosis: Optional[str] = None
+    treatment_plan: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 # ── AUDIT LOG SCHEMAS ─────────────────────────────────────────────────────
 

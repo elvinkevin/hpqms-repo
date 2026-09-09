@@ -425,3 +425,20 @@ function rederiveActivePatient() {
 
     state.activePatient = active ? { ...active } : null;
 }
+
+
+// staff-queue-state.j
+
+export function patchActivePatientClinicalAssessment(assessmentData) {
+    if (!state.activePatient) return;
+
+    if (!state.activePatient.visit) {
+        state.activePatient.visit = {};
+    }
+
+    state.activePatient.visit.clinical_findings = assessmentData.clinical_findings ?? state.activePatient.visit.clinical_findings;
+    state.activePatient.visit.diagnosis = assessmentData.diagnosis ?? state.activePatient.visit.diagnosis;
+    state.activePatient.visit.treatment_plan = assessmentData.treatment_plan ?? state.activePatient.visit.treatment_plan;
+
+    notify();
+}

@@ -1,33 +1,33 @@
- /*HPQMS Staff Dashboard API Helpers
-   js/staff-api.js
-   --------------------------------------------------------------------------
-   Responsibility:
-     - Provide typed/convenient wrappers around Staff Dashboard API endpoints.
-     - Attach the current authentication token to protected requests.
-     - Cache the authenticated staff profile for the current application
-       lifetime.
+/*HPQMS Staff Dashboard API Helpers
+  js/staff-api.js
+  --------------------------------------------------------------------------
+  Responsibility:
+    - Provide typed/convenient wrappers around Staff Dashboard API endpoints.
+    - Attach the current authentication token to protected requests.
+    - Cache the authenticated staff profile for the current application
+      lifetime.
 
-   Does NOT:
-     - Persist authentication sessions.
-     - Render UI.
-     - Manage queue state.
-     - Manage WebSockets.
-     - Determine workspace permissions.
+  Does NOT:
+    - Persist authentication sessions.
+    - Render UI.
+    - Manage queue state.
+    - Manage WebSockets.
+    - Determine workspace permissions.
 
-   Authentication persistence is handled by:
-       staff-session.js
+  Authentication persistence is handled by:
+      staff-session.js
 
-   UI action policy is handled by:
-       staff-workspace-config.js
+  UI action policy is handled by:
+      staff-workspace-config.js
 
-   Queue state is handled by:
-       staff-queue-state.js
+  Queue state is handled by:
+      staff-queue-state.js
 
-   Staff intent/actions are handled by:
-       staff-actions.js
+  Staff intent/actions are handled by:
+      staff-actions.js
 
-   Backend RBAC remains the final authority.
-   ========================================================================== */
+  Backend RBAC remains the final authority.
+  ========================================================================== */
 
 import { request, HTTP_METHOD } from "./api.js";
 
@@ -559,6 +559,18 @@ async function updateTriageAssessment(visitId, assessmentPayload) {
 }
 
 
+
+
+
+async function saveClinicalAssessment(visitId, payload) {
+    if (!visitId) throw new Error("Missing visit identifier.");
+
+    return request(`/visits/${visitId}/assessment`, {
+        method: "PATCH",
+        headers: buildAuthHeaders(),
+        body: payload, // Pass plain object instead of JSON.stringify(payload)
+    });
+}
 /**
  * Fetch a hydrated visit record.
  *
@@ -624,4 +636,7 @@ export {
     getLatestVitals,
     getAllVitals,
     updateTriageAssessment,
+
+    /* clincal assessment */
+    saveClinicalAssessment
 };

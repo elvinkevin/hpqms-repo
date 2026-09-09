@@ -37,6 +37,7 @@ import {
     STAFF_ROLE,
 } from "../staff-workspace-config.js";
 
+import { saveClinicalAssessment, loadDepartments } from "../staff-actions.js";
 
 let container = null;
 let workspaceModule = null;
@@ -150,6 +151,9 @@ function handleQueueStateChange() {
  *
  * @param {Object} patient - The active patient
  */
+// Ensure these are imported at the top of encounter-panel.js:
+
+
 function mountWorkspace(patient) {
     const staffContext = getStaffContext();
 
@@ -186,8 +190,18 @@ function mountWorkspace(patient) {
     renderEncounterShell(patient);
 
     try {
-        // Mount the workspace with callbacks
+        // Mount the workspace with complete callbacks
         workspaceModule.mount(workspaceMount, {
+            // D3.9 Clinical Documentation Persistence Callback
+            onSaveClinicalAssessment: async (visitId, assessmentPayload) => {
+                return await saveClinicalAssessment(visitId, assessmentPayload);
+            },
+
+            // D3.9 Department Drawer Callback
+            onLoadDepartments: async () => {
+                return await loadDepartments();
+            },
+
             onRegistrationCompleted: async () => {
                 // Called after registration is completed in Reception workspace
                 console.log("Registration completed");
@@ -200,7 +214,6 @@ function mountWorkspace(patient) {
 
             onRetakeVitals: async () => {
                 // Called when vitals are retaken in Triage workspace
-                // Open vitals entry modal/drawer here
                 console.log("Vitals retake requested");
             },
 
@@ -208,7 +221,6 @@ function mountWorkspace(patient) {
                 // Called after any workflow action completes
                 // (route, discharge, no-show, complete, cancel, etc.)
                 console.log("Action completed, refreshing state...");
-                // Queue state will update via subscription, triggering re-render
             },
         });
 

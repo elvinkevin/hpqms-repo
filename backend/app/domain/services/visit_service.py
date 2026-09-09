@@ -13,7 +13,7 @@ from app.domain.models.models import (
     Patient,
     VisitStage,
 )
-from app.domain.schemas.schemas import VisitCreate
+from app.domain.schemas.schemas import ClinicalAssessmentUpdate, VisitCreate
 from app.domain.services.token_service import TokenService
 
 
@@ -202,4 +202,30 @@ class VisitService:
         await self.db.flush()
         await self.db.refresh(visit)
 
+        return visit
+
+
+    @staticmethod
+    async def update_clinical_assessment(
+        db: AsyncSession, 
+        visit_id: UUID, 
+        payload: ClinicalAssessmentUpdate
+    ) -> Visit:
+        stmt = select(Visit).where(Visit.visit_id == visit_id)
+        result = await db.execute(stmt)
+        visit = result.scalar_one_or_none()
+
+        if not visit:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Visit with ID {visit_id} not found."
+            )
+
+        # Apply non-None updates
+        update_data = payload.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(visit, field, value)
+
+        await db.commit()
+        await db.refresh(visit)
         return visit

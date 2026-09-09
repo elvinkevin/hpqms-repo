@@ -55,6 +55,10 @@ import {
 
 } from "./staff-api.js";
 
+import { saveClinicalAssessment as saveClinicalAssessmentApi } from "./staff-api.js";
+
+import { patchActivePatientClinicalAssessment } from "./staff-queue-state.js";
+
 import {
     completePatientRegistration as apiCompletePatientRegistration,
     recordVitals as apiRecordVitals,
@@ -787,6 +791,33 @@ export async function saveTriageAssessment(visitId, assessmentPayload) {
     }
 
     return response;
+}
+
+
+
+// Add to staff-actions.js
+
+
+
+
+
+export async function saveClinicalAssessment(visitId, assessmentData) {
+    if (!visitId) {
+        throw new Error("Cannot save clinical assessment: Invalid visit ID.");
+    }
+    
+    const payload = {
+        clinical_findings: assessmentData.clinical_findings || null,
+        diagnosis: assessmentData.diagnosis || null,
+        treatment_plan: assessmentData.treatment_plan || null,
+    };
+
+    const updatedVisit = await saveClinicalAssessmentApi(visitId, payload);
+
+    // Immediately patch client queue state to prevent WebSocket re-renders from clobbering local drafts
+    patchActivePatientClinicalAssessment(payload);
+
+    return updatedVisit;
 }
 
 /* ==========================================================================

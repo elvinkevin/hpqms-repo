@@ -195,7 +195,7 @@ function renderDoctorEncounter(patient) {
                                 TRIAGE INFORMATION
                             </span>
 
-                          
+
                         </div>
 
                         <span class="doctor-readonly-badge">
@@ -234,7 +234,7 @@ function renderDoctorEncounter(patient) {
                             vitals
                         </span>
                     <div class="doctor-vitals-grid">
-                       
+
                         ${renderVital(
                             "Heart Rate",
                             vitals.heart_rate,
@@ -377,7 +377,7 @@ function renderDoctorEncounter(patient) {
                                 CONSULTATION
                             </span>
 
-                           
+
                         </div>
 
                     </div>
@@ -780,86 +780,14 @@ function destroyPriorityConfirm() {
 }
 
 
-/* ==========================================================================
-   CLINICAL ASSESSMENT
-   ========================================================================== */
-
-function attachClinicalListeners() {
-    const findings = container?.querySelector(
-        "#doctorClinicalFindings"
-    );
-
-    const diagnosis = container?.querySelector(
-        "#doctorDiagnosis"
-    );
-
-    const treatmentPlan = container?.querySelector(
-        "#doctorTreatmentPlan"
-    );
-
-    const findingsCount = container?.querySelector(
-        "#clinicalFindingsCount"
-    );
-
-    const diagnosisCount = container?.querySelector(
-        "#diagnosisCount"
-    );
-
-    const treatmentCount = container?.querySelector(
-        "#treatmentPlanCount"
-    );
-
-
-    findings?.addEventListener("input", event => {
-        draft.clinicalFindings = event.target.value;
-
-        if (findingsCount) {
-            findingsCount.textContent =
-                draft.clinicalFindings.length;
-        }
-    });
-
-
-    diagnosis?.addEventListener("input", event => {
-        draft.diagnosis = event.target.value;
-
-        if (diagnosisCount) {
-            diagnosisCount.textContent =
-                draft.diagnosis.length;
-        }
-    });
-
-
-    treatmentPlan?.addEventListener("input", event => {
-        draft.treatmentPlan = event.target.value;
-
-        if (treatmentCount) {
-            treatmentCount.textContent =
-                draft.treatmentPlan.length;
-        }
-    });
-
-
-    const saveButton = container?.querySelector(
-        "#saveClinicalAssessmentBtn"
-    );
-
-    saveButton?.addEventListener(
-        "click",
-        handleSaveClinicalAssessment
-    );
-}
-
+// Module-level guard against rapid double-clicks
+let isSavingAssessment = false;
 
 async function handleSaveClinicalAssessment() {
-    /*
-     * IMPORTANT:
-     *
-     * The exact clinical-assessment persistence API should be connected
-     * here using the established staff-actions/API layer.
-     *
-     * We deliberately do not invent an endpoint in this workspace.
-     */
+    // 1. Double-click guard
+    if (isSavingAssessment) {
+        return;
+    }
 
     const patient = getMyActivePatient();
 
@@ -868,68 +796,92 @@ async function handleSaveClinicalAssessment() {
         return;
     }
 
+    // Safely extract visit_id from top-level or nested patient.visit
+    const visitId = patient.visit_id ?? patient.visit?.visit_id;
+
+    if (!visitId) {
+        showError("Active patient has no associated visit record.");
+        return;
+    }
+
     if (!draft.clinicalFindings.trim()) {
-        showError(
-            "Clinical findings are required before saving."
-        );
+        showError("Clinical findings are required before saving.");
         return;
     }
 
     if (!draft.diagnosis.trim()) {
-        showError(
-            "Diagnosis is required before saving."
-        );
+        showError("Diagnosis is required before saving.");
         return;
     }
 
-    /*
-     * Placeholder callback allows us to wire the already-established
-     * persistence layer without coupling this workspace to its internals.
-     */
     if (typeof callbacks.onSaveClinicalAssessment !== "function") {
-        showError(
-            "Clinical assessment persistence is not connected."
-        );
+        showError("Clinical assessment persistence is not connected.");
         return;
     }
 
     try {
+        isSavingAssessment = true;
         setClinicalBusy(true);
 
-        await callbacks.onSaveClinicalAssessment({
-            visitId:
-                patient.visit_id ??
-                patient.visit?.visit_id,
+        // Normalize payload to snake_case for backend schemas
+        const assessmentPayload = {
+            clinical_findings: draft.clinicalFindings.trim(),
+            diagnosis: draft.diagnosis.trim(),
+            treatment_plan: draft.treatmentPlan.trim(),
+        };
 
-            clinicalFindings:
-                draft.clinicalFindings.trim(),
-
-            diagnosis:
-                draft.diagnosis.trim(),
-
-            treatmentPlan:
-                draft.treatmentPlan.trim(),
-        });
+        // Pass positional arguments: (visitId, assessmentPayload)
+        await callbacks.onSaveClinicalAssessment(visitId, assessmentPayload);
 
         clearDoctorError();
+
+        // Success UX Feedback
+        setSaveButtonSuccess();
 
         if (typeof callbacks.onClinicalAssessmentSaved === "function") {
             await callbacks.onClinicalAssessmentSaved();
         }
 
     } catch (error) {
-
         showError(
-            error?.message ||
-            "Unable to save clinical assessment."
+            error?.message || "Unable to save clinical assessment."
         );
-
     } finally {
+        isSavingAssessment = false;
         setClinicalBusy(false);
     }
 }
 
+/**
+ * Updates save button state and label during network operation
+ */
+function setClinicalBusy(isBusy) {
+    const saveButton = container?.querySelector("#saveClinicalAssessmentBtn");
+    if (!saveButton) return;
 
+    saveButton.disabled = isBusy;
+    if (isBusy) {
+        saveButton.textContent = "Saving...";
+    }
+}
+
+/**
+ * Provides transient visual success feedback on the save button
+ */
+function setSaveButtonSuccess() {
+    const saveButton = container?.querySelector("#saveClinicalAssessmentBtn");
+    if (!saveButton) return;
+
+    saveButton.textContent = "Saved ✓";
+    saveButton.classList.add("btn-success");
+
+    setTimeout(() => {
+        if (saveButton) {
+            saveButton.textContent = "Save Clinical Assessment";
+            saveButton.classList.remove("btn-success");
+        }
+    }, 2500);
+}
 /* ==========================================================================
    ROUTING
    ========================================================================== */
@@ -1420,6 +1372,73 @@ function destroyDischargeOverlay() {
 
 
 /* ==========================================================================
+   CLINICAL LISTENERS
+   ========================================================================== */
+
+function attachClinicalListeners() {
+    const findings = container?.querySelector(
+        "#doctorClinicalFindings"
+    );
+
+    const diagnosis = container?.querySelector(
+        "#doctorDiagnosis"
+    );
+
+    const treatmentPlan = container?.querySelector(
+        "#doctorTreatmentPlan"
+    );
+
+    const findingsCount = container?.querySelector(
+        "#clinicalFindingsCount"
+    );
+
+    const diagnosisCount = container?.querySelector(
+        "#diagnosisCount"
+    );
+
+    const treatmentCount = container?.querySelector(
+        "#treatmentPlanCount"
+    );
+
+    findings?.addEventListener("input", event => {
+        draft.clinicalFindings = event.target.value;
+
+        if (findingsCount) {
+            findingsCount.textContent =
+                draft.clinicalFindings.length;
+        }
+    });
+
+    diagnosis?.addEventListener("input", event => {
+        draft.diagnosis = event.target.value;
+
+        if (diagnosisCount) {
+            diagnosisCount.textContent =
+                draft.diagnosis.length;
+        }
+    });
+
+    treatmentPlan?.addEventListener("input", event => {
+        draft.treatmentPlan = event.target.value;
+
+        if (treatmentCount) {
+            treatmentCount.textContent =
+                draft.treatmentPlan.length;
+        }
+    });
+
+    const saveButton = container?.querySelector(
+        "#saveClinicalAssessmentBtn"
+    );
+
+    saveButton?.addEventListener(
+        "click",
+        handleSaveClinicalAssessment
+    );
+}
+
+
+/* ==========================================================================
    LISTENERS
    ========================================================================== */
 
@@ -1607,21 +1626,7 @@ function setDrawerBusy(busy) {
 }
 
 
-function setClinicalBusy(busy) {
-    const button =
-        container?.querySelector(
-            "#saveClinicalAssessmentBtn"
-        );
 
-    if (button) {
-        button.disabled = busy;
-
-        button.textContent =
-            busy
-                ? "Saving..."
-                : "Save Clinical Assessment";
-    }
-}
 
 
 /* ==========================================================================
