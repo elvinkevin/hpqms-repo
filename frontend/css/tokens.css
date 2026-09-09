@@ -357,6 +357,7 @@
   --z-alert:                    30;
   --z-critical:                 40;
   --z-system:                   50;
+  --z-audio-unlock:             60;
 }
 
 

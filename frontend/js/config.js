@@ -90,6 +90,12 @@ const DEFAULT_CONFIG = {
         audioEnabled: true,
         defaultDurationMs: 5000,
         emergencyDurationMs: 15000,
+        chimeVolume: 0.5,
+        speakTokenNumber: true,
+        criticalChime: true,
+        speechRate: 1.0,
+        speechPitch: 1.0,
+        speechVolume: 1.0,
     },
 
     announcements: {
@@ -193,6 +199,23 @@ function assertNonNegativeNumber(value, fieldName) {
     ) {
         throw new Error(
             `${fieldName} must be a non-negative number`
+        );
+    }
+}
+
+
+/**
+ * Assert that a number falls within an inclusive range [min, max].
+ */
+function assertNumberRange(value, fieldName, min, max) {
+    if (
+        typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        value < min ||
+        value > max
+    ) {
+        throw new Error(
+            `${fieldName} must be a number between ${min} and ${max}`
         );
     }
 }
@@ -378,6 +401,41 @@ function validateConfig(config) {
     assertPositiveNumber(
         config.alerts.emergencyDurationMs,
         "alerts.emergencyDurationMs"
+    );
+
+
+    assertNumberRange(
+        config.alerts.chimeVolume,
+        "alerts.chimeVolume",
+        0, 1
+    );
+
+    assertBoolean(
+        config.alerts.speakTokenNumber,
+        "alerts.speakTokenNumber"
+    );
+
+    assertBoolean(
+        config.alerts.criticalChime,
+        "alerts.criticalChime"
+    );
+
+    assertNumberRange(
+        config.alerts.speechRate,
+        "alerts.speechRate",
+        0.1, 10
+    );
+
+    assertNumberRange(
+        config.alerts.speechPitch,
+        "alerts.speechPitch",
+        0, 2
+    );
+
+    assertNumberRange(
+        config.alerts.speechVolume,
+        "alerts.speechVolume",
+        0, 1
     );
 
 

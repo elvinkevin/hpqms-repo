@@ -53,6 +53,14 @@ import {
 } from "./alert-manager.js";
 
 import {
+    initialize as initializeAudio,
+    playTokenChime,
+    reset as resetAudio,
+    isUnlocked,
+    unlockAudio,
+} from "./audio-player.js";
+
+import {
     getState,
     setSnapshot,
     applyEvent,
@@ -308,11 +316,95 @@ function dismissAlert() {
 }
 
 
-function playAlertSound() {
-    /*
-     * Audio output is intentionally left as a soft hook.
-     * Browser autoplay policies require a user gesture in many environments.
-     */
+function playAlertSound(alert) {
+    void playTokenChime(alert);
+}
+
+
+/**
+ * Show or hide the one-tap audio unlock overlay.
+ *
+ * The overlay blocks the display until the browser's autoplay
+ * policy is satisfied. It is shown when audio is enabled but the
+ * AudioContext is still suspended, and hidden once unlocked.
+ */
+function syncAudioUnlockOverlay() {
+    const overlay =
+        document.getElementById(
+            "audio-unlock-layer"
+        );
+
+    if (!overlay) {
+        return;
+    }
+
+    const config = getConfig();
+    const audioEnabled =
+        config.features.audio &&
+        config.alerts.audioEnabled;
+
+    if (!audioEnabled) {
+        overlay.hidden = true;
+        return;
+    }
+
+    if (isUnlocked()) {
+        overlay.hidden = true;
+        return;
+    }
+
+    overlay.hidden = false;
+}
+
+
+/**
+ * Attach listeners that unlock audio and dismiss the overlay.
+ */
+function attachAudioUnlockHandlers() {
+    const overlay =
+        document.getElementById(
+            "audio-unlock-layer"
+        );
+
+    if (!overlay) {
+        return;
+    }
+
+    const button =
+        document.getElementById(
+            "audio-unlock-button"
+        );
+
+    const unlockAndHide = () => {
+        unlockAudio().then(() => {
+            syncAudioUnlockOverlay();
+        });
+    };
+
+    if (button) {
+        button.addEventListener(
+            "click",
+            unlockAndHide
+        );
+    }
+
+    overlay.addEventListener(
+        "click",
+        unlockAndHide
+    );
+
+    overlay.addEventListener(
+        "keydown",
+        (event) => {
+            if (
+                event.key === "Enter" ||
+                event.key === " "
+            ) {
+                event.preventDefault();
+                unlockAndHide();
+            }
+        }
+    );
 }
 
 
@@ -365,6 +457,17 @@ function initializeRuntimeManagers() {
             config.alerts.defaultDurationMs,
     });
 
+    initializeAudio({
+        enabled: config.features.audio &&
+            config.alerts.audioEnabled,
+        chimeVolume: config.alerts.chimeVolume,
+        speakTokenNumber: config.alerts.speakTokenNumber,
+        speechRate: config.alerts.speechRate,
+        speechPitch: config.alerts.speechPitch,
+        speechVolume: config.alerts.speechVolume,
+        criticalChime: config.alerts.criticalChime,
+    });
+
     setAlertCallbacks({
         show: showAlert,
         dismiss: dismissAlert,
@@ -387,6 +490,7 @@ function resetRuntimeManagers() {
     destroyIdleManager();
     resetRotation();
     resetAlerts();
+    resetAudio();
     clearRenderer();
     dismissAlert();
 
@@ -755,6 +859,10 @@ async function start() {
         startClock();
 
         initializeRuntimeManagers();
+
+        attachAudioUnlockHandlers();
+
+        syncAudioUnlockOverlay();
 
         registerWebSocketListeners();
 

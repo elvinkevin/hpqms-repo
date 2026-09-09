@@ -1212,3 +1212,135 @@
         margin-top: var(--space-md);
     }
 }
+
+
+/* ==========================================================================
+    15. AUDIO UNLOCK GATE
+    One-tap overlay that satisfies browser autoplay policies.
+    ========================================================================== */
+
+.audio-unlock-layer {
+    position: absolute;
+
+    inset: 0;
+
+    z-index: var(--z-audio-unlock);
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: var(--space-2xl);
+
+    background:
+        rgba(10, 14, 20, 0.92);
+
+    backdrop-filter: blur(6px);
+}
+
+.audio-unlock-layer[hidden] {
+    display: none !important;
+}
+
+
+.audio-unlock-card {
+    width: min(90vw, 520px);
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    gap: var(--space-lg);
+
+    padding: var(--space-2xl);
+
+    background: var(--color-bg-surface);
+
+    border:
+        2px solid var(--color-brand-accent);
+
+    border-radius: var(--radius-lg);
+
+    text-align: center;
+
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+
+.audio-unlock-icon {
+    width: clamp(3rem, 8vw, 5rem);
+    height: clamp(3rem, 8vw, 5rem);
+
+    color: var(--color-brand-accent);
+}
+
+
+.audio-unlock-title {
+    margin: 0;
+
+    font-size: var(--font-size-2xl);
+
+    font-weight: var(--font-weight-bold);
+
+    color: var(--color-text-primary);
+}
+
+
+.audio-unlock-subtitle {
+    margin: 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: var(--font-size-base);
+
+    line-height: 1.5;
+}
+
+
+.audio-unlock-button {
+    width: 100%;
+
+    min-height: clamp(3rem, 6vh, 4rem);
+
+    padding:
+        var(--space-md) var(--space-xl);
+
+    border: none;
+
+    border-radius: var(--radius-md);
+
+    background: var(--color-brand-primary);
+
+    color: #ffffff;
+
+    font-size: var(--font-size-lg);
+
+    font-weight: var(--font-weight-bold);
+
+    letter-spacing: 0.06em;
+
+    text-transform: uppercase;
+
+    cursor: pointer;
+
+    transition:
+        background-color var(--transition-fast),
+        transform var(--transition-fast);
+}
+
+
+.audio-unlock-button:hover,
+.audio-unlock-button:focus-visible {
+    background: var(--color-brand-accent);
+
+    outline: var(--focus-ring);
+}
+
+
+.audio-unlock-button:active {
+    transform: scale(0.98);
+}

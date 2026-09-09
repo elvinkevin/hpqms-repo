@@ -324,8 +324,7 @@
     <!-- ================================================================
          LAYER 4: CONNECTION / SYSTEM STATUS
          ================================================================ -->
-
-    <div id="system-status-layer" class="system-status-layer" role="status" aria-live="polite" hidden>
+<div id="system-status-layer" class="system-status-layer" role="status" aria-live="polite" hidden>
 
         <section id="system-status-card" class="system-status-card">
 
@@ -346,6 +345,42 @@
             </span>
 
         </section>
+
+    </div>
+
+
+    <!-- ================================================================
+         LAYER 5: AUDIO UNLOCK GATE
+         One-tap gesture to satisfy browser autoplay policies.
+         Hidden once audio is unlocked.
+         ================================================================ -->
+    <div id="audio-unlock-layer" class="audio-unlock-layer" role="button"
+         tabindex="0" aria-label="Tap to enable audio announcements"
+         hidden>
+
+        <div class="audio-unlock-card">
+
+            <svg class="audio-unlock-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"
+                      fill="currentColor" />
+            </svg>
+
+            <h2 id="audio-unlock-title">
+                Enable Audio Announcements
+            </h2>
+
+            <p id="audio-unlock-subtitle">
+                Tap anywhere to hear token chimes and spoken numbers
+                when your token is called.
+            </p>
+
+            <button id="audio-unlock-button" class="audio-unlock-button"
+                    type="button">
+                ENABLE AUDIO
+            </button>
+
+        </div>
+
     </div>
 
 
