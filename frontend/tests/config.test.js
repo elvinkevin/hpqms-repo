@@ -1,7 +1,14 @@
 
-import { beforeEach, describe, expect, it } from "vitest";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+} from "vitest";
 
 import {
+    applyUrlOverrides,
     getConfig,
     getConfigValue,
     initializeConfig,
@@ -726,3 +733,114 @@ describe("resetConfig()", () => {
     });
 });
 
+
+
+/*
+|--------------------------------------------------------------------------
+| Department selection configuration
+|--------------------------------------------------------------------------
+*/
+
+describe("departments configuration", () => {
+    it("defaults to showing all departments", () => {
+        expect(getConfig().departments.selected)
+            .toBeNull();
+    });
+
+    it("accepts a pinned department list", () => {
+        initializeConfig({
+            departments: {
+                selected: ["Pharmacy", "Emergency"],
+            },
+        });
+
+        expect(getConfig().departments.selected)
+            .toEqual(["Pharmacy", "Emergency"]);
+    });
+
+    it("rejects a non-array selected value", () => {
+        expect(() => {
+            initializeConfig({
+                departments: {
+                    selected: "Pharmacy",
+                },
+            });
+        }).toThrow(/departments\.selected/);
+    });
+
+    it("rejects empty department names in the list", () => {
+        expect(() => {
+            initializeConfig({
+                departments: {
+                    selected: ["Pharmacy", "  "],
+                },
+            });
+        }).toThrow(/departments\.selected/);
+    });
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| URL query parameter overrides
+|--------------------------------------------------------------------------
+*/
+
+describe("URL query parameter overrides", () => {
+    const originalSearch = window.location.search;
+
+    afterEach(() => {
+        window.history.replaceState(
+            null,
+            "",
+            originalSearch || window.location.pathname
+        );
+        resetConfig();
+    });
+
+    function setUrlSearch(search) {
+        window.history.replaceState(
+            null,
+            "",
+            `${window.location.pathname}${search}`
+        );
+    }
+
+    it("overrides layout.mode from the mode parameter", () => {
+        setUrlSearch("?mode=ROTATING_BOARD");
+
+        const config = applyUrlOverrides(getConfig());
+
+        expect(config.layout.mode)
+            .toBe("ROTATING_BOARD");
+    });
+
+    it("overrides department selection from the dept parameter", async () => {
+        setUrlSearch("?dept=Pharmacy,Emergency");
+
+        const config = applyUrlOverrides(getConfig());
+
+        expect(config.departments.selected)
+            .toEqual(["Pharmacy", "Emergency"]);
+    });
+
+    it("overrides rotation from rotate and rotationMs parameters", async () => {
+        setUrlSearch("?rotate=true&rotationMs=5000");
+
+        const config = applyUrlOverrides(getConfig());
+
+        expect(config.rotation.enabled)
+            .toBe(true);
+        expect(config.rotation.intervalMs)
+            .toBe(5000);
+    });
+
+    it("leaves configuration untouched without parameters", async () => {
+        setUrlSearch("");
+
+        const before = getConfig();
+        const config = applyUrlOverrides(before);
+
+        expect(config).toEqual(before);
+    });
+});

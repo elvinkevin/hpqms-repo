@@ -28,7 +28,7 @@ function resolveDynamicUrls() {
         ? window.location.protocol
         : "http:";
     const hostname = isBrowser && window.location.hostname
-        ? window.location.hostname
+        ? window.location.hostname 
         : "localhost";
     const frontendPort = isBrowser ? window.location.port : "";
     const backendHost = frontendPort === backendPort
@@ -59,6 +59,17 @@ const DEFAULT_CONFIG = {
         mode: "SINGLE_DEPARTMENT",
     },
 
+    /*
+     * Department selection for this screen.
+     *
+     * selected: null        -> show all active departments from the snapshot
+     * selected: ["Pharmacy"] -> pin this screen to the given department
+     *                           names (case-insensitive)
+     */
+    departments: {
+        selected: null,
+    },
+
     backend: {
         apiBaseUrl: dynamicBackendDefaults.apiBaseUrl,
         websocketUrl: dynamicBackendDefaults.websocketUrl,
@@ -73,7 +84,7 @@ const DEFAULT_CONFIG = {
     },
 
     rotation: {
-        enabled: true,
+        enabled: false,
         intervalMs: 15000,
     },
 
@@ -113,10 +124,98 @@ const DEFAULT_CONFIG = {
 
 
 /* ==========================================================================
+   URL Query Parameter Overrides
+   ==========================================================================
+
+   Allows per-screen configuration without code changes:
+
+     display.html?mode=SINGLE_DEPARTMENT&dept=Pharmacy
+     display.html?mode=ROTATING_BOARD&rotate=true&rotationMs=10000
+     display.html?dept=Emergency,Pharmacy
+
+   Supported parameters:
+     mode       -> layout.mode
+     dept       -> departments.selected (comma-separated department names)
+     rotate     -> rotation.enabled ("true"/"false")
+     rotationMs -> rotation.intervalMs
+   ========================================================================== */
+
+function resolveUrlOverrides() {
+    if (
+        typeof window === "undefined" ||
+        !window.location ||
+        typeof window.location.search !== "string"
+    ) {
+        return {};
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const overrides = {};
+
+    const mode = params.get("mode");
+
+    if (mode !== null && mode.trim() !== "") {
+        overrides.layout = {
+            mode: mode.trim().toUpperCase(),
+        };
+    }
+
+    const dept = params.get("dept");
+
+    if (dept !== null && dept.trim() !== "") {
+        const selected = dept
+            .split(",")
+            .map(name => name.trim())
+            .filter(name => name !== "");
+
+        if (selected.length > 0) {
+            overrides.departments = { selected };
+        }
+    }
+
+    const rotate = params.get("rotate");
+
+    if (rotate !== null && rotate.trim() !== "") {
+        overrides.rotation = {
+            ...overrides.rotation,
+            enabled: rotate.trim().toLowerCase() === "true",
+        };
+    }
+
+    const rotationMs = params.get("rotationMs");
+
+    if (rotationMs !== null && rotationMs.trim() !== "") {
+        const interval = Number(rotationMs);
+
+        if (Number.isFinite(interval) && interval > 0) {
+            overrides.rotation = {
+                ...overrides.rotation,
+                intervalMs: interval,
+            };
+        }
+    }
+
+    return overrides;
+}
+
+
+/* ==========================================================================
    Internal State
    ========================================================================== */
 
 let currentConfig = deepClone(DEFAULT_CONFIG);
+
+
+/**
+ * Merge the URL query parameter overrides into the given config
+ * object. Exposed for testing; called once during module init.
+ */
+export function applyUrlOverrides(target) {
+    return deepMerge(target, resolveUrlOverrides());
+}
+
+
+applyUrlOverrides(currentConfig);
 
 
 /* ==========================================================================
@@ -325,6 +424,24 @@ function validateConfig(config) {
         );
     }
 
+    /* Departments */
+
+    const selectedDepartments = config.departments?.selected;
+
+    if (
+        selectedDepartments !== null &&
+        (
+            !Array.isArray(selectedDepartments) ||
+            selectedDepartments.some(
+                name => typeof name !== "string" || name.trim() === ""
+            )
+        )
+    ) {
+        throw new Error(
+            "departments.selected must be null or an array of non-empty department name strings"
+        );
+    }
+
     if (
         typeof config.reconnect.backoffMultiplier !== "number" ||
         !Number.isFinite(config.reconnect.backoffMultiplier) ||
@@ -349,7 +466,7 @@ function validateConfig(config) {
     }
 
 
-    
+
 
 
     /* Rotation */

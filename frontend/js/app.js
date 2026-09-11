@@ -91,6 +91,14 @@ let latestNotificationEvent = null;
 
 let clockIntervalId = null;
 
+/*
+ * Departments shown per rotation page on the ROTATING_BOARD
+ * layout. Matches the default 2x2 CSS grid capacity; with
+ * fewer departments on a page the board rotates within the
+ * same set, with more it advances page by page.
+ */
+const BOARD_PAGE_SIZE = 4;
+
 
 /* ==========================================================================
    DOM Helpers
@@ -184,6 +192,42 @@ function normalizeConnectionStatus(status) {
 }
 
 
+/**
+ * Narrow the snapshot departments down to the ones this screen is
+ * pinned to via config.departments.selected (matching is done
+ * case-insensitively on department_name).
+ */
+function filterSelectedDepartments(departments, config) {
+    const selected = config.departments?.selected;
+
+    if (!Array.isArray(selected) || selected.length === 0) {
+        return departments;
+    }
+
+    const wanted = selected
+        .map(name => String(name).trim().toLowerCase())
+        .filter(name => name !== "");
+
+    if (wanted.length === 0) {
+        return departments;
+    }
+
+    const matches = departments.filter(department =>
+        wanted.includes(
+            String(department?.department_name ?? "")
+                .trim()
+                .toLowerCase()
+        )
+    );
+
+    /*
+     * Fall back to the full list when nothing matches —
+     * a misconfigured screen must not go blank.
+     */
+    return matches.length > 0 ? matches : departments;
+}
+
+
 function getRenderableDepartments(snapshot) {
     const departments =
         Array.isArray(snapshot?.departments)
@@ -192,19 +236,35 @@ function getRenderableDepartments(snapshot) {
 
     const config = getConfig();
 
+    const filtered =
+        filterSelectedDepartments(departments, config);
+
+    /*
+     * SINGLE_DEPARTMENT always shows exactly one fixed
+     * department, regardless of rotation settings.
+     */
+    if (config.layout?.mode === "SINGLE_DEPARTMENT") {
+        return filtered.slice(0, 1);
+    }
+
     if (
+        config.layout?.mode === "ROTATING_BOARD" &&
         config.rotation.enabled &&
         departments.length > 1
     ) {
+        /*
+         * Show one department at a time; the grid arrangement
+         * is reserved for the ATRIUM layout.
+         */
         const currentDepartment =
             getCurrentDepartment();
 
         return currentDepartment
             ? [currentDepartment]
-            : departments.slice(0, 1);
+            : filtered.slice(0, 1);
     }
 
-    return departments;
+    return filtered;
 }
 
 
@@ -217,11 +277,19 @@ function renderDisplayState(state = getState()) {
             ? snapshot.departments
             : [];
 
-    setDepartments(departments);
-
     const config = getConfig();
 
+    const filteredDepartments =
+        filterSelectedDepartments(departments, config);
+
+    setDepartments(filteredDepartments);
+
+    /*
+     * Rotation only applies to the ROTATING_BOARD layout —
+     * other layouts are fixed views.
+     */
     if (
+        config.layout?.mode === "ROTATING_BOARD" &&
         config.rotation.enabled &&
         departments.length > 1
     ) {

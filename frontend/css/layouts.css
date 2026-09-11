@@ -279,30 +279,15 @@ body {
    9. ROTATING BOARD
    --------------------------------------------------------------------------
    IMPORTANT:
-   The JavaScript rotation manager determines WHICH departments appear.
-   CSS determines HOW the currently visible departments are arranged.
+   The JavaScript rotation manager determines WHICH department appears.
+   CSS determines HOW the currently visible department is arranged.
+
+   Shows ONE department at a time, full-screen. The multi-department
+   grid arrangement is reserved for the ATRIUM layout.
    -------------------------------------------------------------------------- */
 
 [data-layout="ROTATING_BOARD"] .primary-viewport {
-  display: grid;
-
-  grid-template-columns:
-    repeat(
-      var(--board-cols, 2),
-      minmax(0, 1fr)
-    );
-
-  grid-template-rows:
-    repeat(
-      var(--board-rows, 2),
-      minmax(0, 1fr)
-    );
-
-  gap: clamp(
-    var(--space-sm),
-    1.5vw,
-    var(--space-lg)
-  );
+  display: block;
 }
 
 [data-layout="ROTATING_BOARD"] .viewport-view {
@@ -324,19 +309,40 @@ body {
 [data-layout="ATRIUM"] .primary-viewport {
   display: grid;
 
+  /*
+   * Equal cells that fill the viewport. Columns adapt to
+   * available width via --atrium-cols (2 by default, 3 on
+   * large displays) and each row gets an equal share of
+   * the height, so every department board is identical.
+   */
   grid-template-columns:
-    minmax(0, 3fr)
-    minmax(280px, 1fr);
+    repeat(
+      var(--atrium-cols, 2),
+      minmax(0, 1fr)
+    );
 
-  grid-template-rows:
-    minmax(0, 1fr)
-    auto;
+  grid-auto-rows: minmax(0, 1fr);
+
+  grid-auto-flow: dense;
 
   gap: clamp(
-    var(--space-lg),
-    2vw,
-    var(--space-2xl)
+    var(--space-md),
+    1.5vw,
+    var(--space-xl)
   );
+}
+
+[data-layout="ATRIUM"] .viewport-view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-layout="ATRIUM"] .viewport-view .department-board {
+  flex: 1;
+  min-height: 0;
 }
 
 
@@ -390,9 +396,13 @@ body {
   [data-layout="ATRIUM"] .primary-viewport {
     grid-template-columns: 1fr;
 
-    grid-template-rows:
-      minmax(0, 1fr)
-      auto;
+    grid-auto-rows: minmax(0, auto);
+
+    overflow-y: auto;
+  }
+
+  [data-layout="ATRIUM"] .viewport-view {
+    min-height: 24rem;
   }
 }
 
@@ -432,6 +442,7 @@ body {
   :root {
     --board-cols: 3;
     --board-rows: 2;
+    --atrium-cols: 3;
   }
 
   .display-main {
@@ -472,13 +483,7 @@ body {
   }
 
   [data-layout="ROTATING_BOARD"] .primary-viewport {
-    grid-template-columns: 1fr;
-
-    grid-template-rows:
-      repeat(
-        var(--board-rows, 4),
-        minmax(0, 1fr)
-      );
+    display: block;
   }
 }
 
@@ -510,19 +515,8 @@ body {
    -------------------------------------------------------------------------- */
 
 @media (min-aspect-ratio: 21/9) {
-
   [data-layout="ROTATING_BOARD"] .primary-viewport {
-    grid-template-columns:
-      repeat(
-        3,
-        minmax(0, 1fr)
-      );
-
-    grid-template-rows:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      );
+    display: block;
   }
 }
 

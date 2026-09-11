@@ -227,6 +227,29 @@ describe("frontend runtime integration", () => {
 
 
     it("routes a TOKEN_CALLED event through alert, state, focus, and render", async () => {
+        /*
+         * Rotating the board to the Pharmacy department on a token
+         * call is ROTATING_BOARD behavior; SINGLE_DEPARTMENT shows
+         * a fixed department.
+         */
+        initializeConfig({
+            layout: {
+                mode: "ROTATING_BOARD",
+            },
+            rotation: {
+                enabled: true,
+                intervalMs: 1000,
+            },
+            idle: {
+                enabled: false,
+                timeoutMs: 60000,
+            },
+            alerts: {
+                audioEnabled: false,
+                defaultDurationMs: 5000,
+            },
+        });
+
         await start();
 
         handleMessage(tokenCalledEvent);
