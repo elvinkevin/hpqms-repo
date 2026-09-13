@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.domain.models.models import QueueEntry, QueueEntryStatus, StaffRole, Visit
-from app.domain.schemas.schemas import CurrentUser, QueueEntryRead, QueuePriorityUpdate
+from app.domain.schemas.schemas import CurrentUser, CallPatientRequest, QueueEntryRead, QueuePriorityUpdate
 from app.domain.services.auth_service import (
     ensure_department_access,
     get_current_user,
@@ -91,10 +91,10 @@ async def get_visit_queue(
 ):
     service = QueueService(db)
     entry = await service.get_active_queue_entry(visit_id)
-    
+
     if entry:
         ensure_department_access(current_user, entry.dept_id)
-        
+
     return entry
 
 
@@ -120,6 +120,7 @@ async def get_visit_queue(
 )
 async def call_patient(
     queue_entry_id: UUID,
+    payload: CallPatientRequest | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -128,6 +129,9 @@ async def call_patient(
     entry = await service.call_queue_entry(
         queue_entry_id,
         staff_id=current_user.staff_id,
+        service_point_id=(
+            payload.service_point_id if payload is not None else None
+        ),
     )
 
     await db.commit()
@@ -236,7 +240,7 @@ async def cancel_queue_step(
 
     await db.commit()
     await service.emit_display_event(entry)
-    
+
     return entry
 
 @router.get(
@@ -290,6 +294,8 @@ async def requeue_queue_entry(
         .options(
             selectinload(QueueEntry.visit).selectinload(Visit.patient),
             selectinload(QueueEntry.department),
+            selectinload(QueueEntry.service_point),  
+            
         )
         .where(QueueEntry.queue_entry_id == queue_entry_id)
     )

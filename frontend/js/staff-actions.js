@@ -52,6 +52,10 @@ import {
     transferPatient,
     dischargePatient,
     getDepartments,
+    getDepartmentServicePoints as apiGetDepartmentServicePoints,
+    checkInToServicePoint as apiCheckInToServicePoint,
+    checkOutOfServicePoint as apiCheckOutOfServicePoint,
+    getDepartmentOccupancy as apiGetDepartmentOccupancy,
 
 } from "./staff-api.js";
 
@@ -805,7 +809,7 @@ export async function saveClinicalAssessment(visitId, assessmentData) {
     if (!visitId) {
         throw new Error("Cannot save clinical assessment: Invalid visit ID.");
     }
-    
+
     const payload = {
         clinical_findings: assessmentData.clinical_findings || null,
         diagnosis: assessmentData.diagnosis || null,
@@ -818,6 +822,86 @@ export async function saveClinicalAssessment(visitId, assessmentData) {
     patchActivePatientClinicalAssessment(payload);
 
     return updatedVisit;
+}
+
+
+/* ==========================================================================
+   SERVICE POINT INTENTS
+   ========================================================================== */
+
+/*
+ * Track the staff member's currently occupied service point in memory.
+ * The backend (staff.active_service_point_id) remains the source of truth;
+ * this cache only avoids re-fetching /auth/me after a check-in.
+    */
+ let activeServicePoint = null;
+
+/**
+ * Load the service points configured for the current department.
+ *
+ * Read operation — requires an authenticated staff context.
+ */
+export async function loadDepartmentServicePoints() {
+    assertDepartmentContext();
+
+    return apiGetDepartmentServicePoints(staffContext.departmentId);
+}
+
+/**
+ * Check the current staff member into a service point.
+ *
+ * @param {string} servicePointId
+ */
+export async function checkInToServicePoint(servicePointId) {
+    assertStaffContext();
+
+    if (!servicePointId) {
+        throw createActionError(
+            "A service point must be selected.",
+            422
+        );
+    }
+
+    const staff = await apiCheckInToServicePoint(servicePointId);
+
+    activeServicePoint = staff.active_service_point_id
+        ? { service_point_id: staff.active_service_point_id }
+        : null;
+
+    return staff;
+}
+
+/**
+ * Check the current staff member out of their service point.
+ */
+export async function checkOutOfServicePoint() {
+    assertStaffContext();
+
+    const staff = await apiCheckOutOfServicePoint();
+
+    activeServicePoint = null;
+
+    return staff;
+}
+
+/**
+ * Get the currently occupied service point (cached locally).
+ */
+export function getActiveServicePoint() {
+    return activeServicePoint
+        ? { ...activeServicePoint }
+        : null;
+}
+
+/**
+ * Load the department's service point occupancy board.
+ *
+ * Read operation — requires an authenticated staff context.
+ */
+export async function loadDepartmentOccupancy() {
+    assertDepartmentContext();
+
+    return apiGetDepartmentOccupancy(staffContext.departmentId);
 }
 
 /* ==========================================================================

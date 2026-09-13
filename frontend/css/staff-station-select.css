@@ -1,0 +1,178 @@
+/* ==========================================================================
+   HPQMS Station Gate — Interstitial Styles
+   css/staff-station-select.css
+
+   Extends the login card aesthetic (staff-login.css) for the
+   post-login station selection screen.
+   ========================================================================== */
+
+.station-gate-card {
+    max-width: 480px;
+}
+
+/* ---- Error banner ------------------------------------------------------ */
+
+.gate-error {
+    display: none;
+
+    padding: 0.625rem 0.875rem;
+    margin-bottom: 1rem;
+
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.06);
+    color: #dc2626;
+    font-size: 13px;
+}
+
+.gate-error.show {
+    display: block;
+}
+
+/* ---- Station list ------------------------------------------------------ */
+
+.station-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+
+    max-height: 320px;
+    overflow-y: auto;
+
+    margin-bottom: 1.5rem;
+}
+
+.station-list-empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+.station-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    padding: 0.875rem 1rem;
+
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.station-option:hover {
+    border-color: #0F8B8E;
+    background: #f8fafc;
+}
+
+.station-option.selected {
+    border-color: #0F8B8E;
+    background: rgba(15, 139, 142, 0.06);
+    box-shadow: 0 0 0 3px rgba(15, 139, 142, 0.12);
+}
+
+.station-option.occupied {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.station-option input[type="radio"] {
+    accent-color: #0F8B8E;
+}
+
+.station-option-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.station-option-code {
+    font-size: 12px;
+    font-weight: 400;
+    color: #94a3b8;
+}
+
+.station-option-type {
+    flex-shrink: 0;
+
+    padding: 0.25rem 0.5rem;
+
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #0F5B78;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.station-option-occupied-tag {
+    flex-shrink: 0;
+
+    color: #dc2626;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ---- Actions ------------------------------------------------------------ */
+
+.gate-continue-btn {
+    width: 100%;
+
+    padding: 0.75rem;
+
+    border: none;
+    border-radius: 8px;
+    background: #0F5B78;
+    color: #ffffff;
+
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.gate-continue-btn:hover:not(:disabled) {
+    background: #0B4258;
+}
+
+.gate-continue-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.gate-skip-btn {
+    width: 100%;
+
+    margin-top: 0.625rem;
+    padding: 0.625rem;
+
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+
+    font-size: 13px;
+    font-family: inherit;
+
+    cursor: pointer;
+}
+
+.gate-skip-btn:hover {
+    color: #0F172A;
+    text-decoration: underline;
+}
+
+.gate-loading {
+    padding: 2rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 13px;
+}

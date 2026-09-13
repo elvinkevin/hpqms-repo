@@ -16,8 +16,11 @@ import {
     initializeStaffContext,
     getStaffContext,
 } from "./staff-context.js";
-import { onLogout, renderStaffHeader } from "./components/staff-header.js";
-import { mount as mountEncounterPanel, unmount as unmountEncounterPanel } from "./components/encounter-panel.js";
+import { onLogout, renderStaffHeader, renderStationPill } from "./components/staff-header.js";
+import {
+    mount as mountEncounterPanel,
+    unmount as unmountEncounterPanel,
+} from "./components/encounter-panel.js";
 import {
     getWorkspaceForRole,
 } from "./staff-workspace-config.js";
@@ -191,6 +194,16 @@ async function initializeDashboard() {
 
     try {
         const user = await getCurrentUser();
+
+        /*
+         * STATION GATE — an unbound staff member is routed to the
+         * station selection interstitial before the dashboard loads.
+         */
+        if (!user.station) {
+            window.location.replace("./staff-station-select.html");
+            return;
+        }
+
         const departments = await getDepartments();
         const department = departments.find(
             (item) => String(item.dept_id) === String(user.dept_id)
@@ -215,6 +228,13 @@ async function initializeDashboard() {
             document.getElementById("encounterMount"),
             { workspace: getWorkspaceForRole(user.role) }
         );
+
+        /*
+         * Top-bar station pill — compact indicator with a switch/
+         * checkout popover. Replaces the in-column service point bar.
+         */
+        renderStationPill(user.station, department);
+
         await synchronizeQueue();
         startStaffWebSocket();
         setStatus(`Ready - ${context.firstName} ${context.lastName}`);

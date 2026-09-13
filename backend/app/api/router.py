@@ -9,6 +9,7 @@ from app.api.routes import (
     routing,
     departments,
     staff,
+    service_points,
     token,
     display,
     kiosk,
@@ -24,6 +25,7 @@ api_router.include_router(queue.router)
 api_router.include_router(routing.router)
 api_router.include_router(departments.router)
 api_router.include_router(staff.router)
+api_router.include_router(service_points.router)
 api_router.include_router(token.router)
 api_router.include_router(display.router)
 api_router.include_router(kiosk.router)

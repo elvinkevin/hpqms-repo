@@ -1227,3 +1227,165 @@ header {
         grid-template-columns: 1fr 1fr;
     }
 }
+/* ==========================================================================
+   STATION PILL (header) + POPOVER
+   ========================================================================== */
+
+.station-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    padding: 0.375rem 0.75rem;
+
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.station-pill:hover {
+    border-color: var(--color-accent);
+    background: var(--color-surface-subtle);
+}
+
+.station-pill-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.station-pill-dot.active {
+    background: var(--color-success);
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.station-pill-dot.offline {
+    background: var(--color-text-soft);
+}
+
+.station-pill-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+}
+
+/* ---- Popover ------------------------------------------------------------ */
+
+.station-popover {
+    position: fixed;
+    z-index: 1000;
+
+    min-width: 240px;
+    max-width: 300px;
+
+    padding: 0.875rem;
+
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.station-popover-title {
+    margin-bottom: 0.625rem;
+
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.station-popover-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.station-popover-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    padding: 0.5rem 0.625rem;
+
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--color-text);
+
+    text-align: left;
+    cursor: pointer;
+}
+
+.station-popover-option:hover {
+    background: var(--color-surface-subtle);
+    border-color: var(--color-border);
+}
+
+.station-popover-option.current {
+    background: var(--color-accent-light);
+    border-color: var(--color-accent);
+    font-weight: 600;
+}
+
+.station-popover-code {
+    font-size: 11px;
+    color: var(--color-text-soft);
+}
+
+.station-popover-empty,
+.station-popover-loading {
+    padding: 1rem 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--color-text-soft);
+}
+
+.station-popover-checkout {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-subtle);
+
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--color-text-muted);
+
+    cursor: pointer;
+}
+
+.station-popover-checkout:hover:not(:disabled) {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.station-popover-checkout:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.station-popover-error {
+    margin-top: 0.5rem;
+    padding: 0.375rem 0.5rem;
+
+    border-radius: 6px;
+    background: rgba(220, 38, 38, 0.08);
+    color: var(--color-danger);
+    font-size: 11px;
+}

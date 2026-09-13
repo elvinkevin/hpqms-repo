@@ -81,6 +81,11 @@ class ArrivalMode(str, PyEnum):
 
     AIR_AMBULANCE = "AIR_AMBULANCE"
 
+class StationType(str, PyEnum):
+    COUNTER = "COUNTER"
+    ROOM = "ROOM"
+    WINDOW = "WINDOW"
+    DOOR = "DOOR"
 
 # ── 2. IDENTITY PATIENT MODEL ───────────────────────────────────────────
 
@@ -259,6 +264,7 @@ class QueueEntry(Base):
         Index("idx_visit_queue", "visit_id"),
         Index("idx_department_sequence", "dept_id", "sequence_number"),
         Index("idx_queue_entered_at", "entered_at"),
+        Index("idx_queue_service_point", "service_point_id"),
         Index(
             "uq_active_entry_per_visit",
             "visit_id",
@@ -274,12 +280,22 @@ class QueueEntry(Base):
                 "AND status IN ('CALLED','IN_PROGRESS')"
             ),
         ),
+        Index(
+            "uq_active_entry_per_service_point",
+            "service_point_id",
+            unique=True,
+            postgresql_where=text(
+                "service_point_id IS NOT NULL "
+                "AND status IN ('CALLED','IN_PROGRESS')"
+            ),
+        ),
     )
 
     queue_entry_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.visit_id"), nullable=False)
     dept_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False)
     assigned_staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.staff_id"), nullable=True)
+    service_point_id = Column(UUID(as_uuid=True), ForeignKey("service_points.service_point_id"), nullable=True)
     sequence_number = Column(Integer, nullable=False)
     priority = Column(Enum(QueuePriority), nullable=False, server_default=QueuePriority.NORMAL.value)
     status = Column(Enum(QueueEntryStatus), nullable=False, server_default=QueueEntryStatus.WAITING.value)
@@ -294,6 +310,11 @@ class QueueEntry(Base):
     visit = relationship("Visit", back_populates="queue_entries", foreign_keys=[visit_id])
     department = relationship("Department", back_populates="queue_entries")
     assigned_staff = relationship("Staff", back_populates="queue_entries")
+    service_point = relationship(
+        "ServicePoint",
+        back_populates="queue_entries",
+        lazy="selectin",  # eager load: accessed during response serialization
+    )
 
 
 class DepartmentQueueCounter(Base):
@@ -340,8 +361,9 @@ class Department(Base):
         onupdate=func.now(),
     )
 
-    staff = relationship("Staff", back_populates="department")
+    staff = relationship("Staff", back_populates="department", foreign_keys="[Staff.dept_id]")
     queue_entries = relationship("QueueEntry", back_populates="department")
+    service_points = relationship("ServicePoint", back_populates="department", cascade="all, delete-orphan")
 
 
 class Staff(Base):
@@ -349,11 +371,13 @@ class Staff(Base):
     __table_args__ = (
         Index("idx_staff_role", "role"),
         Index("idx_staff_department", "dept_id"),
+        Index("idx_staff_active_sp", "active_service_point_id"),
     )
 
     staff_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     employee_id = Column(String(20), unique=True, nullable=False, index=True)
     dept_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False)
+    active_service_point_id = Column(UUID(as_uuid=True), ForeignKey("service_points.service_point_id"), nullable=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     role = Column(Enum(StaffRole), nullable=False)
@@ -365,10 +389,33 @@ class Staff(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    department = relationship("Department", back_populates="staff")
+    department = relationship("Department", back_populates="staff", foreign_keys=[dept_id])
+    active_service_point = relationship("ServicePoint", back_populates="active_staff", foreign_keys=[active_service_point_id])
     queue_entries = relationship("QueueEntry", back_populates="assigned_staff")
     appointments = relationship("Appointment", back_populates="assigned_staff")
 
+
+
+class ServicePoint(Base):
+    __tablename__ = "service_points"
+    __table_args__ = (
+        Index("idx_service_point_dept", "dept_id"),
+        Index("uq_dept_code", "dept_id", "code", unique=True),
+    )
+
+    service_point_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dept_id = Column(UUID(as_uuid=True), ForeignKey("departments.dept_id"), nullable=False)
+    code = Column(String(20), nullable=False)  # e.g., "RC-01"
+    label = Column(String(100), nullable=False)  # e.g., "Reception Desk 1"
+    station_type = Column(Enum(StationType), nullable=False, server_default=StationType.COUNTER.value)
+    is_active = Column(Boolean, nullable=False, server_default=true())
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    department = relationship("Department", back_populates="service_points")
+    queue_entries = relationship("QueueEntry", back_populates="service_point")
+    active_staff = relationship("Staff", back_populates="active_service_point", foreign_keys="[Staff.active_service_point_id]")
 
 class Vitals(Base):
     __tablename__ = "vitals"

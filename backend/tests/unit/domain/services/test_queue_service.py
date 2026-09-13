@@ -44,6 +44,27 @@ async def create_queue_entry_helper(db, patient):
 
     return _create_visit
 
+@pytest.fixture
+async def active_visit(db, patient):
+    """
+    Overrides the global active_visit fixture locally.
+    Returns a bare Visit record with NO QueueEntry attached,
+    preventing the 409 Conflict error on queue creation tests.
+    """
+    from app.domain.models.models import Visit, VisitStage, EntryType
+
+    visit = Visit(
+        patient_id=patient.patient_id,
+        token_number="W-101",
+        stage=VisitStage.ACTIVE,
+        entry_type=EntryType.WALK_IN,
+        visit_reason="General Consultation",
+    )
+    db.add(visit)
+    await db.flush()
+    await db.refresh(visit)
+    return visit
+
 
 # ==============================================================================
 # 1. CREATE CATEGORY

@@ -240,9 +240,10 @@ function playChime(priority) {
  *
  * The token prefix (letters) is spoken as individual characters
  * or words, and the numeric portion is spoken digit-by-digit for
- * clarity.
+ * clarity. When a service point is provided, the announcement
+ * includes a "please proceed to" instruction.
  */
-function formatTokenForSpeech(tokenNumber) {
+function formatTokenForSpeech(tokenNumber, servicePoint) {
     if (!tokenNumber) {
         return "Token";
     }
@@ -259,7 +260,13 @@ function formatTokenForSpeech(tokenNumber) {
         return part;
     });
 
-    return `Token ${spoken.join(" ")}`;
+    let result = `Token ${spoken.join(" ")}`;
+
+    if (servicePoint) {
+        result += ` please proceed to ${servicePoint}`;
+    }
+
+    return result;
 }
 
 
@@ -268,8 +275,11 @@ function formatTokenForSpeech(tokenNumber) {
  *
  * This is best-effort: if the API is unavailable or already
  * speaking, the existing speech is cancelled and replaced.
+ *
+ * When servicePoint is provided, the announcement includes
+ * a "please proceed to" instruction for the counter/window.
  */
-function speakToken(tokenNumber) {
+function speakToken(tokenNumber, servicePoint) {
     if (!("speechSynthesis" in window)) {
         return Promise.resolve();
     }
@@ -283,7 +293,7 @@ function speakToken(tokenNumber) {
             }
         }
 
-        const text = formatTokenForSpeech(tokenNumber);
+        const text = formatTokenForSpeech(tokenNumber, servicePoint);
 
         const utterance = new SpeechSynthesisUtterance(text);
 
@@ -421,7 +431,10 @@ async function playTokenChime(alert) {
         alert?.token_number
     ) {
         try {
-            await speakToken(alert.token_number);
+            await speakToken(
+                alert.token_number,
+                alert.service_point,
+            );
         } catch {
             /* ignore speech errors */
         }

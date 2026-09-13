@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -9,6 +11,8 @@ from app.domain.schemas.schemas import (
     RefreshTokenRequest,
     ChangePasswordRequest,
     CurrentUser,
+    StationBinding,
+    StaffCheckInRequest,
 )
 from app.domain.services.auth_service import (
     AuthService,
@@ -16,6 +20,7 @@ from app.domain.services.auth_service import (
 )
 from app.domain.models.models import Staff
 from app.domain.services import auth_service
+from app.domain.services.service_points_service import ServicePointService
 
 router = APIRouter(
     prefix="/auth",
@@ -86,6 +91,105 @@ async def get_logged_in_user(
     """
 
     return current_user
+
+
+# ---------------------------------------------------------
+# STATION GATE (bind / unbind service point)
+# ---------------------------------------------------------
+
+@router.get(
+    "/me/station",
+    response_model=Optional[StationBinding],
+)
+async def get_my_station(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Station binding for the current staff member.
+
+    Returns null when unbound — the signal for the UI to show
+    the station gate interstitial.
+    """
+    staff = await db.get(Staff, current_user.staff_id)
+
+    if staff is None or staff.active_service_point_id is None:
+        return None
+
+    sp = await ServicePointService.get_service_point(
+        db, staff.active_service_point_id
+    )
+
+    return StationBinding(
+        service_point_id=sp.service_point_id,
+        code=sp.code,
+        label=sp.label,
+        station_type=sp.station_type,
+        status="CHECKED_IN",
+    )
+
+
+@router.post(
+    "/me/station/bind",
+    response_model=StationBinding,
+)
+async def bind_my_station(
+    payload: StaffCheckInRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Bind the current staff member to a service point
+    (station gate submission / mid-day switch).
+
+    Delegates to the same service layer as the check-in endpoint,
+    so department and occupancy rules are enforced identically.
+    """
+    staff = await db.get(Staff, current_user.staff_id)
+    if not staff:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Staff record not found.",
+        )
+
+    updated = await ServicePointService.check_in_staff(
+        db, staff, payload.service_point_id
+    )
+
+    sp = await ServicePointService.get_service_point(
+        db, updated.active_service_point_id
+    )
+
+    return StationBinding(
+        service_point_id=sp.service_point_id,
+        code=sp.code,
+        label=sp.label,
+        station_type=sp.station_type,
+        status="CHECKED_IN",
+    )
+
+
+@router.post(
+    "/me/station/unbind",
+    response_model=dict,
+)
+async def unbind_my_station(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Release the current staff member's station binding.
+    """
+    staff = await db.get(Staff, current_user.staff_id)
+    if not staff:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Staff record not found.",
+        )
+
+    await ServicePointService.check_out_staff(db, staff)
+
+    return {"status": "UNBOUND"}
 
 
 # ---------------------------------------------------------

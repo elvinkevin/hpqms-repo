@@ -18,6 +18,7 @@ from app.domain.models.models import (
     QueueEntry,
     QueueEntryStatus,
     QueuePriority,
+    ServicePoint,
     Staff,
     StaffRole,
     Visit,
@@ -164,6 +165,8 @@ class QueueService:
                 .selectinload(Visit.patient),
                 selectinload(QueueEntry.visit)
                 .selectinload(Visit.vitals),
+                selectinload(QueueEntry.service_point),
+                selectinload(QueueEntry.assigned_staff),
             )
             .where(
                 and_(
@@ -264,6 +267,7 @@ class QueueService:
         new_status: QueueEntryStatus,
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
+        service_point_id: Optional[UUID] = None,
     ) -> QueueEntry:
         """Validate and apply a queue state transition."""
 
@@ -273,6 +277,7 @@ class QueueService:
             .options(
                 selectinload(QueueEntry.visit).selectinload(Visit.patient),
                 selectinload(QueueEntry.department),
+                selectinload(QueueEntry.service_point),
             )
             .where(QueueEntry.queue_entry_id == queue_entry_id)
             .with_for_update()
@@ -388,9 +393,48 @@ class QueueService:
                     )
 
         # ---------------------------------------------------------
+        # SERVICE POINT RESOLUTION (station snapshot at call time)
+        # ---------------------------------------------------------
+        # Resolution chain: explicit request value -> acting staff's
+        # checked-in station -> None. Only relevant when binding a
+        # station (CALLED); terminal transitions just release it.
+        resolved_service_point_id: Optional[UUID] = None
+        if new_status == QueueEntryStatus.CALLED:
+            resolved_service_point_id = service_point_id
+            if resolved_service_point_id is None and acting_staff is not None:
+                resolved_service_point_id = acting_staff.active_service_point_id
+
+            if resolved_service_point_id is not None:
+                sp_stmt = select(ServicePoint).where(
+                    ServicePoint.service_point_id == resolved_service_point_id,
+                    ServicePoint.is_active.is_(True),
+                )
+                service_point = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+
+                if service_point is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Specified service point not found or inactive.",
+                    )
+
+                if service_point.dept_id != entry.dept_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            "Service point does not belong to the entry's department."
+                        ),
+                    )
+
+        # ---------------------------------------------------------
         # APPLY CHANGES & REFLECT STATE
         # ---------------------------------------------------------
-        self._apply_status_updates(entry, new_status, staff_id, notes)
+        self._apply_status_updates(
+            entry,
+            new_status,
+            staff_id,
+            notes,
+            resolved_service_point_id,
+        )
         self._apply_lifecycle_timestamps(entry, new_status)
 
         await self.db.flush()
@@ -402,27 +446,32 @@ class QueueService:
         new_status: QueueEntryStatus,
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
+        service_point_id: Optional[UUID] = None,
     ) -> None:
         entry.status = new_status
 
         if notes is not None:
             entry.notes = notes
 
-        # 1. Active states: Bind staff to entry
+        # 1. Active states: Bind staff and station to entry
         if new_status in (QueueEntryStatus.CALLED, QueueEntryStatus.IN_PROGRESS):
             if staff_id is not None:
                 entry.assigned_staff_id = staff_id
 
-        # 2. Terminal or Waiting states: Unbind staff to free up capacity
-        #    NO_SHOW keeps its assignment so it still shows up in the
-        #    owner's no-show queue (get_department_no_show_queue filters
-        #    on assigned_staff_id). Ownership is released on requeue.
+            if service_point_id is not None:
+                entry.service_point_id = service_point_id
+
+        # 2. Terminal or Waiting states: Unbind staff and station to free
+        #    up capacity. NO_SHOW keeps both so the entry still shows up in
+        #    the owner's no-show queue and station context. Ownership is
+        #    released on requeue.
         elif new_status in (
             QueueEntryStatus.WAITING,
             QueueEntryStatus.COMPLETED,
             QueueEntryStatus.CANCELLED,
         ):
             entry.assigned_staff_id = None
+            entry.service_point_id = None
 
 
     def _apply_lifecycle_timestamps(
@@ -518,6 +567,22 @@ class QueueService:
             else None
         )
 
+        service_point_id = (
+            str(entry.service_point_id)
+            if entry.service_point_id is not None
+            else None
+        )
+
+        service_point_label = None
+
+        if entry.service_point_id is not None:
+            sp_stmt = select(ServicePoint).where(
+                ServicePoint.service_point_id == entry.service_point_id,
+            )
+            service_point = (await self.db.execute(sp_stmt)).scalar_one_or_none()
+            if service_point is not None:
+                service_point_label = service_point.label
+
         # --------------------------------------------------------------
         # DETERMINE EVENT TYPE
         # --------------------------------------------------------------
@@ -593,6 +658,8 @@ class QueueService:
             "queue_priority": queue_priority,
 
             "assigned_staff_id": assigned_staff_id,
+            "service_point_id": service_point_id,
+            "service_point": service_point_label,
 
             "occurred_at": occurred_at.isoformat(),
             "server_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -610,10 +677,15 @@ class QueueService:
         queue_entry_id: UUID,
         staff_id: Optional[UUID] = None,
         notes: Optional[str] = None,
+        service_point_id: Optional[UUID] = None,
     ) -> QueueEntry:
         """Transitions WAITING -> CALLED."""
         return await self.transition_entry_status(
-            queue_entry_id, QueueEntryStatus.CALLED, staff_id=staff_id, notes=notes
+            queue_entry_id,
+            QueueEntryStatus.CALLED,
+            staff_id=staff_id,
+            notes=notes,
+            service_point_id=service_point_id,
         )
 
     async def start_queue_entry(
@@ -747,6 +819,8 @@ class QueueService:
             .options(
                 selectinload(QueueEntry.visit).selectinload(Visit.patient),
                 selectinload(QueueEntry.department),
+                selectinload(QueueEntry.service_point),
+                selectinload(QueueEntry.assigned_staff),
             )
             .where(
                 and_(
@@ -775,6 +849,7 @@ class QueueService:
             .options(
                 selectinload(QueueEntry.visit),
                 selectinload(QueueEntry.department),
+                selectinload(QueueEntry.service_point),  # <--- Add this
             )
             .where(QueueEntry.queue_entry_id == queue_entry_id)
         )
@@ -837,6 +912,8 @@ class QueueService:
             .options(
                 selectinload(QueueEntry.visit).selectinload(Visit.patient),
                 selectinload(QueueEntry.department),
+                selectinload(QueueEntry.service_point),
+                selectinload(QueueEntry.assigned_staff),
             )
             .where(QueueEntry.queue_entry_id == queue_entry_id)
             .with_for_update()

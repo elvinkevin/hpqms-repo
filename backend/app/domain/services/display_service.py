@@ -172,7 +172,10 @@ class DisplayService:
 
         result = await self.db.execute(
             select(QueueEntry)
-            .options(selectinload(QueueEntry.visit))
+            .options(
+                selectinload(QueueEntry.visit),
+                selectinload(QueueEntry.service_point),
+            )
             .where(
                 QueueEntry.dept_id == dept_id,
                 QueueEntry.status.in_(
@@ -192,7 +195,16 @@ class DisplayService:
         return [
             ActiveTokenDisplay(
                 token_number=entry.visit.token_number,
-                service_point=None,
+                service_point_id=(
+                    entry.service_point_id
+                    if entry.service_point_id is not None
+                    else None
+                ),
+                service_point=(
+                    entry.service_point.label
+                    if entry.service_point is not None
+                    else None
+                ),
                 status=entry.status,
                 called_at=entry.called_at,
             )

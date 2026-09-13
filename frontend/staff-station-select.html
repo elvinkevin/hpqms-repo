@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Station - Horizon General Hospital</title>
+    <link rel="stylesheet" href="css/staff-login.css">
+    <link rel="stylesheet" href="css/staff-station-select.css">
+</head>
+
+<body>
+    <!-- ===== HEADER (matches login aesthetic) ===== -->
+    <header class="header">
+        <div class="header-left">
+            <div class="header-branding">
+                <div class="logo">
+                    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <circle cx="26" cy="26" r="25" fill="#0F5B78" />
+                        <circle cx="26" cy="26" r="25" fill="url(#gateLogoGrad)" />
+                        <circle cx="26" cy="26" r="17" fill="#FFFFFF" />
+                        <path d="M26 16V36M16 26H36" stroke="#13A6A6" stroke-width="5" stroke-linecap="round" />
+                        <defs>
+                            <linearGradient id="gateLogoGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpace">
+                                <stop stop-color="#0F5B78" />
+                                <stop offset="1" stop-color="#13A6A6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="hospital-info">
+                    <h1>Horizon General Hospital</h1>
+                    <p>Quality Care. Every Patient.</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div style="font-size: 13px; color: #64748b; font-weight: 500;">Station Selection</div>
+        </div>
+
+        <div class="header-right">
+            <a class="support-link" href="mailto:it-support@horizongeneralhospital.com">Need help? Contact IT
+                Support</a>
+        </div>
+    </header>
+
+    <!-- ===== STATION GATE CARD ===== -->
+    <div class="main-container">
+        <div class="login-card station-gate-card">
+
+            <div class="login-header">
+                <h2 class="login-title">Select Your Station</h2>
+                <p class="login-subtitle" id="greetingText">
+                    Choose the service point you are working from this shift.
+                </p>
+            </div>
+
+            <div class="gate-error" id="gateError"></div>
+
+            <div class="station-list" id="stationList" role="radiogroup" aria-label="Available stations">
+                <!-- Populated by staff-station-select.js -->
+            </div>
+
+            <button type="button" class="gate-continue-btn" id="continueBtn" disabled>
+                Continue to Dashboard
+            </button>
+
+            <button type="button" class="gate-skip-btn" id="skipBtn">
+                Skip for now
+            </button>
+
+        </div>
+    </div>
+
+    <script type="module" src="js/staff-station-select.js"></script>
+</body>
+
+</html>

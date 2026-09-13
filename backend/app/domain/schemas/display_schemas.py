@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.domain.models.models import QueueEntryStatus
-
+from typing import Optional
 
 class AnnouncementPriority(str, Enum):
     INFO = "INFO"
@@ -15,9 +15,11 @@ class AnnouncementPriority(str, Enum):
 class ActiveTokenDisplay(BaseModel):
     """Token currently being processed or called at a service point."""
     token_number: str
-    service_point: str | None = None
+    service_point_id: Optional[UUID] = None
+    service_point: Optional[str] = None  # e.g., "Reception Desk 1" or "Room 03"
     status: QueueEntryStatus
-    called_at: datetime | None = None
+    called_at: Optional[datetime] = None
+    assigned_staff_id: Optional[UUID] = None
 
 
 class NextTokenDisplay(BaseModel):

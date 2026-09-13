@@ -364,6 +364,67 @@ async function setQueuePriority(queueEntryId, priority) {
 
 
 /* ==========================================================================
+   SERVICE POINTS
+   ========================================================================== */
+
+/**
+ * List the service points configured for a department.
+ *
+ * GET /departments/{dept_id}/service-points
+ */
+async function getDepartmentServicePoints(departmentId) {
+    return request(`/departments/${departmentId}/service-points`, {
+        method: HTTP_METHOD.GET,
+        headers: buildAuthHeaders(),
+    });
+}
+
+
+/**
+ * Check the current staff member into a service point.
+ *
+ * POST /staff/me/service-point/check-in
+ *
+ * Body: { service_point_id: string }
+ */
+async function checkInToServicePoint(servicePointId) {
+    return request("/staff/me/service-point/check-in", {
+        method: HTTP_METHOD.POST,
+        headers: buildAuthHeaders(),
+        body: {
+            service_point_id: servicePointId,
+        },
+    });
+}
+
+
+/**
+ * Check the current staff member out of their service point.
+ *
+ * POST /staff/me/service-point/check-out
+ */
+async function checkOutOfServicePoint() {
+    return request("/staff/me/service-point/check-out", {
+        method: HTTP_METHOD.POST,
+        headers: buildAuthHeaders(),
+    });
+}
+
+
+/**
+ * Get the department's real-time occupancy board.
+ *
+ * GET /departments/{dept_id}/service-points/status
+ */
+async function getDepartmentOccupancy(departmentId) {
+    return request(`/departments/${departmentId}/service-points/status`, {
+        method: HTTP_METHOD.GET,
+        headers: buildAuthHeaders(),
+    });
+}
+
+
+/* ==========================================================================
    PATIENT / REGISTRATION
    ========================================================================== */
 
@@ -601,6 +662,12 @@ export {
 
     /* Departments */
     getDepartments,
+
+    /* Service Points */
+    getDepartmentServicePoints,
+    checkInToServicePoint,
+    checkOutOfServicePoint,
+    getDepartmentOccupancy,
 
     /* Queue — Read */
     getDepartmentQueue,

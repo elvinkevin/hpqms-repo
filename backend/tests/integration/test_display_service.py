@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -5,15 +7,50 @@ from app.domain.models.models import (
     Department,
     DeptType,
     EntryType,
+    Patient,
     QueueEntry,
     QueueEntryStatus,
     QueuePriority,
+    RegistrationStatus,
     Visit,
     VisitStage,
 )
 from app.domain.services.display_service import DisplayService
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock
+
+
+@pytest.fixture
+def patient_factory(db):
+    """
+    Factory fixture to dynamically create multiple unique patient records.
+    Generates random unique strings to satisfy unique constraints on
+    temporary_identifier, national_id, and phone.
+    """
+    async def _create_patient():
+        # Generate a short random string to guarantee uniqueness
+        unique_suffix = uuid.uuid4().hex[:8]
+        
+        new_patient = Patient(
+            patient_id=uuid.uuid4(),
+            registration_status=RegistrationStatus.INCOMPLETE,
+            
+            # Satisfy unique database constraints
+            temporary_identifier=f"TEMP-{unique_suffix}",
+            national_id=f"NAT-{unique_suffix}",
+            phone=f"+254700{uuid.uuid4().int % 1000000:06d}", # Generates random number string
+            
+            # Basic demographics
+            first_name="Integration",
+            last_name=f"Patient-{unique_suffix}",
+            gender="UNKNOWN",
+            is_active=True
+        )
+        db.add(new_patient)
+        await db.flush()
+        return new_patient
+        
+    return _create_patient
 class TestDisplaySnapshot:
 
     @pytest.mark.asyncio

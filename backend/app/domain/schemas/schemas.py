@@ -20,6 +20,14 @@ class PatientIdentifierType(str, Enum):
     PHONE = "PHONE"
     NATIONAL_ID = "NATIONAL_ID"
 
+
+class StationType(str, Enum):
+    COUNTER = "COUNTER"
+    ROOM = "ROOM"
+    WINDOW = "WINDOW"
+    DOOR = "DOOR"
+
+
 class KioskCheckInRequest(BaseModel):
     identifier: str = Field(min_length=1)
     identifier_type: PatientIdentifierType
@@ -204,7 +212,7 @@ class VisitRead(BaseModel):
     clinical_findings: Optional[str] = None
     diagnosis: Optional[str] = None
     treatment_plan: Optional[str] = None
-    
+
     patient: Optional[PatientRead] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
@@ -287,6 +295,23 @@ class CurrentUser(BaseModel):
     role: StaffRole
     dept_id: UUID
 
+    #
+    # Station binding — the service point this staff member is currently
+    # checked into, if any. Populated by get_current_user via relationship;
+    # null/None means "unbound" and the UI shows the station gate.
+    #
+    station: Optional[StationBinding] = None
+
+
+class StationBinding(BaseModel):
+    """Compact station payload for the top-bar pill / station gate."""
+
+    service_point_id: UUID
+    code: str
+    label: str
+    station_type: StationType
+    status: str = "CHECKED_IN"
+
 
 # ---------------------------------------------------------
 # PASSWORD CHANGE
@@ -336,6 +361,9 @@ class StaffRead(ORMBase):
     is_on_duty: bool
     is_active: bool
 
+    # Currently occupied service point (check-in state), if any.
+    active_service_point_id: Optional[UUID] = None
+
 
 
 class StaffCreate(StaffBase):
@@ -377,6 +405,9 @@ class QueueEntryRead(ORMBase):
     department_name: Optional[str] = None
 
     assigned_staff_id: Optional[UUID]
+    service_point_id: Optional[UUID] = None
+    service_point: Optional[ServicePointRead] = None  # Populated via relationship
+
     sequence_number: int
     priority: QueuePriority
     status: QueueEntryStatus
@@ -915,3 +946,45 @@ class TransferPatientRequest(BaseModel):
             )
 
         return self
+
+
+class ServicePointBase(BaseModel):
+    code: str
+    label: str
+    station_type: StationType = StationType.COUNTER
+    is_active: bool = True
+
+class ServicePointCreate(ServicePointBase):
+    dept_id: UUID
+
+class ServicePointUpdate(BaseModel):
+    code: Optional[str] = None
+    label: Optional[str] = None
+    station_type: Optional[StationType] = None
+    is_active: Optional[bool] = None
+
+class ServicePointRead(ServicePointBase):
+    service_point_id: UUID
+    dept_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ServicePointOccupancy(BaseModel):
+    """One row of a department's service point occupancy board."""
+
+    service_point: ServicePointRead
+    current_staff: Optional[StaffRead] = None
+    active_entry_token: Optional[str] = None
+    active_entry_id: Optional[UUID] = None
+
+
+class StaffCheckInRequest(BaseModel):
+    service_point_id: UUID
+
+
+class CallPatientRequest(BaseModel):
+    """Optional body for calling a patient to a specific service point."""
+    service_point_id: Optional[UUID] = None

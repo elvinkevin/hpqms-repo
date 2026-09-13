@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.security import (
     oauth2_scheme,
@@ -24,6 +25,7 @@ from app.domain.schemas.schemas import (
     AccessTokenResponse,
     ChangePasswordRequest,
     CurrentUser,
+    StationBinding,
 )
 
 KIOSK_API_KEY_NAME = "X-Kiosk-API-Key"
@@ -190,7 +192,7 @@ class AuthService:
 # -----------------------------------------------------
     async def logout(self) -> dict[str, str]:
         """
-        Signals successful logout to the client to trigger clearing of 
+        Signals successful logout to the client to trigger clearing of
         stored tokens (e.g., localStorage, HTTP-only cookies).
         """
         return {
@@ -221,12 +223,28 @@ async def get_current_user(
             detail="Invalid access token.",
         )
 
-    staff = await db.get(Staff, UUID(staff_id))
+    staff = await db.get(
+        Staff,
+        UUID(staff_id),
+        options=[selectinload(Staff.active_service_point)],
+    )
 
     if not staff or not staff.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Staff account not found or inactive.",
+        )
+
+    station = None
+
+    if staff.active_service_point is not None:
+        sp = staff.active_service_point
+        station = StationBinding(
+            service_point_id=sp.service_point_id,
+            code=sp.code,
+            label=sp.label,
+            station_type=sp.station_type,
+            status="CHECKED_IN",
         )
 
     return CurrentUser(
@@ -236,6 +254,7 @@ async def get_current_user(
         last_name=staff.last_name,
         role=staff.role,
         dept_id=staff.dept_id,
+        station=station,
     )
 
 

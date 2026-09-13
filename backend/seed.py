@@ -2,17 +2,17 @@ import asyncio
 from sqlalchemy.future import select
 
 # Native password hashing utility
-from app.core.security import hash_password 
+from app.core.security import hash_password
 
 # Database session & models
-from app.db.session import AsyncSessionLocal 
-from app.domain.models.models import Department, Staff, DeptType, StaffRole 
+from app.db.session import AsyncSessionLocal
+from app.domain.models.models import Department, Staff, DeptType, StaffRole, ServicePoint, StationType
 
 
 async def seed_hospital_data():
-    print("🚀 Starting logic-aligned hospital database seeding pipeline...")
-    
-    async with AsyncSessionLocal() as db:  
+    print(" Starting logic-aligned hospital database seeding pipeline...")
+
+    async with AsyncSessionLocal() as db:
         try:
             # -----------------------------------------------------------
             # 1. SEED DEPARTMENTS WITH STRICT SYSTEM CODES (Max 10 chars)
@@ -56,18 +56,62 @@ async def seed_hospital_data():
                 if not existing_dept:
                     dept = Department(**dept_data)
                     db.add(dept)
-                    await db.flush() 
+                    await db.flush()
                     seeded_departments[dept.department_code] = dept
                     print(f"🏥 Seeded Department: {dept.name} [{dept.department_code}]")
                 else:
                     seeded_departments[existing_dept.department_code] = existing_dept
 
             # -----------------------------------------------------------
-            # 2. SEED STAFF MEMBERS USING NATIVE HASHER
+            # 2. SEED SERVICE POINTS PER DEPARTMENT
+            # -----------------------------------------------------------
+            service_points_to_create = [
+                # Reception Desk — counters
+                {"dept_code": "REC", "code": "REC-C1", "label": "Counter 1", "station_type": StationType.COUNTER},
+                {"dept_code": "REC", "code": "REC-C2", "label": "Counter 2", "station_type": StationType.COUNTER},
+                {"dept_code": "REC", "code": "REC-W1", "label": "Window 1", "station_type": StationType.WINDOW},
+                # Emergency — doors/rooms
+                {"dept_code": "EMERGENCY", "code": "EM-DOOR1", "label": "Triage Door 1", "station_type": StationType.DOOR},
+                {"dept_code": "EMERGENCY", "code": "EM-R1", "label": "Resus Room 1", "station_type": StationType.ROOM},
+                # Triage — windows
+                {"dept_code": "TRIAGE", "code": "TR-W1", "label": "Vitals Window 1", "station_type": StationType.WINDOW},
+                {"dept_code": "TRIAGE", "code": "TR-W2", "label": "Vitals Window 2", "station_type": StationType.WINDOW},
+                # Consultation — rooms
+                {"dept_code": "CONSULT", "code": "CO-R1", "label": "Consultation Room 1", "station_type": StationType.ROOM},
+                {"dept_code": "CONSULT", "code": "CO-R2", "label": "Consultation Room 2", "station_type": StationType.ROOM},
+                {"dept_code": "CONSULT", "code": "CO-R3", "label": "Consultation Room 3", "station_type": StationType.ROOM},
+            ]
+
+            for sp_data in service_points_to_create:
+                dept = seeded_departments.get(sp_data["dept_code"])
+                if dept is None:
+                    continue
+
+                query = await db.execute(
+                    select(ServicePoint).where(
+                        ServicePoint.dept_id == dept.dept_id,
+                        ServicePoint.code == sp_data["code"],
+                    )
+                )
+                existing_sp = query.scalar_one_or_none()
+
+                if not existing_sp:
+                    sp = ServicePoint(
+                        dept_id=dept.dept_id,
+                        code=sp_data["code"],
+                        label=sp_data["label"],
+                        station_type=sp_data["station_type"],
+                    )
+                    db.add(sp)
+                    print(f"🏥 Seeded Service Point: {sp.label} [{sp.code}] in {dept.name}")
+
+            # -----------------------------------------------------------
+            # 3. SEED STAFF MEMBERS USING NATIVE HASHER
             # -----------------------------------------------------------
             secure_hash = hash_password("SecurePassword123")
 
             staff_to_create = [
+                # Receptionists
                 {
                     "employee_id": "EMP-RECEP01",
                     "dept_id": seeded_departments["REC"].dept_id,
@@ -78,6 +122,16 @@ async def seed_hospital_data():
                     "hashed_password": secure_hash,
                 },
                 {
+                    "employee_id": "EMP-RECEP02",
+                    "dept_id": seeded_departments["REC"].dept_id,
+                    "first_name": "Brian",
+                    "last_name": "Otieno",
+                    "role": StaffRole.RECEPTIONIST,
+                    "specialization": "Patient Check-In & Scheduling",
+                    "hashed_password": secure_hash,
+                },
+                # Triage Nurses
+                {
                     "employee_id": "EMP-TRIAGE01",
                     "dept_id": seeded_departments["TRIAGE"].dept_id,
                     "first_name": "John",
@@ -87,12 +141,31 @@ async def seed_hospital_data():
                     "hashed_password": secure_hash,
                 },
                 {
+                    "employee_id": "EMP-TRIAGE02",
+                    "dept_id": seeded_departments["TRIAGE"].dept_id,
+                    "first_name": "Mercy",
+                    "last_name": "Chebet",
+                    "role": StaffRole.TRIAGE_NURSE,
+                    "specialization": "Vitals Assessment & Fast-Track",
+                    "hashed_password": secure_hash,
+                },
+                # Doctors
+                {
                     "employee_id": "EMP-DOC01",
                     "dept_id": seeded_departments["CONSULT"].dept_id,  # Mapped to CONSULT
                     "first_name": "Alice",
                     "last_name": "Wanjiku",
                     "role": StaffRole.DOCTOR,
                     "specialization": "General Medicine & Outpatient Care",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-DOC02",
+                    "dept_id": seeded_departments["CONSULT"].dept_id,  # Mapped to CONSULT
+                    "first_name": "David",
+                    "last_name": "Mutua",
+                    "role": StaffRole.DOCTOR,
+                    "specialization": "Family Medicine & Diagnostics",
                     "hashed_password": secure_hash,
                 },
             ]
