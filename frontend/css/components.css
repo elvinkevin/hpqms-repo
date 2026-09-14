@@ -636,10 +636,85 @@
 
 .active-tokens {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
     gap: var(--space-md);
     margin-top: var(--space-sm);
     flex: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Multi-token scaling
+
+   The renderer sets data-count on .active-tokens (and data-active-count on
+   .department-board). One token keeps the hero-sized number; two or more
+   tokens share the same grid and scale typography down UNIFORMLY so every
+   card stays identical in size at any concurrency level.
+   -------------------------------------------------------------------------- */
+
+.active-tokens[data-count="1"] {
+    grid-template-columns: 1fr;
+}
+
+.active-tokens[data-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.active-tokens[data-count="3"],
+.active-tokens[data-count="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Uniform scale for 2 concurrent tokens */
+.active-tokens[data-count="2"] .token-number {
+    font-size: clamp(3.5rem, 7.5vw, 5.5rem);
+}
+
+.active-tokens[data-count="2"] .service-point {
+    font-size: clamp(1rem, 1.8vw, 1.6rem);
+}
+
+/* Uniform scale for 3 concurrent tokens */
+.active-tokens[data-count="3"] .token-number {
+    font-size: clamp(2.75rem, 5.5vw, 4.25rem);
+}
+
+.active-tokens[data-count="3"] .service-point {
+    font-size: clamp(0.95rem, 1.5vw, 1.35rem);
+}
+
+/* Uniform scale for 4+ concurrent tokens */
+.active-tokens[data-count="4"],
+.active-tokens[data-count="5"],
+.active-tokens[data-count="6"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.active-tokens[data-count="4"] .token-number,
+.active-tokens[data-count="5"] .token-number,
+.active-tokens[data-count="6"] .token-number {
+    font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+}
+
+.active-tokens[data-count="4"] .service-point,
+.active-tokens[data-count="5"] .service-point,
+.active-tokens[data-count="6"] .service-point {
+    font-size: clamp(0.85rem, 1.3vw, 1.15rem);
+}
+
+/* Beyond 6 concurrent tokens: keep a stable 3-column dense grid */
+.active-tokens[data-count="7"],
+.active-tokens[data-count="8"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.active-tokens[data-count="7"] .token-number,
+.active-tokens[data-count="8"] .token-number {
+    font-size: clamp(1.75rem, 3.5vw, 2.75rem);
+}
+
+.active-tokens[data-count="7"] .service-point,
+.active-tokens[data-count="8"] .service-point {
+    font-size: clamp(0.8rem, 1.1vw, 1rem);
 }
 
 .token-card {

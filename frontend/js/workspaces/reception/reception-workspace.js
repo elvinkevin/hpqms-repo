@@ -52,6 +52,9 @@ let callbacks = {};
 let lastRenderSignature = null;
 let hasDismissedBanner = false;
 let bannerDismissedForPatientId = null;
+let confirmationOverlay = null;
+let confirmationKeydownHandler = null;
+let confirmationBusy = false;
 
 /*
  * The success banner must appear exactly once per patient per session.
@@ -119,6 +122,7 @@ export function unmount() {
 
     registrationDrawer.destroy();
     destroyRoutingDrawer();
+    destroyConfirmationOverlay();
 
     if (container) {
         container.innerHTML = "";
@@ -670,26 +674,36 @@ async function handleCompleteReception(patient) {
         return;
     }
 
-    if (!confirm("Complete this Reception encounter?")) {
+    const confirmed = await requestConfirmation({
+        eyebrow: "CONFIRM ACTION",
+        title: "Complete this Reception encounter?",
+        message: "The patient's visit will be marked as complete and the encounter closed.",
+        confirmLabel: "Complete Encounter",
+        cancelLabel: "Go Back",
+        tone: "primary",
+        onConfirm: async () => {
+            setActionBusy(true);
+
+            try {
+                await receptionActions.completeReceptionEncounter(queueEntryId);
+
+                if (typeof callbacks.onActionCompleted === "function") {
+                    await callbacks.onActionCompleted();
+                }
+
+            } catch (error) {
+                showError(
+                    error?.message ||
+                    "Unable to complete the Reception encounter."
+                );
+            } finally {
+                setActionBusy(false);
+            }
+        },
+    });
+
+    if (!confirmed) {
         return;
-    }
-
-    try {
-        setActionBusy(true);
-
-        await receptionActions.completeReceptionEncounter(queueEntryId);
-
-        if (typeof callbacks.onActionCompleted === "function") {
-            await callbacks.onActionCompleted();
-        }
-
-    } catch (error) {
-        showError(
-            error?.message ||
-            "Unable to complete the Reception encounter."
-        );
-    } finally {
-        setActionBusy(false);
     }
 }
 
@@ -706,30 +720,206 @@ async function handleCancelEncounter(patient) {
         return;
     }
 
-    if (
-        !confirm(
-            "Cancel this Reception encounter? This action cannot be undone."
-        )
-    ) {
+    const confirmed = await requestConfirmation({
+        eyebrow: "CONFIRM ACTION",
+        title: "Cancel this Reception encounter?",
+        message: "The patient's queue entry will be cancelled. This action cannot be undone.",
+        confirmLabel: "Cancel Encounter",
+        cancelLabel: "Keep Encounter",
+        tone: "danger",
+        onConfirm: async () => {
+            setActionBusy(true);
+
+            try {
+                await receptionActions.cancelReceptionEncounter(queueEntryId);
+
+                if (typeof callbacks.onActionCompleted === "function") {
+                    await callbacks.onActionCompleted();
+                }
+
+            } catch (error) {
+                showError(
+                    error?.message ||
+                    "Unable to cancel the Reception encounter."
+                );
+            } finally {
+                setActionBusy(false);
+            }
+        },
+    });
+
+    if (!confirmed) {
+        return;
+    }
+}
+
+
+/* ==========================================================================
+   CONFIRMATION OVERLAY (replaces native browser confirm())
+   ========================================================================== */
+
+/**
+ * Shows an in-workspace confirmation overlay and resolves true/false
+ * based on the user's decision. The onConfirm callback runs while the
+ * overlay is in its busy state; the overlay closes when it settles.
+ */
+function requestConfirmation({
+    eyebrow = "CONFIRM ACTION",
+    title,
+    message = "",
+    confirmLabel = "Confirm",
+    cancelLabel = "Cancel",
+    tone = "primary",
+    onConfirm,
+}) {
+    if (confirmationOverlay) {
+        return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+        confirmationOverlay = document.createElement("div");
+        confirmationOverlay.className =
+            `reception-confirm-overlay tone-${tone}`;
+
+        confirmationOverlay.innerHTML = `
+            <div class="reception-confirm-backdrop"></div>
+
+            <div
+                class="reception-confirm-banner"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="receptionConfirmTitle">
+
+                <span class="reception-confirm-eyebrow">
+                    ${escapeHtml(eyebrow)}
+                </span>
+
+                <h3 id="receptionConfirmTitle">
+                    ${escapeHtml(title)}
+                </h3>
+
+                ${message
+                    ? `<p>${escapeHtml(message)}</p>`
+                    : ""}
+
+                <div class="reception-confirm-actions">
+
+                    <button
+                        type="button"
+                        class="reception-confirm-btn cancel"
+                        data-confirm-cancel>
+                        ${escapeHtml(cancelLabel)}
+                    </button>
+
+                    <button
+                        type="button"
+                        class="reception-confirm-btn confirm"
+                        data-confirm-ok>
+                        ${escapeHtml(confirmLabel)}
+                    </button>
+
+                </div>
+
+            </div>
+        `;
+
+        document.body.appendChild(confirmationOverlay);
+
+        confirmationBusy = false;
+
+        const settle = (result) => {
+            if (confirmationBusy) {
+                return;
+            }
+
+            confirmationBusy = true;
+
+            destroyConfirmationOverlay();
+            resolve(result);
+        };
+
+        const runConfirm = async () => {
+            if (confirmationBusy) {
+                return;
+            }
+
+            confirmationBusy = true;
+            setConfirmationBusy(true);
+
+            try {
+                if (typeof onConfirm === "function") {
+                    await onConfirm();
+                }
+            } finally {
+                confirmationBusy = false;
+                destroyConfirmationOverlay();
+                resolve(true);
+            }
+        };
+
+        const okButton = confirmationOverlay
+            .querySelector("[data-confirm-ok]");
+
+        const cancelButton = confirmationOverlay
+            .querySelector("[data-confirm-cancel]");
+
+        okButton.addEventListener("click", runConfirm);
+        cancelButton.addEventListener("click", () => settle(false));
+
+        const backdrop = confirmationOverlay
+            .querySelector(".reception-confirm-backdrop");
+
+        if (backdrop) {
+            backdrop.addEventListener("click", () => settle(false));
+        }
+
+        confirmationKeydownHandler = (event) => {
+            if (event.key === "Escape") {
+                settle(false);
+            }
+        };
+
+        document.addEventListener(
+            "keydown",
+            confirmationKeydownHandler
+        );
+
+        okButton.focus();
+    });
+}
+
+function setConfirmationBusy(busy) {
+    if (!confirmationOverlay) {
         return;
     }
 
-    try {
-        setActionBusy(true);
+    confirmationOverlay
+        .querySelectorAll("button")
+        .forEach(button => {
+            button.disabled = busy;
+        });
 
-        await receptionActions.cancelReceptionEncounter(queueEntryId);
+    const confirmButton = confirmationOverlay
+        .querySelector("[data-confirm-ok]");
 
-        if (typeof callbacks.onActionCompleted === "function") {
-            await callbacks.onActionCompleted();
-        }
+    if (confirmButton && busy) {
+        confirmButton.textContent = "Working...";
+    }
+}
 
-    } catch (error) {
-        showError(
-            error?.message ||
-            "Unable to cancel the Reception encounter."
+function destroyConfirmationOverlay() {
+    if (confirmationKeydownHandler) {
+        document.removeEventListener(
+            "keydown",
+            confirmationKeydownHandler
         );
-    } finally {
-        setActionBusy(false);
+
+        confirmationKeydownHandler = null;
+    }
+
+    if (confirmationOverlay) {
+        confirmationOverlay.remove();
+        confirmationOverlay = null;
     }
 }
 

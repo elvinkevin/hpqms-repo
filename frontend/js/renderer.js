@@ -390,6 +390,13 @@ function renderDepartment(department) {
         }
     );
 
+    /*
+        Expose the number of concurrently-served tokens so CSS can
+        switch between the single-token hero layout and the scaled
+        multi-token grid layout.
+    */
+    activeContainer.dataset.count = String(activeTokens.length);
+
     if (activeTokens.length === 0) {
         activeContainer.appendChild(
             createElement(
@@ -409,6 +416,9 @@ function renderDepartment(department) {
     }
 
     activeSection.appendChild(activeContainer);
+
+    container.dataset.activeCount = String(activeTokens.length);
+
     container.appendChild(activeSection);
 
     const sidebar = createElement(
