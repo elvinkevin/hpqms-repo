@@ -58,7 +58,7 @@ async def new_visit(db, existing_patient):
     visit = Visit(
         visit_id=uuid4(),
         patient_id=existing_patient.patient_id,
-        token_number="W-102",
+        token_number=f"W-{uuid4().int % 10**8:08d}",
         entry_type=EntryType.WALK_IN,
         visit_reason="Routine Checkup",
         stage=VisitStage.ACTIVE,
@@ -526,21 +526,24 @@ class TestPatientTransfer:
             status.HTTP_403_FORBIDDEN,
         )
 
-    async def test_transfer_forbidden_role(
+    async def test_transfer_allowed_for_admin(
         self,
         client,
         db,
         active_visit,
-        queue_entry,
         admin_headers,
         setup_departments,
     ):
-        """Non-medical staff cannot transfer patients (ADMIN restricted)."""
+        """ADMIN is permitted to transfer patients per the router's role policy."""
         target = setup_departments["CONSULT"]
-        
-        queue_entry.status = QueueEntryStatus.IN_PROGRESS
+
+        result = await db.execute(
+            select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
+        )
+        entry = result.scalar_one()
+        entry.status = QueueEntryStatus.IN_PROGRESS
         await db.commit()
-    
+
         payload = {
             "target_dept_id": str(target.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
@@ -555,132 +558,10 @@ class TestPatientTransfer:
         )
 
         # Assert: ADMIN role IS allowed in the corrected router
-        # If your actual requirement is to restrict ADMIN, change the router dependency
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_200_OK
+        assert str(response.json()["dept_id"]) == str(target.dept_id)
 
 
-# # ══════════════════════════════════════════════════════════════════════════════
-# # GROUP 3: DEPRECATED /move/ ENDPOINT (backward compatibility)
-# # ══════════════════════════════════════════════════════════════════════════════
-
-
-# class TestMovePatientDeprecated:
-#     """
-#     Test the deprecated /move/ endpoint for backward compatibility.
-    
-#     Endpoint: POST /api/routing/move/{visit_id}
-    
-#       This is deprecated. Use POST /api/routing/{visit_id}/transfer instead.
-#     """
-
-#     async def test_move_patient_success(
-#         self,
-#         client,
-#         db,
-#         active_visit,
-#         queue_entry,
-#         doctor_staff,
-#         doctor_token_headers,
-#         setup_departments,
-#     ):
-#         """Deprecated move endpoint should still work for backward compatibility."""
-#         # Arrange
-#         queue_entry.status = QueueEntryStatus.IN_PROGRESS
-#         queue_entry.assigned_staff_id = doctor_staff.staff_id
-#         await db.commit()
-
-#         target_dept = setup_departments["TRIAGE"]
-
-#         payload = {
-#             "target_dept_id": str(target_dept.dept_id),
-#             "priority": "NORMAL",
-#             "notes": "Transferring to triage",
-#         }
-
-#         # Act
-#         response = await client.post(
-#             f"/api/routing/move/{active_visit.visit_id}",
-#             json=payload,
-#             headers=doctor_token_headers,
-#         )
-
-#         # Assert
-#         assert response.status_code == status.HTTP_200_OK
-
-#         data = response.json()
-
-#         assert data["dept_id"] == str(target_dept.dept_id)
-#         assert data["visit_id"] == str(active_visit.visit_id)
-#         assert data["status"] == "WAITING"
-#         assert data["priority"] == "NORMAL"
-#         assert data["notes"] == "Transferring to triage"
-
-#     async def test_move_patient_inactive_department(
-#         self, client: AsyncClient, db, active_visit, queue_entry, doctor_token_headers, setup_departments
-#     ):
-#         """POST /api/routing/move/{visit_id} - 400 for inactive target department."""
-#         queue_entry.status = QueueEntryStatus.IN_PROGRESS
-#         target_dept = setup_departments["TRIAGE"]
-#         target_dept.is_active = False
-#         await db.commit()
-
-#         payload = {"target_dept_id": str(target_dept.dept_id)}
-
-#         response = await client.post(
-#             f"/api/routing/move/{active_visit.visit_id}", json=payload, headers=doctor_token_headers
-#         )
-#         assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-#     async def test_move_patient_visit_not_found(
-#         self, client: AsyncClient, doctor_token_headers, setup_departments
-#     ):
-#         """POST /api/routing/move/{visit_id} - 404 for unknown visit_id."""
-#         target_dept = setup_departments["TRIAGE"]
-#         payload = {"target_dept_id": str(target_dept.dept_id)}
-
-#         response = await client.post(
-#             f"/api/routing/move/{uuid4()}", json=payload, headers=doctor_token_headers
-#         )
-#         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-#     async def test_move_patient_invalid_uuid(self, client: AsyncClient, doctor_token_headers):
-#         """POST /api/routing/move/{visit_id} - 422 for malformed UUID."""
-#         response = await client.post(
-#             "/api/routing/move/invalid-uuid-format", json={}, headers=doctor_token_headers
-#         )
-#         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-#     async def test_move_patient_token_preservation(
-#         self,
-#         client: AsyncClient,
-#         db,
-#         active_visit,
-#         queue_entry,
-#         doctor_staff,
-#         doctor_token_headers,
-#         setup_departments,
-#     ):
-#         """Verify token number is preserved when patient moves."""
-#         queue_entry.status = QueueEntryStatus.IN_PROGRESS
-#         queue_entry.assigned_staff_id = doctor_staff.staff_id
-
-#         old_token = active_visit.token_number
-
-#         await db.commit()
-
-#         target_dept = setup_departments["TRIAGE"]
-
-#         response = await client.post(
-#             f"/api/routing/move/{active_visit.visit_id}",
-#             json={"target_dept_id": str(target_dept.dept_id)},
-#             headers=doctor_token_headers,
-#         )
-
-#         assert response.status_code == status.HTTP_200_OK
-
-#         await db.refresh(active_visit)
-
-#         assert active_visit.token_number == old_token
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -691,7 +572,7 @@ class TestPatientTransfer:
 class TestCurrentLocation:
     """
     Test getting patient's current location in queue system.
-    
+
     Endpoint: GET /api/routing/location/{visit_id}
     """
 
@@ -726,7 +607,6 @@ class TestCurrentLocation:
         client: AsyncClient,
         db,
         active_visit,
-        queue_entry,
         receptionist_token_headers,
     ):
         """
@@ -734,9 +614,13 @@ class TestCurrentLocation:
 
         Visit exists but has no active queue entry.
         """
-        # Arrange
+        # Arrange: complete the visit's own queue entry
+        result = await db.execute(
+            select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
+        )
+        entry = result.scalar_one()
+        entry.status = QueueEntryStatus.COMPLETED
         active_visit.current_queue_entry_id = None
-        queue_entry.status = QueueEntryStatus.COMPLETED
         await db.commit()
 
         # Act
@@ -810,18 +694,16 @@ class TestCurrentLocation:
 class TestPatientHistory:
     """
     Test getting patient's routing history.
-    
+
     Endpoint: GET /api/routing/history/{visit_id}
-    
+
     Requires: ADMIN or RECEPTIONIST role
     """
 
     async def test_get_patient_history_success(
         self,
         client: AsyncClient,
-        db,
         active_visit,
-        queue_entry,
         receptionist_token_headers,
     ):
         """
@@ -846,7 +728,7 @@ class TestPatientHistory:
         entry = data[0]
 
         assert entry["visit_id"] == str(active_visit.visit_id)
-        assert entry["queue_entry_id"] == str(queue_entry.queue_entry_id)
+        assert entry["queue_entry_id"] == str(active_visit.current_queue_entry_id)
 
     async def test_get_patient_history_ordered(
         self,

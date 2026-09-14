@@ -176,7 +176,7 @@ async def active_visit(db, patient, department):
     """
     visit = Visit(
         patient_id=patient.patient_id,
-        token_number="W-101",
+        token_number=f"W-{uuid4().int % 10**8:08d}",
         stage=VisitStage.ACTIVE,
         entry_type=EntryType.WALK_IN,
         visit_reason="General Consultation",
@@ -514,7 +514,7 @@ async def queue_entry(db, existing_patient, setup_departments):
     """
     visit = Visit(
         patient_id=existing_patient.patient_id,
-        token_number="W-101",
+        token_number=f"W-{uuid4().int % 10**8:08d}",
         entry_type=EntryType.WALK_IN,
         visit_reason="Routine Checkup",
         stage=VisitStage.ACTIVE,

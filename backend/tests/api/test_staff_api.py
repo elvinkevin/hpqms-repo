@@ -453,6 +453,7 @@ async def test_get_staff_response_schema(
         "specialization",
         "is_on_duty",
         "is_active",
+        "active_service_point_id",
     }
 
     assert expected == set(data.keys())

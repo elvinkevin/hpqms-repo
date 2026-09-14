@@ -128,6 +128,8 @@ async def test_get_visit_by_token_schema(
         headers=receptionist_token_headers,
     )
 
+
+    
     assert response.status_code == status.HTTP_200_OK
 
     data = response.json()

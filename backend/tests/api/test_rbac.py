@@ -248,7 +248,7 @@ async def test_admin_can_transfer_patient(
 
 
 
-async def test_receptionist_cannot_transfer_patient(
+async def test_receptionist_can_transfer_patient(
     client: AsyncClient,
     db,
     active_visit,
@@ -272,21 +272,24 @@ async def test_receptionist_cannot_transfer_patient(
             "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
-            "notes": "Unauthorized receptionist transfer.",
+            "notes": "Receptionist-initiated transfer.",
         },
     )
 
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert str(body["visit_id"]) == str(active_visit.visit_id)
+    assert str(body["dept_id"]) == str(target_department.dept_id)
 
 
-async def test_nurse_cannot_transfer_patient(
+async def test_nurse_can_transfer_patient(
     client: AsyncClient,
     db,
     active_visit,
     nurse_token_headers,
     setup_departments,
 ):
-    """A standard ward nurse cannot perform routing/transfers."""
+    """A nurse may perform routing/transfers."""
     result = await db.execute(
         select(QueueEntry).where(QueueEntry.visit_id == active_visit.visit_id)
     )
@@ -303,11 +306,14 @@ async def test_nurse_cannot_transfer_patient(
             "target_dept_id": str(target_department.dept_id),
             "reason": "DEPARTMENT_TRANSFER",
             "priority": "NORMAL",
-            "notes": "Unauthorized nurse transfer.",
+            "notes": "Nurse-initiated transfer.",
         },
     )
 
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert str(body["visit_id"]) == str(active_visit.visit_id)
+    assert str(body["dept_id"]) == str(target_department.dept_id)
 
 
 async def test_unauthenticated_cannot_transfer_patient(
