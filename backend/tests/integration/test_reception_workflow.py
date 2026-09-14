@@ -211,25 +211,12 @@ async def test_patient_queue_progression(
     db,
     routing_departments,
     existing_patient,
+    receptionist,  # <-- 1. Inject staff fixture
 ):
-    """
-    Integration test:
-    Validates the complete Queue Entry state machine.
-
-    Expected workflow:
-    Start Visit & Initial Route
-            ↓
-    WAITING (Initial state)
-            ↓
-    Call Queue Entry -> CALLED
-            ↓
-    Start Queue Entry -> IN_PROGRESS
-            ↓
-    Complete Queue Entry -> COMPLETED
-    """
-
+    visit_service = VisitService(db)
     visit_service = VisitService(db)
     routing_service = RoutingService(db)
+    queue_service = QueueService(db)  # <-- Use QueueService for state transitions
 
     # 1. Start visit and dispatch initial route
     visit = await visit_service.start_visit(
@@ -248,20 +235,25 @@ async def test_patient_queue_progression(
     assert initial_entry.status == QueueEntryStatus.WAITING
 
     # Step B: Call patient into consultation/desk (WAITING -> CALLED)
-    called_entry = await routing_service.call_queue_entry(
-        initial_entry.queue_entry_id
+    called_entry = await queue_service.call_queue_entry(
+        initial_entry.queue_entry_id,
+        staff_id=receptionist.staff_id,
     )
     assert called_entry.status == QueueEntryStatus.CALLED
 
     # Step C: Start processing patient (CALLED -> IN_PROGRESS)
-    started_entry = await routing_service.start_queue_entry(
-        initial_entry.queue_entry_id
+    started_entry = await queue_service.transition_entry_status(
+        initial_entry.queue_entry_id,
+        new_status=QueueEntryStatus.IN_PROGRESS,
+        staff_id=receptionist.staff_id,
     )
     assert started_entry.status == QueueEntryStatus.IN_PROGRESS
 
     # Step D: Complete service at desk (IN_PROGRESS -> COMPLETED)
-    completed_entry = await routing_service.complete_queue_entry(
-        initial_entry.queue_entry_id
+    completed_entry = await queue_service.transition_entry_status(
+        initial_entry.queue_entry_id,
+        new_status=QueueEntryStatus.COMPLETED,
+        staff_id=receptionist.staff_id,
     )
     assert completed_entry.status == QueueEntryStatus.COMPLETED
 
@@ -275,6 +267,7 @@ async def test_patient_visit_completion(
     db,
     routing_departments,
     existing_patient,
+    receptionist,  # <-- 1. Inject staff fixture
 ):
     """
     Integration test:
@@ -282,16 +275,17 @@ async def test_patient_visit_completion(
 
     Expected workflow:
     Start Visit (ACTIVE) & Dispatch Route
-            ↓
+                ↓
     Queue Progression: WAITING -> CALLED -> IN_PROGRESS -> COMPLETED
-            ↓
+                ↓
     Complete Visit (VisitStage -> COMPLETED)
-            ↓
+                ↓
     Verify visit timestamp and current queue entry link maintained
     """
 
     visit_service = VisitService(db)
     routing_service = RoutingService(db)
+    queue_service = QueueService(db)  # <-- Use QueueService
 
     # 1. Start visit
     visit = await visit_service.start_visit(
@@ -306,11 +300,20 @@ async def test_patient_visit_completion(
         visit.visit_id
     )
 
-    # 2. Advance queue entry to completion
-    await routing_service.call_queue_entry(queue_entry.queue_entry_id)
-    await routing_service.start_queue_entry(queue_entry.queue_entry_id)
-    completed_queue_entry = await routing_service.complete_queue_entry(
-        queue_entry.queue_entry_id
+    # 2. Advance queue entry to completion using QueueService + staff_id
+    await queue_service.call_queue_entry(
+        queue_entry.queue_entry_id,
+        staff_id=receptionist.staff_id,
+    )
+    await queue_service.transition_entry_status(
+        queue_entry.queue_entry_id,
+        new_status=QueueEntryStatus.IN_PROGRESS,
+        staff_id=receptionist.staff_id,
+    )
+    completed_queue_entry = await queue_service.transition_entry_status(
+        queue_entry.queue_entry_id,
+        new_status=QueueEntryStatus.COMPLETED,
+        staff_id=receptionist.staff_id,
     )
 
     # 3. Finalize/Complete the entire patient visit
@@ -395,6 +398,7 @@ async def test_patient_no_show_and_requeue_workflow(
     db,
     routing_departments,
     existing_patient,
+    receptionist,  # <-- 1. Inject staff fixture
 ):
     """
     Integration test:
@@ -451,6 +455,7 @@ async def test_patient_no_show_and_requeue_workflow(
     called_entry = await queue_service.transition_entry_status(
         queue_entry.queue_entry_id,
         QueueEntryStatus.CALLED,
+        staff_id=receptionist.staff_id,  # <-- Required for calling patient
     )
 
     assert called_entry.status == QueueEntryStatus.CALLED
@@ -464,6 +469,7 @@ async def test_patient_no_show_and_requeue_workflow(
         queue_entry.queue_entry_id,
         QueueEntryStatus.NO_SHOW,
         notes="Patient did not respond to call.",
+        staff_id=receptionist.staff_id,
     )
 
     assert no_show_entry.status == QueueEntryStatus.NO_SHOW
@@ -496,6 +502,7 @@ async def test_patient_no_show_and_requeue_workflow(
     requeued_entry = await queue_service.transition_entry_status(
         queue_entry.queue_entry_id,
         QueueEntryStatus.WAITING,
+        staff_id=receptionist.staff_id,
     )
 
     assert requeued_entry.status == QueueEntryStatus.WAITING
@@ -536,10 +543,8 @@ async def test_patient_no_show_and_requeue_workflow(
 
 @pytest.mark.asyncio
 async def test_requeued_patient_respects_priority_ordering(
-    db,
-    routing_departments,
+    reception_context,
     patient_factory,
-    services,
 ):
     """
     Verify that re-queueing a NO_SHOW patient restores the entry to WAITING
@@ -553,12 +558,16 @@ async def test_requeued_patient_respects_priority_ordering(
     even if the NORMAL patient originally entered the queue first.
     """
 
-    patient_service = services["patient"]
-    visit_service = services["visit"]
-    routing_service = services["routing"]
-    queue_service = services["queue"]
+    db = reception_context["db"]
+    reception = reception_context["reception"]
+    staff = reception_context["staff"]
+    staff_id = staff.staff_id
 
-    reception = routing_departments["reception"]
+    services = reception_context["services"]
+    visit_service = services["visit"]
+    routing_service = RoutingService(db) if "routing" not in services else services["routing"]
+    queue_service = services["queue"]
+    patient_service = PatientService(db)
 
     # --------------------------------------------------------------
     # 1. Create two distinct patients
@@ -567,13 +576,11 @@ async def test_requeued_patient_respects_priority_ordering(
     normal_patient = await patient_factory(
         first_name="Normal",
         last_name="Patient",
-        phone="+254700000001",
     )
 
     urgent_patient = await patient_factory(
         first_name="Urgent",
         last_name="Patient",
-        phone="+254700000002",
     )
 
     # --------------------------------------------------------------
@@ -636,7 +643,8 @@ async def test_requeued_patient_respects_priority_ordering(
     # --------------------------------------------------------------
 
     called_entry = await queue_service.call_queue_entry(
-        normal_entry.queue_entry_id
+        normal_entry.queue_entry_id,
+        staff_id=staff_id,
     )
 
     assert called_entry.status == QueueEntryStatus.CALLED
@@ -649,6 +657,7 @@ async def test_requeued_patient_respects_priority_ordering(
         normal_entry.queue_entry_id,
         QueueEntryStatus.NO_SHOW,
         notes="Patient did not respond to call.",
+        staff_id=staff_id,
     )
 
     assert no_show_entry.status == QueueEntryStatus.NO_SHOW
@@ -673,6 +682,7 @@ async def test_requeued_patient_respects_priority_ordering(
     requeued_entry = await queue_service.transition_entry_status(
         normal_entry.queue_entry_id,
         QueueEntryStatus.WAITING,
+        staff_id=staff_id,
     )
 
     assert requeued_entry.status == QueueEntryStatus.WAITING
@@ -703,10 +713,8 @@ async def test_requeued_patient_respects_priority_ordering(
 
 @pytest.mark.asyncio
 async def test_requeued_critical_patient_restores_priority_order(
-    db,
-    routing_departments,
+    reception_context,
     patient_factory,
-    services,
 ):
     """
     Verify that a CRITICAL patient who becomes NO_SHOW and is subsequently
@@ -720,10 +728,12 @@ async def test_requeued_critical_patient_restores_priority_order(
         NORMAL
     """
 
+    db = reception_context["db"]
+    reception = reception_context["reception"]
+    staff_id = reception_context["staff"].staff_id
+    services = reception_context["services"]
     visit_service = services["visit"]
     queue_service = services["queue"]
-
-    reception = routing_departments["reception"]
 
     # --------------------------------------------------------------
     # 1. Create four patients
@@ -733,22 +743,18 @@ async def test_requeued_critical_patient_restores_priority_order(
         await patient_factory(
             first_name="Normal",
             last_name="Patient",
-            phone="+254700000011",
         ),
         await patient_factory(
             first_name="SemiUrgent",
             last_name="Patient",
-            phone="+254700000012",
         ),
         await patient_factory(
             first_name="Urgent",
             last_name="Patient",
-            phone="+254700000013",
         ),
         await patient_factory(
             first_name="Critical",
             last_name="Patient",
-            phone="+254700000014",
         ),
     ]
 
@@ -812,7 +818,8 @@ async def test_requeued_critical_patient_restores_priority_order(
     # --------------------------------------------------------------
 
     called_entry = await queue_service.call_queue_entry(
-        critical_entry.queue_entry_id
+        critical_entry.queue_entry_id,
+        staff_id=staff_id,
     )
 
     assert called_entry.status == QueueEntryStatus.CALLED
@@ -825,6 +832,7 @@ async def test_requeued_critical_patient_restores_priority_order(
         critical_entry.queue_entry_id,
         QueueEntryStatus.NO_SHOW,
         notes="Critical patient did not respond to call.",
+        staff_id=staff_id,
     )
 
     assert no_show_entry.status == QueueEntryStatus.NO_SHOW
@@ -856,6 +864,7 @@ async def test_requeued_critical_patient_restores_priority_order(
     requeued_entry = await queue_service.transition_entry_status(
         critical_entry.queue_entry_id,
         QueueEntryStatus.WAITING,
+        staff_id=staff_id,
     )
 
     assert requeued_entry.status == QueueEntryStatus.WAITING
@@ -905,8 +914,8 @@ async def test_no_show_requeue_preserves_priority_order(
 
     db = reception_context["db"]
     reception = reception_context["reception"]
+    staff = reception_context["staff"]  # Extract staff for transition audits
 
-    patient_service = reception_context["services"]["patient"]
     visit_service = reception_context["services"]["visit"]
     queue_service = reception_context["services"]["queue"]
 
@@ -963,7 +972,8 @@ async def test_no_show_requeue_preserves_priority_order(
     # ---------------------------------------------------------------
 
     normal_entry = await queue_service.call_queue_entry(
-        normal_entry.queue_entry_id
+        normal_entry.queue_entry_id,
+        staff_id=staff.staff_id,
     )
 
     await db.commit()
@@ -977,6 +987,7 @@ async def test_no_show_requeue_preserves_priority_order(
     normal_entry = await queue_service.transition_entry_status(
         normal_entry.queue_entry_id,
         QueueEntryStatus.NO_SHOW,
+        staff_id=staff.staff_id,
     )
 
     await db.commit()
@@ -1007,6 +1018,7 @@ async def test_no_show_requeue_preserves_priority_order(
     normal_entry = await queue_service.transition_entry_status(
         normal_entry.queue_entry_id,
         QueueEntryStatus.WAITING,
+        staff_id=staff.staff_id,
     )
 
     await db.commit()
@@ -1042,7 +1054,6 @@ async def test_no_show_requeue_preserves_priority_order(
 
     assert test_entries[1].queue_entry_id == normal_entry.queue_entry_id
     assert test_entries[1].priority == QueuePriority.NORMAL
-
 
 @pytest.mark.asyncio
 async def test_waiting_patient_cannot_be_completed(
@@ -1152,6 +1163,7 @@ async def test_called_patient_cannot_skip_to_completed(
 ):
     db = reception_context["db"]
     reception = reception_context["reception"]
+    staff = reception_context["staff"]  # <-- Extract staff
 
     visit_service = reception_context["services"]["visit"]
     queue_service = reception_context["services"]["queue"]
@@ -1178,7 +1190,8 @@ async def test_called_patient_cannot_skip_to_completed(
     await db.commit()
 
     entry = await queue_service.call_queue_entry(
-        entry.queue_entry_id
+        entry.queue_entry_id,
+        staff_id=staff.staff_id,  # <-- Provide required staff_id
     )
 
     await db.commit()
@@ -1189,6 +1202,7 @@ async def test_called_patient_cannot_skip_to_completed(
         await queue_service.transition_entry_status(
             entry.queue_entry_id,
             QueueEntryStatus.COMPLETED,
+            staff_id=staff.staff_id,  # <-- Provide staff_id
         )
 
     assert exc_info.value.status_code == 422
@@ -1197,6 +1211,7 @@ async def test_called_patient_cannot_skip_to_completed(
 
     assert entry.status == QueueEntryStatus.CALLED
 
+
 @pytest.mark.asyncio
 async def test_terminal_queue_states_cannot_be_reactivated(
     reception_context,
@@ -1204,6 +1219,7 @@ async def test_terminal_queue_states_cannot_be_reactivated(
 ):
     db = reception_context["db"]
     reception = reception_context["reception"]
+    staff = reception_context["staff"]  # <-- Extract staff
 
     visit_service = reception_context["services"]["visit"]
     queue_service = reception_context["services"]["queue"]
@@ -1232,17 +1248,20 @@ async def test_terminal_queue_states_cannot_be_reactivated(
     )
 
     completed_entry = await queue_service.call_queue_entry(
-        completed_entry.queue_entry_id
+        completed_entry.queue_entry_id,
+        staff_id=staff.staff_id,  # <-- Pass staff_id
     )
 
     completed_entry = await queue_service.transition_entry_status(
         completed_entry.queue_entry_id,
         QueueEntryStatus.IN_PROGRESS,
+        staff_id=staff.staff_id,  # <-- Pass staff_id
     )
 
     completed_entry = await queue_service.transition_entry_status(
         completed_entry.queue_entry_id,
         QueueEntryStatus.COMPLETED,
+        staff_id=staff.staff_id,  # <-- Pass staff_id
     )
 
     await db.commit()
@@ -1259,6 +1278,7 @@ async def test_terminal_queue_states_cannot_be_reactivated(
             await queue_service.transition_entry_status(
                 completed_entry.queue_entry_id,
                 invalid_status,
+                staff_id=staff.staff_id,  # <-- Pass staff_id
             )
 
     await db.refresh(completed_entry)
@@ -1291,6 +1311,7 @@ async def test_terminal_queue_states_cannot_be_reactivated(
     cancelled_entry = await queue_service.transition_entry_status(
         cancelled_entry.queue_entry_id,
         QueueEntryStatus.CANCELLED,
+        staff_id=staff.staff_id,  # <-- Pass staff_id
     )
 
     await db.commit()
@@ -1307,27 +1328,35 @@ async def test_terminal_queue_states_cannot_be_reactivated(
             await queue_service.transition_entry_status(
                 cancelled_entry.queue_entry_id,
                 invalid_status,
+                staff_id=staff.staff_id,  # <-- Pass staff_id
             )
 
     await db.refresh(cancelled_entry)
 
     assert cancelled_entry.status == QueueEntryStatus.CANCELLED
 
+from app.domain.services.patient_service import PatientService
+from app.domain.services.patient_service import PatientService
+
 @pytest.mark.asyncio
 async def test_already_called_patient_cannot_be_called_again(reception_context):
+    db = reception_context["db"]
+    staff = reception_context["staff"]
     services = reception_context["services"]
     queue_service = services["queue"]
+    visit_service = services["visit"]
+    patient_service = PatientService(db)  # <-- Instantiate directly
 
-    patient = await services["patient"].register_standard_patient(
+    patient = await patient_service.register_standard_patient(
         PatientCreate(
-            national_id = f"NAT-{uuid.uuid4().hex[:12]}",
+            national_id=f"NAT-{uuid.uuid4().hex[:12]}",
             first_name="Double",
             last_name="Call",
             phone=f"+2547{uuid4().int % 10**8:08d}",
         )
     )
 
-    visit = await services["visit"].start_visit(
+    visit = await visit_service.start_visit(
         VisitCreate(
             patient_id=patient.patient_id,
             entry_type=EntryType.WALK_IN,
@@ -1340,28 +1369,37 @@ async def test_already_called_patient_cannot_be_called_again(reception_context):
         reception_context["reception"].dept_id,
     )
 
-    await queue_service.call_queue_entry(entry.queue_entry_id)
+    await queue_service.call_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
 
     with pytest.raises(HTTPException) as exc:
-        await queue_service.call_queue_entry(entry.queue_entry_id)
+        await queue_service.call_queue_entry(
+            entry.queue_entry_id, staff_id=staff.staff_id
+        )
 
     assert exc.value.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_completed_patient_cannot_be_completed_again(reception_context):
+    db = reception_context["db"]
+    staff = reception_context["staff"]
     services = reception_context["services"]
     queue_service = services["queue"]
+    visit_service = services["visit"]
+    patient_service = PatientService(db)  # <-- Instantiate directly
 
-    patient = await services["patient"].register_standard_patient(
+    patient = await patient_service.register_standard_patient(
         PatientCreate(
-            national_id = f"NAT-{uuid.uuid4().hex[:12]}",
+            national_id=f"NAT-{uuid.uuid4().hex[:12]}",
             first_name="Already",
             last_name="Completed",
             phone=f"+2547{uuid4().int % 10**8:08d}",
         )
     )
 
-    visit = await services["visit"].start_visit(
+    visit = await visit_service.start_visit(
         VisitCreate(
             patient_id=patient.patient_id,
             entry_type=EntryType.WALK_IN,
@@ -1374,30 +1412,142 @@ async def test_completed_patient_cannot_be_completed_again(reception_context):
         reception_context["reception"].dept_id,
     )
 
-    await queue_service.call_queue_entry(entry.queue_entry_id)
-    await queue_service.start_queue_entry(entry.queue_entry_id)
-    await queue_service.complete_queue_entry(entry.queue_entry_id)
+    await queue_service.call_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+    await queue_service.start_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+    await queue_service.complete_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
 
     with pytest.raises(HTTPException) as exc:
-        await queue_service.complete_queue_entry(entry.queue_entry_id)
+        await queue_service.complete_queue_entry(
+            entry.queue_entry_id, staff_id=staff.staff_id
+        )
 
     assert exc.value.status_code == 422
 
+
 @pytest.mark.asyncio
-async def test_completed_patient_cannot_be_requeued(reception_context):
+async def test_completed_patient_cannot_be_completed_again(reception_context):
+    db = reception_context["db"]
+    staff = reception_context["staff"]
     services = reception_context["services"]
     queue_service = services["queue"]
+    visit_service = services["visit"]
+    patient_service = PatientService(db)  # <-- Instantiate directly
 
-    patient = await services["patient"].register_standard_patient(
+    patient = await patient_service.register_standard_patient(
         PatientCreate(
-            national_id = f"NAT-{uuid.uuid4().hex[:12]}",
+            national_id=f"NAT-{uuid.uuid4().hex[:12]}",
+            first_name="Already",
+            last_name="Completed",
+            phone=f"+2547{uuid4().int % 10**8:08d}",
+        )
+    )
+
+    visit = await visit_service.start_visit(
+        VisitCreate(
+            patient_id=patient.patient_id,
+            entry_type=EntryType.WALK_IN,
+            visit_reason="Duplicate completion test",
+        )
+    )
+
+    entry = await queue_service.create_queue_entry(
+        visit.visit_id,
+        reception_context["reception"].dept_id,
+    )
+
+    await queue_service.call_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+    await queue_service.start_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+    await queue_service.complete_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await queue_service.complete_queue_entry(
+            entry.queue_entry_id, staff_id=staff.staff_id
+        )
+
+    assert exc.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_completed_patient_cannot_be_completed_again(reception_context):
+    db = reception_context["db"]
+    staff = reception_context["staff"]
+    services = reception_context["services"]
+    queue_service = services["queue"]
+    visit_service = services["visit"]
+    patient_service = PatientService(db)
+
+    patient = await patient_service.register_standard_patient(
+        PatientCreate(
+            national_id=f"NAT-{uuid.uuid4().hex[:12]}",
+            first_name="Already",
+            last_name="Completed",
+            phone=f"+2547{uuid4().int % 10**8:08d}",
+        )
+    )
+
+    visit = await visit_service.start_visit(
+        VisitCreate(
+            patient_id=patient.patient_id,
+            entry_type=EntryType.WALK_IN,
+            visit_reason="Duplicate completion test",
+        )
+    )
+
+    entry = await queue_service.create_queue_entry(
+        visit.visit_id,
+        reception_context["reception"].dept_id,
+    )
+
+    await queue_service.call_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+    await queue_service.start_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+    await queue_service.complete_queue_entry(
+        entry.queue_entry_id, staff_id=staff.staff_id
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await queue_service.complete_queue_entry(
+            entry.queue_entry_id, staff_id=staff.staff_id
+        )
+
+    assert exc.value.status_code == 422
+
+from app.domain.services.patient_service import PatientService
+
+@pytest.mark.asyncio
+async def test_completed_patient_cannot_be_requeued(reception_context):
+    db = reception_context["db"]
+    staff = reception_context["staff"]
+    services = reception_context["services"]
+    queue_service = services["queue"]
+    visit_service = services["visit"]
+    patient_service = PatientService(db)  # <-- Instantiate directly
+
+    patient = await patient_service.register_standard_patient(
+        PatientCreate(
+            national_id=f"NAT-{uuid.uuid4().hex[:12]}",
             first_name="Completed",
             last_name="Requeue",
             phone=f"+2547{uuid4().int % 10**8:08d}",
         )
     )
 
-    visit = await services["visit"].start_visit(
+    visit = await visit_service.start_visit(
         VisitCreate(
             patient_id=patient.patient_id,
             entry_type=EntryType.WALK_IN,
@@ -1410,14 +1560,15 @@ async def test_completed_patient_cannot_be_requeued(reception_context):
         reception_context["reception"].dept_id,
     )
 
-    await queue_service.call_queue_entry(entry.queue_entry_id)
-    await queue_service.start_queue_entry(entry.queue_entry_id)
-    await queue_service.complete_queue_entry(entry.queue_entry_id)
+    await queue_service.call_queue_entry(entry.queue_entry_id, staff_id=staff.staff_id)
+    await queue_service.start_queue_entry(entry.queue_entry_id, staff_id=staff.staff_id)
+    await queue_service.complete_queue_entry(entry.queue_entry_id, staff_id=staff.staff_id)
 
     with pytest.raises(HTTPException) as exc:
         await queue_service.transition_entry_status(
             entry.queue_entry_id,
             QueueEntryStatus.WAITING,
+            staff_id=staff.staff_id,  # <-- Pass staff_id
         )
 
     assert exc.value.status_code == 422

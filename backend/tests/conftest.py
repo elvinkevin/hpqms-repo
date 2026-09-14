@@ -540,6 +540,179 @@ async def queue_entry(db, existing_patient, setup_departments):
     return entry
 
 
+@pytest_asyncio.fixture
+async def reception_context(db, setup_departments):
+    """
+    Bundles everything a queue-workflow test needs:
+    the reception department, a receptionist staff member, and
+    ready-to-use visit/queue services sharing the test session.
+    """
+    from app.domain.services.visit_service import VisitService
+    from app.domain.services.queue_service import QueueService
+
+    reception = setup_departments["RECEPTION"]
+
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id=f"REC-{uuid4().hex[:6]}",
+        dept_id=reception.dept_id,
+        first_name="Alice",
+        last_name="Receptionist",
+        role=StaffRole.RECEPTIONIST,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
+    )
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+
+    return {
+        "db": db,
+        "reception": reception,
+        "staff": staff,
+        "services": {
+            "visit": VisitService(db),
+            "queue": QueueService(db),
+        },
+    }
+
+
+@pytest_asyncio.fixture
+async def patient_factory(db):
+    """Factory creating distinct registered patients on demand."""
+    from app.domain.models.models import RegistrationStatus
+    from typing import Optional
+
+    counter = {"n": 0}
+
+    async def _create(
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+    ):
+        counter["n"] += 1
+        patient = Patient(
+            patient_id=uuid4(),
+            first_name=first_name or f"Walkin{counter['n']}",
+            last_name=last_name or f"Patient{counter['n']}",
+            national_id=f"NI-{uuid4().hex[:8]}",
+            registration_status=RegistrationStatus.COMPLETE,
+            is_active=True,
+        )
+        db.add(patient)
+        await db.commit()
+        await db.refresh(patient)
+        return patient
+
+    return _create
+
+
+@pytest_asyncio.fixture
+async def reception_queue_entry(db, setup_departments, existing_patient):
+    """Creates a WAITING queue entry in the RECEPTION department."""
+    from app.domain.models.models import Visit as VisitModel
+
+    reception = setup_departments["RECEPTION"]
+
+    visit = VisitModel(
+        patient_id=existing_patient.patient_id,
+        token_number=f"W-{uuid4().int % 10**8:08d}",
+        entry_type=EntryType.WALK_IN,
+        visit_reason="Reception Check-in",
+        stage=VisitStage.ACTIVE,
+    )
+    db.add(visit)
+    await db.flush()
+
+    entry = QueueEntry(
+        visit_id=visit.visit_id,
+        dept_id=reception.dept_id,
+        sequence_number=1,
+        priority=QueuePriority.NORMAL,
+        status=QueueEntryStatus.WAITING,
+    )
+    db.add(entry)
+    visit.current_queue_entry_id = entry.queue_entry_id
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+async def _create_receptionist_with_token(db, setup_departments, employee_id: str):
+    """Creates a receptionist staff member plus an access token attribute."""
+    reception = setup_departments["RECEPTION"]
+    staff = Staff(
+        staff_id=uuid4(),
+        employee_id=employee_id,
+        dept_id=reception.dept_id,
+        first_name="Alice",
+        last_name="Receptionist",
+        role=StaffRole.RECEPTIONIST,
+        hashed_password=hash_password("Password123!"),
+        is_active=True,
+    )
+    db.add(staff)
+    await db.commit()
+    await db.refresh(staff)
+    staff.access_token = create_access_token(
+        {
+            "sub": str(staff.staff_id),
+            "employee_id": staff.employee_id,
+            "role": staff.role.value,
+            "dept_id": str(staff.dept_id),
+        }
+    )
+    return staff
+
+
+@pytest_asyncio.fixture
+async def receptionist(db, setup_departments):
+    """Receptionist carrying an `access_token` attribute for header construction."""
+    return await _create_receptionist_with_token(db, setup_departments, "REC-A1")
+
+
+@pytest_asyncio.fixture
+async def receptionist_two(db, setup_departments):
+    """Second receptionist in the same department, with an access token."""
+    return await _create_receptionist_with_token(db, setup_departments, "REC-B2")
+
+
+@pytest_asyncio.fixture
+async def create_no_show_entry(db, setup_departments, existing_patient):
+    """Factory creating a no-show queue entry assigned to a staff member."""
+    from app.domain.models.models import Visit as VisitModel
+
+    reception = setup_departments["RECEPTION"]
+    visit_counter = {"n": 0}
+
+    async def _create(assigned_staff_id):
+        visit_counter["n"] += 1
+        visit = VisitModel(
+            patient_id=existing_patient.patient_id,
+            token_number=f"W-{uuid4().int % 10**8:08d}",
+            entry_type=EntryType.WALK_IN,
+            visit_reason="No-show Test",
+            stage=VisitStage.ACTIVE,
+        )
+        db.add(visit)
+        await db.flush()
+
+        entry = QueueEntry(
+            visit_id=visit.visit_id,
+            dept_id=reception.dept_id,
+            sequence_number=visit_counter["n"],
+            priority=QueuePriority.NORMAL,
+            status=QueueEntryStatus.NO_SHOW,
+            assigned_staff_id=assigned_staff_id,
+        )
+        db.add(entry)
+        visit.current_queue_entry_id = entry.queue_entry_id
+        await db.commit()
+        await db.refresh(entry)
+        return entry
+
+    return _create
+
+
 # ============================================================================
 # 7. HELPER UTILITIES
 # ============================================================================

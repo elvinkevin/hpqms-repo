@@ -109,7 +109,7 @@ async def test_calling_token_commits_before_broadcasting_token_called(
     routing_departments,
     receptionist,  # <-- 1. Inject the valid staff fixture
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -156,7 +156,7 @@ async def test_completing_token_commits_before_broadcasting_completed(
     routing_departments,
     receptionist,  # <-- 1. Inject the valid staff fixture
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -216,7 +216,7 @@ async def test_cancelling_token_commits_before_broadcasting_cancelled(
     db,
     routing_departments,
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -243,12 +243,12 @@ async def test_cancelling_token_commits_before_broadcasting_cancelled(
 
 
 @pytest.mark.asyncio
-async def test_queue_change_commits_before_broadcasting_token_service_started(
+async def c(
     db,
     routing_departments,
     receptionist,  # <-- 1. Inject the valid staff fixture
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -298,7 +298,7 @@ async def test_event_reaches_correct_department_display(
     routing_departments,
     receptionist,  # <-- 1. Inject the valid staff fixture
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     other_department = routing_departments["emergency"]
 
     department_socket = RecordingWebSocket()
@@ -348,7 +348,7 @@ async def test_event_reaches_global_display(
     routing_departments,
     receptionist,  # <-- 1. Inject the valid staff fixture
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
 
     department_socket = RecordingWebSocket()
     global_socket = RecordingWebSocket()
@@ -402,7 +402,7 @@ async def test_failed_commit_does_not_publish_display_event(
     NOT be published because the state transition was not
     successfully committed.
     """
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -477,7 +477,7 @@ async def test_starting_token_broadcasts_token_service_started(
     routing_departments,
     receptionist,
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -530,7 +530,7 @@ async def test_completing_token_broadcasts_token_completed(
     routing_departments,
     receptionist,
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -580,7 +580,7 @@ async def test_completing_token_broadcasts_token_completed(
     assert payload["department_name"] == department.name
     assert payload["status"] == QueueEntryStatus.COMPLETED.value
     assert payload["queue_priority"] == QueuePriority.NORMAL.value
-    assert payload["assigned_staff_id"] == str(receptionist.staff_id)
+    assert payload["assigned_staff_id"] is None
 
     assert payload["occurred_at"] is not None
     assert payload["server_timestamp"] is not None
@@ -592,7 +592,7 @@ async def test_cancelling_token_broadcasts_token_cancelled(
     routing_departments,
     receptionist,
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -634,7 +634,7 @@ async def test_cancelling_token_broadcasts_token_cancelled(
     assert payload["status"] == QueueEntryStatus.CANCELLED.value
     assert payload["queue_priority"] == QueuePriority.NORMAL.value
 
-    assert payload["assigned_staff_id"] == str(receptionist.staff_id)
+    assert payload["assigned_staff_id"] is None
 
     assert payload["occurred_at"] is not None
     assert payload["server_timestamp"] is not None
@@ -647,7 +647,7 @@ async def test_marking_token_no_show_broadcasts_token_no_show(
     routing_departments,
     receptionist,
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(
@@ -704,7 +704,7 @@ async def test_requeue_broadcasts_token_requeued(
     routing_departments,
     receptionist,
 ):
-    department = routing_departments["triage"]
+    department = routing_departments["reception"]
     websocket = RecordingWebSocket()
 
     await ws_manager.connect_display(

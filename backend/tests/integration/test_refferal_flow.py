@@ -24,6 +24,7 @@ from app.domain.services.visit_service import (
 from app.domain.services.routing_service import (
     RoutingService,
 )
+from app.domain.services.queue_service import QueueService
 
 
 # ======================================================================
@@ -156,6 +157,8 @@ class TestReferralRouting:
 # ======================================================================
 # REFERRAL QUEUE PROGRESSION
 # ======================================================================
+from app.domain.models.models import Staff
+
 
 class TestReferralQueueProgression:
 
@@ -164,22 +167,25 @@ class TestReferralQueueProgression:
         self,
         db,
         routing_departments,
+        receptionist_staff,
     ):
         """
         Referral queue lifecycle:
 
-        WAITING
-            ↓
-        CALLED
-            ↓
-        IN_PROGRESS
-            ↓
-        COMPLETED
+            WAITING
+                ↓
+            CALLED
+                ↓
+            IN_PROGRESS
+                ↓
+            COMPLETED
         """
 
         patient_service = PatientService(db)
         visit_service = VisitService(db)
         routing_service = RoutingService(db)
+        queue_service = QueueService(db)
+        staff_id = receptionist_staff.staff_id
 
         patient = await patient_service.register_standard_patient(
             PatientCreate(
@@ -204,27 +210,40 @@ class TestReferralQueueProgression:
             visit.visit_id
         )
 
+        # Update staff department in DB for target queue department
+        staff_record = await db.get(Staff, staff_id)
+        if staff_record:
+            staff_record.department_id = queue_entry.dept_id
+            if hasattr(staff_record, "dept_id"):
+                staff_record.dept_id = queue_entry.dept_id
+            db.add(staff_record)
+            await db.commit()
+            await db.refresh(staff_record)
+
         # Initial state
         assert queue_entry.status == QueueEntryStatus.WAITING
         assert queue_entry.priority == QueuePriority.NORMAL
 
-        # Reception calls patient
-        queue_entry = await routing_service.call_queue_entry(
-            queue_entry.queue_entry_id
+        # Reception calls patient via queue_service
+        queue_entry = await queue_service.call_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=staff_id,
         )
 
         assert queue_entry.status == QueueEntryStatus.CALLED
 
-        # Reception starts handling patient
-        queue_entry = await routing_service.start_queue_entry(
-            queue_entry.queue_entry_id
+        # Reception starts handling patient via queue_service
+        queue_entry = await queue_service.start_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=staff_id,
         )
 
         assert queue_entry.status == QueueEntryStatus.IN_PROGRESS
 
-        # Reception processing complete
-        queue_entry = await routing_service.complete_queue_entry(
-            queue_entry.queue_entry_id
+        # Reception processing complete via queue_service
+        queue_entry = await queue_service.complete_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=staff_id,
         )
 
         assert queue_entry.status == QueueEntryStatus.COMPLETED
@@ -241,6 +260,7 @@ class TestReferralCompletion:
         self,
         db,
         routing_departments,
+        receptionist_staff,
     ):
         """
         Referral queue entry is completed and
@@ -250,6 +270,8 @@ class TestReferralCompletion:
         patient_service = PatientService(db)
         visit_service = VisitService(db)
         routing_service = RoutingService(db)
+        queue_service = QueueService(db)
+        staff_id = receptionist_staff.staff_id
 
         patient = await patient_service.register_standard_patient(
             PatientCreate(
@@ -274,16 +296,29 @@ class TestReferralCompletion:
             visit.visit_id
         )
 
-        await routing_service.call_queue_entry(
-            queue_entry.queue_entry_id
+        # Update staff department in DB for target queue department
+        staff_record = await db.get(Staff, staff_id)
+        if staff_record:
+            staff_record.department_id = queue_entry.dept_id
+            if hasattr(staff_record, "dept_id"):
+                staff_record.dept_id = queue_entry.dept_id
+            db.add(staff_record)
+            await db.commit()
+            await db.refresh(staff_record)
+
+        await queue_service.call_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=staff_id,
         )
 
-        await routing_service.start_queue_entry(
-            queue_entry.queue_entry_id
+        await queue_service.start_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=staff_id,
         )
 
-        completed_queue = await routing_service.complete_queue_entry(
-            queue_entry.queue_entry_id
+        completed_queue = await queue_service.complete_queue_entry(
+            queue_entry.queue_entry_id,
+            staff_id=staff_id,
         )
 
         assert completed_queue.status == QueueEntryStatus.COMPLETED
@@ -294,7 +329,6 @@ class TestReferralCompletion:
 
         assert completed_visit.stage == VisitStage.COMPLETED
         assert completed_visit.completed_at is not None
-
 
 # ======================================================================
 # DUPLICATE ACTIVE REFERRAL

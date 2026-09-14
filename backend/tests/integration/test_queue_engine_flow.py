@@ -8,6 +8,8 @@ from app.domain.models.models import (
     QueueEntry,
     QueueEntryStatus,
     QueuePriority,
+    Visit,
+    VisitStage,
 )
 from app.domain.services.queue_service import AVG_CONSULT_MINUTES, QueueService
 from uuid import uuid4
@@ -17,6 +19,22 @@ from app.domain.services import patient_service
 from app.domain.services.visit_service import VisitService
 from tests.conftest import existing_patient
 from app.domain.services.patient_service import PatientService
+
+
+@pytest.fixture
+async def active_visit(db, patient, department):
+    """Override active_visit to provide a bare visit for creation tests."""
+    visit = Visit(
+        patient_id=patient.patient_id,
+        token_number=f"W-{uuid4().int % 10**8:08d}",
+        stage=VisitStage.ACTIVE,
+        entry_type=EntryType.WALK_IN,
+        visit_reason="General Consultation",
+    )
+    db.add(visit)
+    await db.commit()
+    await db.refresh(visit)
+    return visit
 class TestQueueCreation:
 
     @pytest.mark.asyncio

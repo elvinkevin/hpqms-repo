@@ -13,15 +13,14 @@ from app.domain.models.models import (
 )
 from app.domain.schemas.schemas import VisitCreate
 from app.core.security import create_access_token, hash_password
-from tests.conftest import queue_entry
+from tests.conftest import queue_entry, make_headers
 
 
 @pytest.mark.asyncio
 async def test_staff_can_access_own_department(
     client,
     db,
-    receptionist_staff,            # FIX: Changed from receptionist
-    receptionist_token_headers,    # FIX: Injected available token headers fixture
+    receptionist,                   # Receptionist staffed in the RECEPTION department
     setup_departments,
 ):
     # Depending on how setup_departments is keyed (check if string is lower or uppercase)
@@ -29,7 +28,7 @@ async def test_staff_can_access_own_department(
 
     response = await client.get(
         f"/api/queue/department/{reception.dept_id}",
-        headers=receptionist_token_headers,  # FIX: Passes {"Authorization": "Bearer ..."} directly
+        headers=make_headers(receptionist),
     )
 
     assert response.status_code == 200
@@ -56,12 +55,12 @@ async def test_staff_cannot_access_other_department(
 @pytest.mark.asyncio
 async def test_staff_can_call_entry_in_own_department(
     client,
-    receptionist_token_headers,    # FIX: Changed from receptionist
+    receptionist,
     reception_queue_entry,
 ):
     response = await client.patch(
         f"/api/queue/{reception_queue_entry.queue_entry_id}/call",
-        headers=receptionist_token_headers,  # FIX: Passes token authorization header map
+        headers=make_headers(receptionist),
     )
 
     assert response.status_code == 200
