@@ -1,5 +1,7 @@
+import os
 from datetime import date
 from uuid import uuid4
+
 
 import pytest
 import pytest_asyncio
@@ -44,7 +46,10 @@ def make_headers(staff: Staff) -> dict:
     )
     return {"Authorization": f"Bearer {token}"}
 
-DATABASE_URL = "postgresql+asyncpg://postgres:viken@localhost/hospital_test"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:viken@localhost/hospital_test",
+)
 
 # ============================================================================
 # 1. DATABASE & ASYNC INFRASTRUCTURE
