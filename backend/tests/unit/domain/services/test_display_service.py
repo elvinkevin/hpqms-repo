@@ -470,6 +470,7 @@ class TestDepartmentQueueState:
             "T-003",  # CRITICAL
             "T-002",  # URGENT, sequence 2
             "T-004",  # URGENT, sequence 4
+            "T-001",  # NORMAL (default next_limit is 4)
         ]
 
     @pytest.mark.asyncio

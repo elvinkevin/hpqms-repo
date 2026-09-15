@@ -67,10 +67,12 @@ async def test_register_kiosk_patient_returns_existing_patient(
     db,
     patient_factory,
 ):
-    existing = await patient_factory(
-        phone="0712345678",
-        registration_status=RegistrationStatus.COMPLETE,
-    )
+    existing = await patient_factory()
+    existing.phone = "0712345678"
+    existing.registration_status = RegistrationStatus.COMPLETE
+    db.add(existing)
+    await db.commit()
+    await db.refresh(existing)
 
     service = PatientService(db)
 

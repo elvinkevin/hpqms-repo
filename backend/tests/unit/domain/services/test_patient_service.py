@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from app.domain.services.patient_service import PatientService
 from app.domain.schemas.schemas import PatientCreate, PatientReconciliation, PatientUpdate,EmergencyPatientCreate
 from app.domain.models.models import RegistrationStatus
-from tests.unit.domain.services.test_queue_service import patient
+
 
 # NOTE: All @pytest.mark.asyncio decorators have been removed to stop loop deadlocks
 

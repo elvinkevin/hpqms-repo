@@ -889,29 +889,42 @@ class TestRoutingServiceIntegration:
         self,
         db,
         active_visit,
-        queue_entry,
+        admin_staff,
     ):
-        # Link the existing queue_entry instance to active_visit
-        queue_entry.visit_id = active_visit.visit_id
+        routing_service = RoutingService(db)
+        staff_id = admin_staff.staff_id
+
+        # Put the visit's existing queue entry into IN_PROGRESS so discharge is allowed
+        queue_entry = await db.get(QueueEntry, active_visit.current_queue_entry_id)
+        queue_entry.assigned_staff_id = staff_id
+        queue_entry.status = QueueEntryStatus.IN_PROGRESS
         await db.flush()
 
-        routing_service = RoutingService(db)
+        visit_id = queue_entry.visit_id
 
-        current_entry = await routing_service.queue_service.get_active_queue_entry(
-            active_visit.visit_id
-        )
-
+        # Verify active entry exists before discharge
+        current_entry = await routing_service.queue_service.get_active_queue_entry(visit_id)
         assert current_entry is not None
+
+        # Perform discharge via routing service
+        await routing_service.discharge_patient(visit_id=visit_id, staff_id=staff_id)
+
+        # Refresh and assert completion status
+        await db.refresh(queue_entry)
+        assert queue_entry.status == QueueEntryStatus.COMPLETED
+
+        visit = await db.get(Visit, visit_id)
+        assert visit.stage == VisitStage.COMPLETED
 
 
     async def test_cannot_discharge_waiting_patient(
         self,
         db,
         active_visit,
-        queue_entry,
+        admin_staff,
     ):
-        # Link the queue_entry to active_visit and set status to WAITING
-        queue_entry.visit_id = active_visit.visit_id
+        # active_visit ships with a WAITING queue entry already attached
+        queue_entry = await db.get(QueueEntry, active_visit.current_queue_entry_id)
         queue_entry.status = QueueEntryStatus.WAITING
         await db.flush()
 
@@ -927,20 +940,19 @@ class TestRoutingServiceIntegration:
         with pytest.raises(HTTPException) as exc:
             await routing_service.discharge_patient(
                 visit_id=active_visit.visit_id,
-                staff_id=uuid.uuid4(),
+                staff_id=admin_staff.staff_id,
             )
 
         assert exc.value.status_code == 409
-
 
     async def test_cannot_discharge_called_patient(
         self,
         db,
         active_visit,
-        queue_entry,
+        admin_staff,
     ):
-        # Link queue_entry to active_visit and set status to CALLED
-        queue_entry.visit_id = active_visit.visit_id
+        # Use the queue entry that active_visit already has; set status to CALLED
+        queue_entry = await db.get(QueueEntry, active_visit.current_queue_entry_id)
         queue_entry.status = QueueEntryStatus.CALLED
         await db.flush()
 
@@ -949,7 +961,7 @@ class TestRoutingServiceIntegration:
         with pytest.raises(HTTPException) as exc:
             await routing_service.discharge_patient(
                 visit_id=active_visit.visit_id,
-                staff_id=uuid.uuid4(),
+                staff_id=admin_staff.staff_id,
             )
 
         assert exc.value.status_code == 409
@@ -973,13 +985,12 @@ class TestRoutingServiceIntegration:
         self,
         db,
         active_visit,
-        queue_entry,
         admin_staff,  # Use existing staff fixture
     ):
         staff_id = admin_staff.staff_id
 
-        # Link queue_entry to active_visit, assign real staff_id, and set status to IN_PROGRESS
-        queue_entry.visit_id = active_visit.visit_id
+        # Use the visit's existing queue entry, assign real staff_id, set IN_PROGRESS
+        queue_entry = await db.get(QueueEntry, active_visit.current_queue_entry_id)
         queue_entry.assigned_staff_id = staff_id
         queue_entry.status = QueueEntryStatus.IN_PROGRESS
         await db.flush()
@@ -1005,13 +1016,12 @@ class TestRoutingServiceIntegration:
         self,
         db,
         active_visit,
-        queue_entry,
         admin_staff,
     ):
         staff_id = admin_staff.staff_id
 
-        # Link queue_entry to active_visit, assign real staff_id, and set status to IN_PROGRESS
-        queue_entry.visit_id = active_visit.visit_id
+        # Use the visit's existing queue entry, assign real staff_id, set IN_PROGRESS
+        queue_entry = await db.get(QueueEntry, active_visit.current_queue_entry_id)
         queue_entry.assigned_staff_id = staff_id
         queue_entry.status = QueueEntryStatus.IN_PROGRESS
         await db.flush()

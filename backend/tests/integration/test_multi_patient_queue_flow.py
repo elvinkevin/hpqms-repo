@@ -409,118 +409,125 @@ class TestPatientRevisit:
 
         assert visit_two.token_number != visit_one.token_number
 
-# class TestQueueCompletionConsistency:
+class TestQueueCompletionConsistency:
 
-#     @pytest.mark.asyncio
-#     async def test_visit_not_completed_until_final_department(
-#         self,
-#         db,
-#         routing_departments,
-#         receptionist,  # 👈 1. Inject the valid staff fixture here
-#     ):
-#         """
-#         Completing an intermediate department must not
-#         automatically complete the visit.
-#         """
+    @pytest.mark.asyncio
+    async def test_visit_not_completed_until_final_department(
+        self,
+        db,
+        routing_departments,
+        receptionist,  # 👈 1. Inject the valid staff fixture here
+    ):
+        """
+        Completing an intermediate department must not
+        automatically complete the visit.
+        """
 
-#         patient_service = PatientService(db)
-#         visit_service = VisitService(db)
-#         queue_service = QueueService(db)      
-#         routing_service = RoutingService(db)  
+        patient_service = PatientService(db)
+        visit_service = VisitService(db)
+        queue_service = QueueService(db)      
+        routing_service = RoutingService(db)  
 
-#         patient = await patient_service.register_standard_patient(
-#             PatientCreate(
-#                 first_name="John",
-#                 last_name="Walker",
-#                 national_id="55555555",
-#                 phone="+254700111555",
-#                 gender="MALE",
-#                 date_of_birth="1995-05-20",
-#             )
-#         )
+        patient = await patient_service.register_standard_patient(
+            PatientCreate(
+                first_name="John",
+                last_name="Walker",
+                national_id="55555555",
+                phone="+254700111555",
+                gender="MALE",
+                date_of_birth="1995-05-20",
+            )
+        )
 
-#         visit = await visit_service.start_visit(
-#             VisitCreate(
-#                 patient_id=patient.patient_id,
-#                 entry_type=EntryType.WALK_IN,
-#                 visit_reason="General Consultation",
-#             )
-#         )
+        visit = await visit_service.start_visit(
+            VisitCreate(
+                patient_id=patient.patient_id,
+                entry_type=EntryType.WALK_IN,
+                visit_reason="General Consultation",
+            )
+        )
 
-#         reception = await routing_service.dispatch_initial_kiosk_route(
-#             visit.visit_id
-#         )
+        reception = await routing_service.dispatch_initial_kiosk_route(
+            visit.visit_id
+        )
 
-#         # 👈 2. Pass the staff_id here to satisfy the backend requirement
-#         await queue_service.call_queue_entry(
-#             reception.queue_entry_id,
-#             staff_id=receptionist.staff_id  
-#         )
-        
-#         await routing_service.start_queue_entry(reception.queue_entry_id)
-        
-#         await queue_service.complete_queue_entry(reception.queue_entry_id)
+        # Pass the staff_id here to satisfy the backend requirement
+        await queue_service.call_queue_entry(
+            reception.queue_entry_id,
+            staff_id=receptionist.staff_id
+        )
 
-#         await db.refresh(visit)
+        await queue_service.start_queue_entry(
+            reception.queue_entry_id,
+            staff_id=receptionist.staff_id,
+        )
 
-#         assert visit.stage == VisitStage.ACTIVE
+        await queue_service.complete_queue_entry(reception.queue_entry_id, staff_id=receptionist.staff_id)
 
-# class TestCompletedQueueProtection:
+        await db.refresh(visit)
 
-#     @pytest.mark.asyncio
-#     async def test_completed_queue_entry_cannot_transfer(
-#         self,
-#         db,
-#         routing_departments,
-#         receptionist,  # <-- Inject the valid staff fixture
-#     ):
-#         """
-#         Completed queue entries cannot be reused
-#         for additional department transfers.
-#         """
+        assert visit.stage == VisitStage.ACTIVE
 
-#         patient_service = PatientService(db)
-#         visit_service = VisitService(db)
-#         queue_service = QueueService(db)      # 👈 1. Fixed variable name casing (lowercase 'q')
-#         routing_service = RoutingService(db)  # 👈 2. Initialized RoutingService
+class TestCompletedQueueProtection:
 
-#         patient = await patient_service.register_standard_patient(
-#             PatientCreate(
-#                 first_name="Mary",
-#                 last_name="Jones",
-#                 national_id="66666666",
-#                 phone="+254700222333",
-#                 gender="FEMALE",
-#                 date_of_birth="1992-06-12",
-#             )
-#         )
+    @pytest.mark.asyncio
+    async def test_completed_queue_entry_cannot_transfer(
+        self,
+        db,
+        routing_departments,
+        receptionist,  # <-- Inject the valid staff fixture
+    ):
+        """
+        Completed queue entries cannot be reused
+        for additional department transfers.
+        """
 
-#         visit = await visit_service.start_visit(
-#             VisitCreate(
-#                 patient_id=patient.patient_id,
-#                 entry_type=EntryType.WALK_IN,
-#                 visit_reason="Follow-up",
-#             )
-#         )
+        patient_service = PatientService(db)
+        visit_service = VisitService(db)
+        queue_service = QueueService(db)      # 👈 1. Fixed variable name casing (lowercase 'q')
+        routing_service = RoutingService(db)  # 👈 2. Initialized RoutingService
 
-#         # 👈 3. Swapped to routing_service
-#         queue = await routing_service.dispatch_initial_kiosk_route(
-#             visit.visit_id
-#         )
+        patient = await patient_service.register_standard_patient(
+            PatientCreate(
+                first_name="Mary",
+                last_name="Jones",
+                national_id="66666666",
+                phone="+254700222333",
+                gender="FEMALE",
+                date_of_birth="1992-06-12",
+            )
+        )
 
-#         # Pass staff_id into every mutation call
-#         await queue_service.call_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
-        
-#         # 👈 4. Swapped to routing_service and removed staff_id (as per your first TypeError)
-#         await routing_service.start_queue_entry(queue_entry_id=queue.queue_entry_id)
-        
-#         await queue_service.complete_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
+        visit = await visit_service.start_visit(
+            VisitCreate(
+                patient_id=patient.patient_id,
+                entry_type=EntryType.WALK_IN,
+                visit_reason="Follow-up",
+            )
+        )
 
-#         # 👈 5. Swapped to routing_service and removed staff_id here too
-#         with pytest.raises(HTTPException):
-#             await routing_service.start_queue_entry(
-#                 queue_entry_id=queue.queue_entry_id
-#             )
+        # 👈 3. Swapped to routing_service
+        queue = await routing_service.dispatch_initial_kiosk_route(
+            visit.visit_id
+        )
+
+        # Pass staff_id into every mutation call
+        await queue_service.call_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
+
+        await queue_service.start_queue_entry(
+            queue.queue_entry_id,
+            staff_id=receptionist.staff_id,
+        )
+
+        await queue_service.complete_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
+
+        # A completed entry cannot be started again
+        with pytest.raises(HTTPException):
+            await queue_service.start_queue_entry(
+                queue_entry_id=queue.queue_entry_id,
+                staff_id=receptionist.staff_id,
+            )
+
 
 class TestCompletedQueueState:
 
@@ -566,13 +573,15 @@ class TestCompletedQueueState:
 
         # 👈 5. Passed mandatory staff_id
         await queue_service.call_queue_entry(
-            queue_entry_id=queue.queue_entry_id, 
+            queue_entry_id=queue.queue_entry_id,
             staff_id=receptionist.staff_id
         )
-        
-        # 👈 6. Swapped to routing_service and removed staff_id
-        await routing_service.start_queue_entry(queue_entry_id=queue.queue_entry_id)
-        
+
+        await queue_service.start_queue_entry(
+            queue.queue_entry_id,
+            staff_id=receptionist.staff_id,
+        )
+
         await queue_service.complete_queue_entry(queue_entry_id=queue.queue_entry_id, staff_id=receptionist.staff_id)
 
         # 👈 7. Passed staff_id here inside the assertion block too
@@ -589,6 +598,7 @@ class TestQueueHistory:
         self,
         db,
         routing_departments,
+        receptionist,
     ):
         """
         Every department transfer creates a historical queue entry
@@ -597,7 +607,8 @@ class TestQueueHistory:
 
         patient_service = PatientService(db)
         visit_service = VisitService(db)
-        QueueService = QueueService(db)
+        routing_service = RoutingService(db)
+        queue_service = QueueService(db)
 
         # --------------------------------------------------
         # Register patient
@@ -626,27 +637,30 @@ class TestQueueHistory:
         # Reception
         # --------------------------------------------------
 
-        reception = await QueueService.dispatch_initial_kiosk_route(
+        reception = await routing_service.dispatch_initial_kiosk_route(
             visit.visit_id
         )
 
-        await QueueService.call_queue_entry(
-            reception.queue_entry_id
+        await queue_service.call_queue_entry(
+            reception.queue_entry_id,
+            staff_id=receptionist.staff_id,
         )
 
-        await QueueService.start_queue_entry(
-            reception.queue_entry_id
+        await queue_service.start_queue_entry(
+            reception.queue_entry_id,
+            staff_id=receptionist.staff_id,
         )
 
-        await QueueService.complete_queue_entry(
-            reception.queue_entry_id
+        await queue_service.complete_queue_entry(
+            reception.queue_entry_id,
+            staff_id=receptionist.staff_id,
         )
 
         # --------------------------------------------------
         # Move to Triage
         # --------------------------------------------------
 
-        triage = await QueueService.move_patient(
+        triage = await routing_service.move_patient(
             visit_id=visit.visit_id,
             target_dept_id=routing_departments["triage"].dept_id,
             priority=QueuePriority.NORMAL,
@@ -715,7 +729,8 @@ class TestVisitCompletionRules:
 
         patient_service = PatientService(db)
         visit_service = VisitService(db)
-        QueueService = QueueService(db)
+        routing_service = RoutingService(db)
+        queue_service = QueueService(db)
 
         patient = await patient_service.register_standard_patient(
             PatientCreate(
@@ -736,7 +751,7 @@ class TestVisitCompletionRules:
             )
         )
 
-        await QueueService.dispatch_initial_kiosk_route(
+        await routing_service.dispatch_initial_kiosk_route(
             visit.visit_id
         )
 

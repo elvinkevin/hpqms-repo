@@ -17,7 +17,7 @@ from app.domain.schemas.schemas import (
     NextTokenDisplay,
     RecentTokenDisplay,
 )
-from app.domain.services.queue_service import QueueService
+from app.domain.services.queue_service import PRIORITY_DB_ORDER, QueueService
 
 
 class DisplayService:
@@ -240,7 +240,7 @@ class DisplayService:
                 QueueEntry.status == QueueEntryStatus.WAITING,
             )
             .order_by(
-                QueueEntry.priority.desc(),
+                PRIORITY_DB_ORDER.asc(),
                 QueueEntry.sequence_number.asc(),
             )
             .limit(limit)
@@ -342,7 +342,7 @@ class DisplayService:
                 QueueEntry.status == QueueEntryStatus.WAITING,
             )
             .order_by(
-                QueueEntry.priority.desc(),
+                PRIORITY_DB_ORDER.asc(),
                 QueueEntry.sequence_number.asc(),
             )
             .limit(1)
