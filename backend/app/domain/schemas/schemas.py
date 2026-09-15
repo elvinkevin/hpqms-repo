@@ -255,6 +255,35 @@ class DepartmentRead(ORMBase):
 
 
 # ---------------------------------------------------------
+# ── STAFF / AUTH SCHEMAS ──────────────────────────────────────────────────
+class StaffBase(BaseModel):
+    employee_id: str
+    dept_id: UUID
+    first_name: str
+    last_name: str
+    role: StaffRole
+    specialization: Optional[str] = None
+
+class StaffRead(ORMBase):
+    staff_id: UUID
+    employee_id: str
+    first_name: str
+    last_name: str
+    role: StaffRole
+
+    dept_id: UUID
+    department_name: str | None = None
+    department_code: str | None = None
+
+    specialization: str | None
+    is_on_duty: bool
+    is_active: bool
+
+    # Currently occupied service point (check-in state), if any.
+    active_service_point_id: Optional[UUID] = None
+
+
+# ---------------------------------------------------------
 # LOGIN
 # ---------------------------------------------------------
 
@@ -287,6 +316,16 @@ class AccessTokenResponse(BaseModel):
 # CURRENT USER
 # ---------------------------------------------------------
 
+class StationBinding(BaseModel):
+    """Compact station payload for the top-bar pill / station gate."""
+
+    service_point_id: UUID
+    code: str
+    label: str
+    station_type: StationType
+    status: str = "CHECKED_IN"
+
+
 class CurrentUser(BaseModel):
     staff_id: UUID
     employee_id: str
@@ -301,17 +340,6 @@ class CurrentUser(BaseModel):
     # null/None means "unbound" and the UI shows the station gate.
     #
     station: Optional[StationBinding] = None
-
-
-class StationBinding(BaseModel):
-    """Compact station payload for the top-bar pill / station gate."""
-
-    service_point_id: UUID
-    code: str
-    label: str
-    station_type: StationType
-    status: str = "CHECKED_IN"
-
 
 # ---------------------------------------------------------
 # PASSWORD CHANGE
@@ -334,35 +362,6 @@ class ChangePasswordRequest(BaseModel):
         if not any(char.isupper() for char in value):
             raise ValueError("Password must contain at least one uppercase letter")
         return value
-
-
-
-# ── STAFF / AUTH SCHEMAS ──────────────────────────────────────────────────
-class StaffBase(BaseModel):
-    employee_id: str
-    dept_id: UUID
-    first_name: str
-    last_name: str
-    role: StaffRole
-    specialization: Optional[str] = None
-
-class StaffRead(ORMBase):
-    staff_id: UUID
-    employee_id: str
-    first_name: str
-    last_name: str
-    role: StaffRole
-
-    dept_id: UUID
-    department_name: str | None = None
-    department_code: str | None = None
-
-    specialization: str | None
-    is_on_duty: bool
-    is_active: bool
-
-    # Currently occupied service point (check-in state), if any.
-    active_service_point_id: Optional[UUID] = None
 
 
 
