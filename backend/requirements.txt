@@ -10,7 +10,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-multipart==0.0.9
-pywin32==312
+pywin32==312; sys_platform == "win32"
 pytest==8.2.0
 pytest-asyncio==0.23.6
 httpx==0.27.0
