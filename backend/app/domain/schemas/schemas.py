@@ -202,7 +202,7 @@ class VisitRead(BaseModel):
     stage: VisitStage
     chief_complaint: Optional[str] = None
     triage_assessment: Optional[str] = None
-    latest_vitals: Optional[VitalsRead] = None
+    latest_vitals: Optional["VitalsRead"] = None
     # Patient details for reception/registration workflows. The ORM
     # relationship is already eagerly loaded via selectinload; without
     # this field the frontend cannot resolve patient_id from a queue
@@ -491,6 +491,10 @@ class VitalsRead(VitalsBase):
     recorded_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Resolve VisitRead's forward reference to VitalsRead (defined above, used earlier).
+VisitRead.model_rebuild()
 
 
 # ── Triage Assessment Schemas ─────────────────────────────────────────────────
