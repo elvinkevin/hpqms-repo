@@ -51,8 +51,13 @@ const DEFAULT_CONFIG = {
         facilityName: "HPQMS Hospital",
     },
     // Add kiosk configuration block
+    //
+    // NOTE: the API key is NOT stored here. The backend injects it at
+    // page-serve time via /static/kiosk-config.js, which sets
+    // window.__KIOSK_CONFIG__. Keeping it out of source control means
+    // the committed JS never leaks the device credential.
     kiosk: {
-        apiKey: "generate-a-long-random-value", // Set your actual key or dev default here
+        apiKey: "",
     },
 
     layout: {
@@ -352,7 +357,10 @@ function validateConfig(config) {
 
     const apiKey = config.kiosk?.apiKey ?? config.backend?.kioskApiKey;
 
-    if (typeof apiKey !== "string" || apiKey.trim() === "") {
+    if (
+        apiKey !== "" &&
+        (typeof apiKey !== "string" || apiKey.trim() === "")
+    ) {
         throw new Error(
             "kiosk.apiKey or backend.kioskApiKey must be a non-empty string"
         );

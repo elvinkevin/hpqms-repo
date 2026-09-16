@@ -15,10 +15,16 @@ import { getConfig } from "./config.js";
  * Return the configured kiosk API key.
  *
  * The kiosk key is a device credential, not a patient credential.
+ * It is injected by the backend at page-serve time via
+ * /static/kiosk-config.js (window.__KIOSK_CONFIG__), so it never
+ * needs to be hardcoded in source-controlled JavaScript.
  */
 function getKioskApiKey() {
+    const injected =
+        typeof window !== "undefined" && window.__KIOSK_CONFIG__;
     const config = getConfig();
     const apiKey =
+        (injected && window.__KIOSK_CONFIG__.apiKey) ||
         config?.kiosk?.apiKey ??
         config?.backend?.kioskApiKey;
 

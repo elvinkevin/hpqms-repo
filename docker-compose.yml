@@ -1,0 +1,52 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: hpqms-postgres
+
+    environment:
+      POSTGRES_USER: hpqms
+      POSTGRES_PASSWORD: hpqms_dev_password
+      POSTGRES_DB: hpqms
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - hpqms_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hpqms -d hpqms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+    container_name: hpqms-backend
+
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hpqms:hpqms_dev_password@postgres:5432/hpqms
+      SECRET_KEY: change-this-development-secret-key
+      KIOSK_INTERNAL_API_KEY: aXljnLN4sSz7YAI8/XwZaG93CnrWOvQO9HqandtIxKw=
+      ENVIRONMENT: development
+
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+
+volumes:
+  hpqms_postgres_data:
