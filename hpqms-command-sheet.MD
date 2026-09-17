@@ -196,6 +196,10 @@ docker compose up -d --build
 docker exec hpqms-backend python seed.py
 ```
 
+
+docker build -t your-dockerhub-username/hpqms-backend:latest -f backend/Dockerfile .
+docker push your-dockerhub-username/hpqms-backend:latest
+
 That gives you:
 
 ```

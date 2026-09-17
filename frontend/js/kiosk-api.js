@@ -25,7 +25,7 @@ function getKioskApiKey() {
     const config = getConfig();
     const apiKey =
         (injected && window.__KIOSK_CONFIG__.apiKey) ||
-        config?.kiosk?.apiKey ??
+        config?.kiosk?.apiKey ||
         config?.backend?.kioskApiKey;
 
     if (
