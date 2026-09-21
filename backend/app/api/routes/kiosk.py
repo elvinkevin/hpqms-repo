@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import rate_limit_kiosk_dependency
 from app.db.session import get_db
 from app.domain.services.auth_service import validate_kiosk_api_key
 from app.domain.services.kiosk_service import KioskService
@@ -12,6 +13,7 @@ from app.domain.schemas.schemas import (
 router = APIRouter(
     prefix="/kiosk",
     tags=["Kiosk"],
+    dependencies=[Depends(rate_limit_kiosk_dependency)],
 )
 
 

@@ -35,3 +35,7 @@ build/
 
 # Logs
 *.log
+
+# Database backups
+backups/*
+!backups/.gitkeep

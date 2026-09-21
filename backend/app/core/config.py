@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     # browser-delivered JavaScript or commit it to source control.
     KIOSK_INTERNAL_API_KEY: str = ""
 
+    # Route rate limiting (see app/core/rate_limit.py). Disabled
+    # automatically under ENVIRONMENT=test so test suites are not
+    # throttled by shared limiter state.
+    RATE_LIMIT_ENABLED: bool = True
+
+    # Allowed browser origins. Override in deployment environment.
+    CORS_ORIGIN_REGEX: str = (
+    r"(https://hpqms\.internal|"
+    r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?)"
+   )
+
     ENVIRONMENT: str = "development"
 
     model_config = SettingsConfigDict(

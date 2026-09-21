@@ -3,6 +3,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.rate_limit import rate_limit_auth_dependency
 from app.db.session import get_db
 from app.domain.schemas.schemas import (
     LoginRequest,
@@ -36,6 +38,7 @@ router = APIRouter(
     "/login",
     response_model=TokenResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(rate_limit_auth_dependency)],
 )
 async def login(
     credentials: LoginRequest,
@@ -59,6 +62,7 @@ async def login(
     "/refresh",
     response_model=AccessTokenResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(rate_limit_auth_dependency)],
 )
 async def refresh_access_token(
     payload: RefreshTokenRequest,

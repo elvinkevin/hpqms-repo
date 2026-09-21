@@ -3,14 +3,12 @@ services:
   postgres:
     image: postgres:16
     container_name: hpqms-postgres
+    restart: unless-stopped
 
     environment:
       POSTGRES_USER: hpqms
       POSTGRES_PASSWORD: hpqms_dev_password
       POSTGRES_DB: hpqms
-
-    ports:
-      - "5432:5432"
 
     volumes:
       - hpqms_postgres_data:/var/lib/postgresql/data
@@ -28,25 +26,54 @@ services:
       dockerfile: backend/Dockerfile
 
     container_name: hpqms-backend
+    restart: unless-stopped
 
     environment:
       DATABASE_URL: postgresql+asyncpg://hpqms:hpqms_dev_password@postgres:5432/hpqms
-      SECRET_KEY: change-this-development-secret-key
-      KIOSK_INTERNAL_API_KEY: aXljnLN4sSz7YAI8/XwZaG93CnrWOvQO9HqandtIxKw=
+      SECRET_KEY: UtJncvzaPqitbWOgG8ZOrcZtUegLLc8298lX6AVj7PBOJVcwSZ125qkvG75hylYb
+      KIOSK_INTERNAL_API_KEY: 0ndirTKm52OfNevwW1nRLWxM4m8W-y9hsT4tDDba3vs
       ENVIRONMENT: development
 
-
-    ports:
-      - "0.0.0.0:8000:8000"
+    expose:
+      - "8000"
 
     depends_on:
       postgres:
         condition: service_healthy
 
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
     command: >
       sh -c "alembic upgrade head &&
+             python seed.py &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+
+  caddy:
+    image: caddy:2
+    container_name: hpqms-caddy
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+    depends_on:
+      backend:
+        condition: service_healthy
 
 
 volumes:
   hpqms_postgres_data:
+  caddy_data:
+  caddy_config:

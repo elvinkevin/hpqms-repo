@@ -111,7 +111,7 @@ async def seed_hospital_data():
             secure_hash = hash_password("SecurePassword123")
 
             staff_to_create = [
-                # Receptionists
+                # Receptionists (4 members)
                 {
                     "employee_id": "EMP-RECEP01",
                     "dept_id": seeded_departments["REC"].dept_id,
@@ -130,7 +130,25 @@ async def seed_hospital_data():
                     "specialization": "Patient Check-In & Scheduling",
                     "hashed_password": secure_hash,
                 },
-                # Triage Nurses
+                {
+                    "employee_id": "EMP-RECEP03",
+                    "dept_id": seeded_departments["REC"].dept_id,
+                    "first_name": "Grace",
+                    "last_name": "Njoki",
+                    "role": StaffRole.RECEPTIONIST,
+                    "specialization": "Call Center & Patient Support",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-RECEP04",
+                    "dept_id": seeded_departments["REC"].dept_id,
+                    "first_name": "Samuel",
+                    "last_name": "Kipchoge",
+                    "role": StaffRole.RECEPTIONIST,
+                    "specialization": "Records Management & Filing",
+                    "hashed_password": secure_hash,
+                },
+                # Triage Nurses (4 members)
                 {
                     "employee_id": "EMP-TRIAGE01",
                     "dept_id": seeded_departments["TRIAGE"].dept_id,
@@ -149,10 +167,28 @@ async def seed_hospital_data():
                     "specialization": "Vitals Assessment & Fast-Track",
                     "hashed_password": secure_hash,
                 },
-                # Doctors
+                {
+                    "employee_id": "EMP-TRIAGE03",
+                    "dept_id": seeded_departments["TRIAGE"].dept_id,
+                    "first_name": "Patricia",
+                    "last_name": "Kimani",
+                    "role": StaffRole.TRIAGE_NURSE,
+                    "specialization": "Pediatric Triage & Family Support",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-TRIAGE04",
+                    "dept_id": seeded_departments["TRIAGE"].dept_id,
+                    "first_name": "Michael",
+                    "last_name": "Omondi",
+                    "role": StaffRole.TRIAGE_NURSE,
+                    "specialization": "Emergency Response & Stabilization",
+                    "hashed_password": secure_hash,
+                },
+                # Doctors (4 members)
                 {
                     "employee_id": "EMP-DOC01",
-                    "dept_id": seeded_departments["CONSULT"].dept_id,  # Mapped to CONSULT
+                    "dept_id": seeded_departments["CONSULT"].dept_id,
                     "first_name": "Alice",
                     "last_name": "Wanjiku",
                     "role": StaffRole.DOCTOR,
@@ -161,11 +197,29 @@ async def seed_hospital_data():
                 },
                 {
                     "employee_id": "EMP-DOC02",
-                    "dept_id": seeded_departments["CONSULT"].dept_id,  # Mapped to CONSULT
+                    "dept_id": seeded_departments["CONSULT"].dept_id,
                     "first_name": "David",
                     "last_name": "Mutua",
                     "role": StaffRole.DOCTOR,
                     "specialization": "Family Medicine & Diagnostics",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-DOC03",
+                    "dept_id": seeded_departments["CONSULT"].dept_id,
+                    "first_name": "Sarah",
+                    "last_name": "Kariuki",
+                    "role": StaffRole.DOCTOR,
+                    "specialization": "Internal Medicine & Chronic Disease Management",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-DOC04",
+                    "dept_id": seeded_departments["CONSULT"].dept_id,
+                    "first_name": "Joseph",
+                    "last_name": "Mwangi",
+                    "role": StaffRole.DOCTOR,
+                    "specialization": "Preventive Medicine & Health Education",
                     "hashed_password": secure_hash,
                 },
             ]

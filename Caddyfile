@@ -1,0 +1,5 @@
+hpqms.internal {
+    tls internal
+
+    reverse_proxy backend:8000
+}

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.security import create_access_token, hash_password
 from app.core.config import settings
+from app.core.rate_limit import reset_all_limiters
 from app.db.session import Base, get_db
 from app.domain.models.models import (
     Department,
@@ -109,6 +110,9 @@ async def client(db):
     app.dependency_overrides[get_db] = override_get_db
     original_kiosk_key = settings.KIOSK_INTERNAL_API_KEY
     settings.KIOSK_INTERNAL_API_KEY = "test-kiosk-api-key"
+    # Fresh rate-limit budget per test so suites making many auth/kiosk
+    # calls don't leak 429s into each other.
+    reset_all_limiters()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(
@@ -118,6 +122,7 @@ async def client(db):
     ) as ac:
         yield ac
     settings.KIOSK_INTERNAL_API_KEY = original_kiosk_key
+    reset_all_limiters()
     app.dependency_overrides.clear()
 
 

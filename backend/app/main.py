@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-
+from app.core.config import settings
 from app.api.router import api_router
 from app.api.routes.display import websocket_router
 
@@ -17,7 +17,7 @@ app = FastAPI(
 # Configure CORS for local dev and LAN access
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,8 +60,10 @@ app.include_router(api_router)
 app.include_router(websocket_router)
 
 
-for route in app.routes:
-    print(route.path)
+@app.get("/health", include_in_schema=False)
+async def health():
+    return {"status": "ok"}
+
 
 @app.get("/")
 async def root():
