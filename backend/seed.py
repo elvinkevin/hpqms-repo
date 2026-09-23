@@ -66,20 +66,26 @@ async def seed_hospital_data():
             # 2. SEED SERVICE POINTS PER DEPARTMENT
             # -----------------------------------------------------------
             service_points_to_create = [
-                # Reception Desk — counters
+                # Reception Desk — counters (6 to match 6 receptionists)
                 {"dept_code": "REC", "code": "REC-C1", "label": "Counter 1", "station_type": StationType.COUNTER},
                 {"dept_code": "REC", "code": "REC-C2", "label": "Counter 2", "station_type": StationType.COUNTER},
+                {"dept_code": "REC", "code": "REC-C3", "label": "Counter 3", "station_type": StationType.COUNTER},
+                {"dept_code": "REC", "code": "REC-C4", "label": "Counter 4", "station_type": StationType.COUNTER},
                 {"dept_code": "REC", "code": "REC-W1", "label": "Window 1", "station_type": StationType.WINDOW},
+                {"dept_code": "REC", "code": "REC-W2", "label": "Window 2", "station_type": StationType.WINDOW},
                 # Emergency — doors/rooms
                 {"dept_code": "EMERGENCY", "code": "EM-DOOR1", "label": "Triage Door 1", "station_type": StationType.DOOR},
                 {"dept_code": "EMERGENCY", "code": "EM-R1", "label": "Resus Room 1", "station_type": StationType.ROOM},
-                # Triage — windows
+                # Triage — windows (4 to match 4 triage nurses)
                 {"dept_code": "TRIAGE", "code": "TR-W1", "label": "Vitals Window 1", "station_type": StationType.WINDOW},
                 {"dept_code": "TRIAGE", "code": "TR-W2", "label": "Vitals Window 2", "station_type": StationType.WINDOW},
-                # Consultation — rooms
+                {"dept_code": "TRIAGE", "code": "TR-W3", "label": "Vitals Window 3", "station_type": StationType.WINDOW},
+                {"dept_code": "TRIAGE", "code": "TR-W4", "label": "Vitals Window 4", "station_type": StationType.WINDOW},
+                # Consultation — rooms (4 to match 4 doctors)
                 {"dept_code": "CONSULT", "code": "CO-R1", "label": "Consultation Room 1", "station_type": StationType.ROOM},
                 {"dept_code": "CONSULT", "code": "CO-R2", "label": "Consultation Room 2", "station_type": StationType.ROOM},
                 {"dept_code": "CONSULT", "code": "CO-R3", "label": "Consultation Room 3", "station_type": StationType.ROOM},
+                {"dept_code": "CONSULT", "code": "CO-R4", "label": "Consultation Room 4", "station_type": StationType.ROOM},
             ]
 
             for sp_data in service_points_to_create:
@@ -146,6 +152,24 @@ async def seed_hospital_data():
                     "last_name": "Kipchoge",
                     "role": StaffRole.RECEPTIONIST,
                     "specialization": "Records Management & Filing",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-RECEP05",
+                    "dept_id": seeded_departments["REC"].dept_id,
+                    "first_name": "Catherine",
+                    "last_name": "Kiplagat",
+                    "role": StaffRole.RECEPTIONIST,
+                    "specialization": "Insurance & Billing Support",
+                    "hashed_password": secure_hash,
+                },
+                {
+                    "employee_id": "EMP-RECEP06",
+                    "dept_id": seeded_departments["REC"].dept_id,
+                    "first_name": "Moses",
+                    "last_name": "Kipchoge",
+                    "role": StaffRole.RECEPTIONIST,
+                    "specialization": "Patient Guidance & Wayfinding",
                     "hashed_password": secure_hash,
                 },
                 # Triage Nurses (4 members)

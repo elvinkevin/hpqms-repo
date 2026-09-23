@@ -41,8 +41,11 @@ class Settings(BaseSettings):
     RATE_LIMIT_ENABLED: bool = True
 
     # Allowed browser origins. Override in deployment environment.
+    # Includes the Caddy IP-address fallback path used by display TVs
+    # (keep in sync with SERVER_IP / Caddyfile).
     CORS_ORIGIN_REGEX: str = (
     r"(https://hpqms\.internal|"
+    r"https://192\.168\.\d+\.\d+|"
     r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?)"
    )
 

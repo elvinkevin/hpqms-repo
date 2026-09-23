@@ -24,16 +24,25 @@
 function resolveDynamicUrls() {
     const isBrowser = typeof window !== "undefined" && window.location;
     const backendPort = "8000";
-    const protocol = isBrowser && window.location.protocol !== "file:"
+
+    // When the page is served over HTTP(S) (direct uvicorn on :8000 or via
+    // the Caddy proxy on :80/:443), always use the page's own origin.
+    // The proxy layer owns the public ports; the backend :8000 port is not
+    // exposed to the network in production, so hardcoding it breaks every
+    // request with ERR_CONNECTION_REFUSED.
+    //
+    // The hostname:8000 fallback only applies when the page is opened
+    // directly from disk (file:), which is a developer convenience.
+    const isFilePage = isBrowser && window.location.protocol === "file:";
+    const protocol = isBrowser && !isFilePage
         ? window.location.protocol
         : "http:";
     const hostname = isBrowser && window.location.hostname
-        ? window.location.hostname 
+        ? window.location.hostname
         : "localhost";
-    const frontendPort = isBrowser ? window.location.port : "";
-    const backendHost = frontendPort === backendPort
-        ? window.location.host
-        : `${hostname}:${backendPort}`;
+    const backendHost = isFilePage
+        ? `${hostname}:${backendPort}`
+        : window.location.host;
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
 
     return {

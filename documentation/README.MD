@@ -1,122 +1,32 @@
-app\domain\services\queue_service.py:293: HTTPException
-========================================= short test summary info ==========================================
-FAILED tests/integration/test_emergency_flow.py::TestEmergencyRouting::test_emergency_queue_progression - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestQueueFIFO::test_fifo_queue_ordering - AttributeError: 'QueueService' object has no attribute 'dispatch_initial_kiosk_route'
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestQueueFIFO::test_queue_position_updates_after_call - AttributeError: type object 'QueueService' has no attribute 'dispatch_initial_kiosk_route'
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestEmergencyPriority::test_emergency_patient_preempts_existing_queue - AttributeError: module 'app.domain.services.routing_service' has no attribute 'dispatch_initial_kiosk_ro...
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestQueueCompletionConsistency::test_visit_not_completed_until_final_department - UnboundLocalError: cannot access local variable 'QueueService' where it is not associated with a value
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestCompletedQueueProtection::test_completed_queue_entry_cannot_transfer - UnboundLocalError: cannot access local variable 'QueueService' where it is not associated with a value
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestCompletedQueueState::test_completed_queue_cannot_be_called_again - UnboundLocalError: cannot access local variable 'QueueService' where it is not associated with a value
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestQueueHistory::test_queue_history_is_preserved - UnboundLocalError: cannot access local variable 'QueueService' where it is not associated with a value
-FAILED tests/integration/test_multi_patient_queue_flow.py::TestVisitCompletionRules::test_visit_cannot_complete_with_active_queue_entry - UnboundLocalError: cannot access local variable 'QueueService' where it is not associated with a value
-FAILED tests/integration/test_queue_websocket_flow.py::test_calling_token_commits_before_broadcasting_token_called - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_completing_token_commits_before_broadcasting_completed - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_queue_change_commits_before_broadcasting_token_service_started - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_event_reaches_correct_department_display - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_event_reaches_global_display - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_failed_commit_does_not_publish_display_event - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_starting_token_broadcasts_token_service_started - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_completing_token_broadcasts_token_completed - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_cancelling_token_broadcasts_token_cancelled - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_marking_token_no_show_broadcasts_token_no_show - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_queue_websocket_flow.py::test_requeue_broadcasts_token_requeued - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/integration/test_reception_workflow.py::test_walk_in_patient_registration_workflow - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_reception_workflow.py::test_existing_patient_walk_in_workflow - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_reception_workflow.py::test_patient_queue_progression - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_reception_workflow.py::test_patient_visit_completion - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_reception_workflow.py::test_patient_visit_cancellation - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_reception_workflow.py::test_patient_no_show_and_requeue_workflow - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_reception_workflow.py::test_requeued_patient_respects_priority_ordering - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_requeued_critical_patient_restores_priority_order - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_no_show_requeue_preserves_priority_order - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_called_patient_cannot_skip_to_completed - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_terminal_queue_states_cannot_be_reactivated - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_already_called_patient_cannot_be_called_again - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_completed_patient_cannot_be_completed_again - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_reception_workflow.py::test_completed_patient_cannot_be_requeued - fastapi.exceptions.HTTPException: 400: A staff member is required to call a patient.
-FAILED tests/integration/test_refferal_flow.py::TestReferralRouting::test_referral_patient_routed_to_reception - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_refferal_flow.py::TestReferralQueueProgression::test_referral_queue_progression - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/integration/test_refferal_flow.py::TestReferralCompletion::test_referral_visit_completion - fastapi.exceptions.HTTPException: 404: Department 'REC' not found.
-FAILED tests/unit/domain/services/test_queue_service.py::test_call_patient - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/unit/domain/services/test_queue_service.py::test_start_consultation - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/unit/domain/services/test_queue_service.py::test_complete_queue_entry - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/unit/domain/services/test_queue_service.py::test_mark_no_show - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/unit/domain/services/test_queue_service.py::test_completed_not_returned - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-FAILED tests/unit/domain/services/test_queue_service.py::test_completed_entry - fastapi.exceptions.HTTPException: 403: Cannot operate on queue entries outside your assigned department.
-ERROR tests/api/test_department_api.py::test_create_department_forbidden_role
-ERROR tests/api/test_patients_api.py::test_create_patient_forbidden_role
-ERROR tests/api/test_patients_api.py::test_create_emergency_patient_allowed_roles
-ERROR tests/api/test_queues_api.py::test_get_department_queue_success
-ERROR tests/api/test_queues_api.py::test_get_department_queue_empty
-ERROR tests/api/test_queues_api.py::test_get_queue_entry_success
-ERROR tests/api/test_queues_api.py::test_get_queue_entry_not_found
-ERROR tests/api/test_queues_api.py::test_get_visit_queue_success
-ERROR tests/api/test_queues_api.py::test_get_next_patient_success
-ERROR tests/api/test_queues_api.py::test_get_position_and_wait_time
-ERROR tests/api/test_queues_api.py::test_queue_lifecycle_happy_path
-ERROR tests/api/test_queues_api.py::test_queue_no_show_path
-ERROR tests/api/test_queues_api.py::test_queue_cancel_path
-ERROR tests/api/test_queues_api.py::test_invalid_transition_waiting_to_completed
-ERROR tests/api/test_queues_api.py::test_invalid_transition_cancelled_to_start
-ERROR tests/api/test_queues_api.py::test_queue_unauthenticated - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_queues_api.py::test_complete_already_completed_queue_entry
-ERROR tests/api/test_queues_api.py::test_call_already_completed_queue_entry
-ERROR tests/api/test_queues_api.py::test_cancel_already_completed_queue_entry
-ERROR tests/api/test_queues_api.py::test_queue_transition_timestamps_populated
-ERROR tests/api/test_queues_api.py::test_call_patient_rbac_role_enforcement - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_routing_api.py::test_move_patient_success - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_routing_api.py::test_move_patient_inactive_department - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_routing_api.py::test_move_patient_token_preservation_regression - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_routing_api.py::test_get_current_location_success - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_routing_api.py::test_get_patient_history_success - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_routing_api.py::test_get_patient_history_response_schema - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/api/test_staff_api.py::test_create_staff_forbidden_role
-ERROR tests/api/test_staff_api.py::test_get_staff_forbidden_role
-ERROR tests/api/test_staff_api.py::test_get_staff_success
-ERROR tests/api/test_staff_api.py::test_get_staff_not_found
-ERROR tests/api/test_staff_api.py::test_get_staff_invalid_uuid
-ERROR tests/api/test_staff_api.py::test_get_staff_response_schema
-ERROR tests/api/test_staff_api.py::test_update_staff_forbidden_role
-ERROR tests/api/test_staff_api.py::test_activate_staff_forbidden_role
-ERROR tests/api/test_staff_api.py::test_get_my_profile_success
-ERROR tests/api/test_staff_api.py::test_check_in_success
-ERROR tests/api/test_staff_api.py::test_check_in_twice
-ERROR tests/api/test_staff_api.py::test_check_out_success
-ERROR tests/api/test_staff_api.py::test_check_out_when_off_duty
-ERROR tests/api/test_staff_api.py::test_my_status_off_duty
-ERROR tests/api/test_staff_api.py::test_my_status_after_check_in
-ERROR tests/api/test_token_api.py::test_get_visit_by_token_inactive_staff
-ERROR tests/api/test_visits_api.py::test_complete_visit_success
-ERROR tests/e2e/test_display_e2e.py::test_calling_queue_entry_updates_backend_state - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_calling_queue_entry_broadcasts_token_called_to_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_starting_called_queue_entry_updates_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_completing_in_progress_queue_entry_updates_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_cancelling_queue_entry_updates_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_cancelling_queue_entry_broadcasts_token_cancelled_to_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_completing_queue_entry_broadcasts_token_completed_to_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_queue_change_broadcasts_token_service_started_to_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_event_reaches_only_correct_department_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/e2e/test_display_e2e.py::test_event_reaches_global_display - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueCreation::test_create_queue_entry_success - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueCreation::test_visit_cannot_have_two_active_queue_entries - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_waiting_to_called - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_called_to_in_progress - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_in_progress_to_completed - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_called_to_no_show - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_active_queue_entry_can_be_cancelled - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_invalid_waiting_to_in_progress_transition_rejected - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_invalid_waiting_to_completed_transition_rejected - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_completed_queue_entry_cannot_be_called_again - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_no_show_queue_entry_cannot_be_started - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueStateTransitions::test_cancelled_queue_entry_cannot_be_called - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueAnalytics::test_first_patient_position_is_one - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueAnalyticsFinal::test_first_patient_has_zero_estimated_wait_time - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueAnalyticsFinal::test_completed_entry_returns_zero_position - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueAnalyticsFinal::test_no_show_entry_returns_zero_position - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_queue_engine_flow.py::TestQueueAnalyticsFinal::test_cancelled_entry_returns_zero_position - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/integration/test_staff_workflow.py::test_staff_can_view_department_queue - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/unit/domain/services/test_routing_service.py::TestRoutingServiceIntegration::test_discharge_patient_completes_queue_entry_and_visit - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/unit/domain/services/test_routing_service.py::TestRoutingServiceIntegration::test_cannot_discharge_waiting_patient - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/unit/domain/services/test_routing_service.py::TestRoutingServiceIntegration::test_cannot_discharge_called_patient - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/unit/domain/services/test_routing_service.py::TestRoutingServiceIntegration::test_cannot_discharge_completed_visit - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
-ERROR tests/unit/domain/services/test_routing_service.py::TestRoutingServiceIntegration::test_discharge_does_not_create_new_queue_entry - sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.e...
+                 HOSPITAL LAN
+                      │
+                      │ HTTPS :443
+                      ▼
+             ┌─────────────────┐
+             │      CADDY      │
+             │                 │
+             │ • TLS           │
+             │ • Internal CA   │
+             │ • Reverse Proxy │
+             └────────┬────────┘
+                      │
+                      │ HTTP :8000
+                      ▼
+             ┌─────────────────┐
+             │    FASTAPI      │
+             │ hpqms-backend   │
+             │                 │
+             │ /api            │
+             │ /ws/display     │
+             │ /static         │
+             │ /health         │
+             └────────┬────────┘
+                      │
+                      │ PostgreSQL
+                      ▼
+             ┌─────────────────┐
+             │  POSTGRESQL 16  │
+             │ hpqms-postgres  │
+             │                 │
+             │ Docker network  │
+             └─────────────────┘

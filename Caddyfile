@@ -3,3 +3,11 @@ hpqms.internal {
 
     reverse_proxy backend:8000
 }
+
+# Plain-HTTP fallback path (devices that cannot resolve hpqms.internal and
+# cannot install the internal CA, e.g. smart TVs). No TLS — for early-phase
+# pilot use only.
+# Set the SERVER_IP environment variable (or edit here) to match the LAN address.
+http://{$SERVER_IP:192.168.1.76} {
+    reverse_proxy backend:8000
+}
