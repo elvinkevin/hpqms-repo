@@ -19,6 +19,7 @@
 
 import {
     login,
+    getCurrentUser,
 } from "./staff-api.js";
 
 import {
@@ -311,7 +312,7 @@ async function handleLogin(event) {
     setLoading(true);
 
     try {
-        await login(
+        const auth = await login(
             {
                 employee_id: employeeId,
                 password,
@@ -331,7 +332,9 @@ async function handleLogin(event) {
          * Authentication succeeded.
          * The dashboard now becomes responsible for loading /auth/me.
          */
-        window.location.href = "./staff-v2.html";
+        window.location.href = auth?.staff?.role === "ADMIN"
+            ? "./admin.html"
+            : "./staff-v2.html";
 
     } catch (error) {
         console.error(
@@ -396,14 +399,18 @@ function initializeValidation() {
    EXISTING SESSION
    ========================================================================== */
 
-function redirectIfAlreadyAuthenticated() {
+async function redirectIfAlreadyAuthenticated() {
     const session = getSession();
 
     if (!session?.accessToken) {
         return false;
     }
 
-    window.location.href = "./staff-v2.html";
+    getCurrentUser()
+        .then((user) => {
+            window.location.replace(user.role === "ADMIN" ? "./admin.html" : "./staff-v2.html");
+        })
+        .catch(() => window.location.replace("./staff-v2.html"));
 
     return true;
 }
@@ -413,7 +420,7 @@ function redirectIfAlreadyAuthenticated() {
    INITIALIZATION
    ========================================================================== */
 
-function initialize() {
+async function initialize() {
     if (!elements.loginForm) {
         console.error(
             "[StaffLogin] Login form was not found."
@@ -426,7 +433,7 @@ function initialize() {
      * If a valid persisted session exists, don't show the login form
      * again unnecessarily.
      */
-    if (redirectIfAlreadyAuthenticated()) {
+    if (await redirectIfAlreadyAuthenticated()) {
         return;
     }
 

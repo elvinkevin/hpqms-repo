@@ -136,6 +136,14 @@ docker exec hpqms-backend python seed.py
 
 That's the command you'll use to seed the Docker database.
 
+On a fresh development database, the seed creates the first administrator if one does not already exist:
+
+- Employee ID: `ADMIN001`
+- Password: `AdminAccess123!`
+- Role: `ADMIN`
+
+Sign in from the staff login page. Admin accounts open the dashboard directly and do not need a service-point check-in. Re-running the seed will not reset an existing admin password. These are development-only credentials; change the password after first use. In non-development environments, provide `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD` as environment settings before seeding.
+
 If you change the seed script, rebuild first:
 
 ```powershell
@@ -279,6 +287,16 @@ You should see:
 ```
 (venv)
 ```
+COMMAND FOR CLEARING THE DATABASE CLEANLY WITHOUT DROPPING THE EXISTING DATABASE TABLES TO AVOID ALEMBIC MIGRATION CONFLICTS
+
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN 
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP 
+        EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE'; 
+    END LOOP; 
+END $$;
 
 Run backend tests:
 

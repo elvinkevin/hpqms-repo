@@ -7,6 +7,21 @@ from app.core.security import hash_password
 # Database session & models
 from app.db.session import AsyncSessionLocal
 from app.domain.models.models import Department, Staff, DeptType, StaffRole, ServicePoint, StationType
+from app.core.config import settings
+
+
+def initial_admin_credentials():
+    """Return bootstrap credentials; fixed defaults are limited to development."""
+    employee_id = settings.INITIAL_ADMIN_EMPLOYEE_ID
+    password = settings.INITIAL_ADMIN_PASSWORD
+    if settings.ENVIRONMENT.lower() == "development":
+        employee_id = employee_id or "ADMIN001"
+        password = password or "AdminAccess123!"
+    if not employee_id or not password:
+        return None
+    if len(password) < 12:
+        raise ValueError("INITIAL_ADMIN_PASSWORD must be at least 12 characters.")
+    return employee_id, password
 
 
 async def seed_hospital_data():
@@ -265,6 +280,42 @@ async def seed_hospital_data():
                     print(
                         f"🔄 Updated password hash for existing staff: {existing_staff.employee_id}"
                     )
+
+            # -----------------------------------------------------------
+            # 4. BOOTSTRAP THE FIRST ADMIN (NEVER RESET AN EXISTING ACCOUNT)
+            # -----------------------------------------------------------
+            existing_admin_result = await db.execute(
+                select(Staff).where(Staff.role == StaffRole.ADMIN).limit(1)
+            )
+            existing_admin = existing_admin_result.scalar_one_or_none()
+            if existing_admin:
+                print(f"Administrator already exists ({existing_admin.employee_id}); bootstrap skipped.")
+            else:
+                credentials = initial_admin_credentials()
+                if credentials is None:
+                    print("No administrator exists. Set INITIAL_ADMIN_EMPLOYEE_ID and INITIAL_ADMIN_PASSWORD to bootstrap one.")
+                else:
+                    admin_employee_id, admin_password = credentials
+                    collision_result = await db.execute(
+                        select(Staff).where(Staff.employee_id == admin_employee_id)
+                    )
+                    collision = collision_result.scalar_one_or_none()
+                    if collision:
+                        raise RuntimeError(
+                            f"Employee ID {admin_employee_id!r} is already used by a non-admin; "
+                            "choose a different INITIAL_ADMIN_EMPLOYEE_ID."
+                        )
+                    admin = Staff(
+                        employee_id=admin_employee_id,
+                        dept_id=seeded_departments["REC"].dept_id,
+                        first_name="Hospital",
+                        last_name="Administrator",
+                        role=StaffRole.ADMIN,
+                        specialization="System Administration",
+                        hashed_password=hash_password(admin_password),
+                    )
+                    db.add(admin)
+                    print(f"Seeded initial administrator: {admin_employee_id} (Reception department)")
 
             await db.commit()
             print("🎉 Database seeding finalized successfully. System codes and credentials synchronized.")

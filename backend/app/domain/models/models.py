@@ -500,12 +500,22 @@ class Notification(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("idx_audit_entity", "entity_type", "entity_id"),
+        Index("idx_audit_performed_by", "performed_by"),
+        Index("idx_audit_action", "action"),
+    )
 
     audit_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.staff_id"), nullable=False)
+    performed_by = Column(UUID(as_uuid=True), ForeignKey("staff.staff_id"), nullable=True)
     action = Column(String(100), nullable=False)
-    entity = Column(String(50), nullable=False)
+    entity_type = Column(String(50), nullable=False)
     entity_id = Column(UUID(as_uuid=True), nullable=False)
     payload = Column(JSONB)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def log_id(self) -> uuid.UUID:
+        """Alias for AuditLogRead schema compatibility."""
+        return self.audit_id

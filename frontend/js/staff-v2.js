@@ -195,6 +195,11 @@ async function initializeDashboard() {
     try {
         const user = await getCurrentUser();
 
+        if (user.role === "ADMIN") {
+            window.location.replace("./admin.html");
+            return;
+        }
+
         /*
          * STATION GATE — an unbound staff member is routed to the
          * station selection interstitial before the dashboard loads.

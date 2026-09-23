@@ -55,6 +55,7 @@ API docs available at: http://localhost:8000/docs
 
 | Employee ID | Password       | Role         | Department  |
 |-------------|----------------|--------------|-------------|
+| ADMIN001    | AdminAccess123!| ADMIN        | Reception Desk |
 | REC-001     | reception123   | RECEPTIONIST | General OPD |
 | NRS-001     | nurse123       | TRIAGE_NURSE | General OPD |
 | NRS-002     | nurse123       | CHARGE_NURSE | Emergency   |
@@ -62,6 +63,8 @@ API docs available at: http://localhost:8000/docs
 | DOC-002     | doctor123      | DOCTOR       | Cardiology  |
 
 Test patient national ID: `12345678`
+
+The development seed creates `ADMIN001` only when the database has no administrator. Sign in through `frontend/staff-login.html`; admins go straight to the dashboard without station check-in. The seed does not reset an existing administrator's password. For non-development environments, set `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD` before running `seed.py`; use a unique password and do not commit it.
 
 ---
 

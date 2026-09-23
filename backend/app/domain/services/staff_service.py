@@ -6,12 +6,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.domain.models.models import Staff, StaffRole
+from app.domain.models.models import Department, Staff, StaffRole
 from app.domain.schemas.schemas import (
     StaffCreate,
+    StaffDepartmentUpdate,
     StaffDutyStatusRead,
     StaffRead,
+    StaffRoleUpdate,
     StaffUpdate,
+    AdminPasswordResetRequest,
 )
 from app.core.security import hash_password
 from sqlalchemy.orm import selectinload
@@ -289,6 +292,88 @@ class StaffService:
         return staff
 
     
+    # ---------------------------------------------------------
+    # ROLE & DEPARTMENT ASSIGNMENT (ADMIN ONLY)
+    # ---------------------------------------------------------
+
+    async def change_role(
+        self,
+        staff_id: UUID,
+        data: StaffRoleUpdate,
+    ) -> Staff:
+        """
+        Change a staff member's role. Admin-only by route guard.
+        """
+        staff = await self.get_by_id(staff_id)
+
+        if staff.role == data.role:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Staff member already has role '{data.role.value}'.",
+            )
+
+        staff.role = data.role
+
+        await self.db.flush()
+        await self.db.refresh(staff)
+
+        return staff
+
+    async def transfer_department(
+        self,
+        staff_id: UUID,
+        data: StaffDepartmentUpdate,
+    ) -> Staff:
+        """
+        Move a staff member to a different department. Admin-only by route guard.
+        Also releases any active service-point binding in the old department,
+        since the bound desk belongs to the previous department.
+        """
+        staff = await self.get_by_id(staff_id)
+
+        target_dept = await self.db.get(Department, data.dept_id)
+        if not target_dept:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target department not found.",
+            )
+
+        if staff.dept_id == data.dept_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Staff member already belongs to this department.",
+            )
+
+        staff.dept_id = data.dept_id
+        staff.active_service_point_id = None
+
+        await self.db.flush()
+        await self.db.refresh(staff)
+
+        return staff
+
+    # ---------------------------------------------------------
+    # ADMIN PASSWORD RESET
+    # ---------------------------------------------------------
+
+    async def reset_password(
+        self,
+        staff_id: UUID,
+        data: AdminPasswordResetRequest,
+    ) -> Staff:
+        """
+        Admin-initiated password reset. Bypasses the current-password check
+        that change_password requires — intended for forgotten credentials.
+        """
+        staff = await self.get_by_id(staff_id)
+
+        staff.hashed_password = hash_password(data.new_password)
+
+        await self.db.flush()
+        await self.db.refresh(staff)
+
+        return staff
+
     async def get_me(self, staff_id: UUID) -> Staff:
             return await self.get_staff(staff_id)
 
@@ -383,11 +468,3 @@ class StaffService:
         """
 
         return await self.db.get(Staff, staff_id) is not None
-    # async def get_department_staff(
-    #     dept_id: UUID,
-    # ) -> list[Staff]
-    TODO:...
-    #     async def get_available_department_staff(
-    #     dept_id: UUID,
-    # ) -> list[Staff]
-    TODO:...

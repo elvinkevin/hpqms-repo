@@ -416,6 +416,27 @@ class ChangePasswordRequest(BaseModel):
         return value
 
 
+class AdminPasswordResetRequest(BaseModel):
+    """
+    Payload for admin-initiated password reset.
+    No current_password required — the admin identity is the authorization.
+    """
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        description="Temporary password to issue; must be at least 8 characters long"
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_complexity(cls, value: str) -> str:
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contain at least one digit")
+        if not any(char.isupper() for char in value):
+            raise ValueError("Password must contain at least one uppercase letter")
+        return value
+
+
 class StationBinding(BaseModel):
     """Compact station payload for the top-bar pill / station gate."""
     service_point_id: UUID
@@ -757,8 +778,8 @@ class AuditLogRead(ORMBase):
     entity_id: UUID
     entity_type: str
     action: str
-    performed_by: Optional[UUID]
-    payload: Dict[str, Any]
+    performed_by: Optional[UUID] = None
+    payload: Optional[Dict[str, Any]] = None
     created_at: datetime
 
 

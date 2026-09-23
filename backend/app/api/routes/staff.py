@@ -6,10 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.models import StaffRole
 from app.domain.schemas.schemas import (
+    AdminPasswordResetRequest,
     CurrentUser,
     StaffCreate,
+    StaffDepartmentUpdate,
     StaffDutyStatusRead,
     StaffRead,
+    StaffRoleUpdate,
     StaffUpdate,
 )
 from app.domain.services.auth_service import (
@@ -17,6 +20,7 @@ from app.domain.services.auth_service import (
     require_role,
 )
 from app.domain.services.staff_service import StaffService
+from app.domain.services.audit_service import AuditService
 
 router = APIRouter(
     prefix="/staff",
@@ -176,3 +180,96 @@ async def activate_staff(
     staff = await service.activate_staff(staff_id)
     await db.commit()
     return staff
+
+
+@router.patch(
+    "/{staff_id}/role",
+    response_model=StaffRead,
+    dependencies=[Depends(require_role(StaffRole.ADMIN))],
+)
+async def change_staff_role(
+    staff_id: UUID,
+    data: StaffRoleUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Change a staff member's role. Admin-only.
+    """
+    service = StaffService(db)
+    staff = await service.change_role(staff_id, data)
+
+    await AuditService(db).log_action(
+        entity_id=staff.staff_id,
+        entity_type="STAFF",
+        action="ROLE_CHANGED",
+        performed_by=current_user.staff_id,
+        payload={"new_role": data.role.value},
+    )
+
+    await db.commit()
+    return staff
+
+
+@router.patch(
+    "/{staff_id}/transfer",
+    response_model=StaffRead,
+    dependencies=[Depends(require_role(StaffRole.ADMIN))],
+)
+async def transfer_staff_department(
+    staff_id: UUID,
+    data: StaffDepartmentUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Move a staff member to a different department. Admin-only.
+    Releases any active service-point binding in the old department.
+    """
+    service = StaffService(db)
+    staff = await service.transfer_department(staff_id, data)
+
+    await AuditService(db).log_action(
+        entity_id=staff.staff_id,
+        entity_type="STAFF",
+        action="DEPARTMENT_TRANSFER",
+        performed_by=current_user.staff_id,
+        payload={"new_dept_id": str(data.dept_id)},
+    )
+
+    await db.commit()
+    return staff
+
+
+@router.patch(
+    "/{staff_id}/reset-password",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_role(StaffRole.ADMIN))],
+)
+async def admin_reset_password(
+    staff_id: UUID,
+    data: AdminPasswordResetRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Admin-initiated password reset for a staff member who has lost access.
+    Issues a new temporary credential; bypasses the current-password check.
+    """
+    service = StaffService(db)
+    await service.reset_password(staff_id, data)
+
+    await AuditService(db).log_action(
+        entity_id=staff_id,
+        entity_type="STAFF",
+        action="PASSWORD_RESET",
+        performed_by=current_user.staff_id,
+    )
+
+    await db.commit()
+
+    return {
+        "message": "Password reset successfully. "
+        "Share the temporary credential with the staff member securely."
+    }
