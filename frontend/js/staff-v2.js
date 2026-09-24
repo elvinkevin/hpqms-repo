@@ -8,6 +8,7 @@ import {
     getDepartments,
     getDepartmentQueue,
     getDepartmentNoShowQueue,
+    getMyDutyStatus,
     logout,
 } from "./staff-api.js";
 import { getSession } from "./staff-session.js";
@@ -16,7 +17,7 @@ import {
     initializeStaffContext,
     getStaffContext,
 } from "./staff-context.js";
-import { onLogout, renderStaffHeader, renderStationPill } from "./components/staff-header.js";
+import { onLogout, renderStaffHeader, renderStationPill, renderDutyPill } from "./components/staff-header.js";
 import {
     mount as mountEncounterPanel,
     unmount as unmountEncounterPanel,
@@ -240,21 +241,31 @@ async function initializeDashboard() {
          */
         renderStationPill(user.station, department);
 
+        // Logging in and binding a station are not shift check-in actions.
+        // Fetch and show the separate attendance state so staff can toggle it.
+        let dutyStatus = { is_on_duty: false };
+        try {
+            dutyStatus = await getMyDutyStatus();
+        } catch (error) {
+            console.warn("[StaffV2] Could not load shift status:", error);
+        }
+        renderDutyPill(dutyStatus);
+
         await synchronizeQueue();
         startStaffWebSocket();
         setStatus(`Ready - ${context.firstName} ${context.lastName}`);
     } catch (error) {
         console.error("[StaffV2] Context initialization failed:", error);
-        logout();
+        await logout();
         clearStaffContext();
         window.location.replace("./staff-login.html");
     }
 }
 
-function handleLogout() {
+async function handleLogout() {
     stopStaffWebSocket();
     unmountEncounterPanel();
-    logout();
+    await logout();
     setStaffContext(null);
     clearStaffContext();
     window.location.replace("./staff-login.html");

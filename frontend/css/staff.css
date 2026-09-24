@@ -1274,6 +1274,29 @@ header {
     white-space: nowrap;
 }
 
+/* Shift attendance is separate from the service-point station pill. */
+.duty-pill {
+    display:flex;
+    align-items:center;
+    gap:.45rem;
+    padding:.375rem .75rem;
+    border:1px solid #f0d7aa;
+    border-radius:999px;
+    background:#fff9ed;
+    color:#8a5c16;
+    font:inherit;
+    font-size:12px;
+    font-weight:600;
+    white-space:nowrap;
+    cursor:pointer;
+}
+.duty-pill:hover { background:#fff2d8; }
+.duty-pill.on-duty { border-color:#bde4ce; background:#effaf3; color:#20754a; }
+.duty-pill.on-duty:hover { background:#e2f6e9; }
+.duty-pill:disabled { opacity:.65; cursor:wait; }
+.duty-pill-dot { width:8px; height:8px; border-radius:50%; flex:none; background:#d49731; }
+.duty-pill.on-duty .duty-pill-dot { background:#20a35f; box-shadow:0 0 0 3px #20a35f20; }
+
 /* ---- Popover ------------------------------------------------------------ */
 
 .station-popover {

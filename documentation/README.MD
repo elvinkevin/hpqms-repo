@@ -30,3 +30,7 @@
              │                 │
              │ Docker network  │
              └─────────────────┘
+
+
+             Employee ID: EMP-RECEP01
+Temporary password: AiijB!o4TdtVmARU2P

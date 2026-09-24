@@ -37,8 +37,8 @@ alembic revision --autogenerate -m "initial schema"
 # Apply migrations
 alembic upgrade head
 
-# Seed departments, staff, and test patient
-python scripts/seed.py
+# Optional development demo data (Docker startup bootstraps only the initial admin)
+python seed.py
 ```
 
 ## Start the server
@@ -55,7 +55,7 @@ API docs available at: http://localhost:8000/docs
 
 | Employee ID | Password       | Role         | Department  |
 |-------------|----------------|--------------|-------------|
-| ADMIN001    | AdminAccess123!| ADMIN        | Reception Desk |
+| EMP-ADMIN01 | AdminAccess123!| ADMIN        | Administration |
 | REC-001     | reception123   | RECEPTIONIST | General OPD |
 | NRS-001     | nurse123       | TRIAGE_NURSE | General OPD |
 | NRS-002     | nurse123       | CHARGE_NURSE | Emergency   |
@@ -64,7 +64,7 @@ API docs available at: http://localhost:8000/docs
 
 Test patient national ID: `12345678`
 
-The development seed creates `ADMIN001` only when the database has no administrator. Sign in through `frontend/staff-login.html`; admins go straight to the dashboard without station check-in. The seed does not reset an existing administrator's password. For non-development environments, set `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD` before running `seed.py`; use a unique password and do not commit it.
+When no administrator exists, the Docker startup bootstrap uses `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD`; only in development does it default to `EMP-ADMIN01` / `AdminAccess123!`. It assigns admins to a dedicated `ADMIN` department (type `OPD`, because `DeptType` has no administrative enum value). Sign in through `frontend/staff-login.html`; admins go straight to the dashboard without station check-in. In non-development environments set `ENVIRONMENT=production` and both credentials in the Compose environment; the password must be at least 12 characters. The bootstrap never changes an existing administrator's password. The manual `seed.py` script is for development data only.
 
 ---
 

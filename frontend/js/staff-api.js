@@ -110,6 +110,18 @@ async function login(credentials, rememberMe = false) {
      *
      * Persistence is delegated to staff-session.js.
      */
+    if (response?.setup_required === true) {
+        clearSession();
+        currentUser = null;
+        return response;
+    }
+
+    if (response?.password_change_required === true) {
+        clearSession();
+        currentUser = null;
+        return response;
+    }
+
     if (!response?.access_token) {
         throw new Error(
             "Authentication succeeded but no access token was returned."
@@ -122,6 +134,22 @@ async function login(credentials, rememberMe = false) {
     );
 
     return response;
+}
+
+
+async function completeAdminSetup(payload) {
+    return request("/auth/complete-admin-setup", {
+        method: HTTP_METHOD.POST,
+        body: payload,
+    });
+}
+
+
+async function completeStaffPasswordChange(payload) {
+    return request("/auth/complete-password-change", {
+        method: HTTP_METHOD.POST,
+        body: payload,
+    });
 }
 
 
@@ -157,9 +185,23 @@ function getCachedCurrentUser() {
  *
  * Token persistence is cleared through staff-session.js.
  */
-function logout() {
-    clearSession();
-    currentUser = null;
+async function logout() {
+    const headers = buildAuthHeaders();
+    try {
+        if (headers.Authorization) {
+            await request("/auth/logout", {
+                method: HTTP_METHOD.POST,
+                headers,
+            });
+        }
+    } catch (error) {
+        // Always clear the local session; a lost network must not trap the
+        // workstation in an authenticated UI.
+        console.warn("Unable to notify the server of logout:", error);
+    } finally {
+        clearSession();
+        currentUser = null;
+    }
 }
 
 
@@ -405,6 +447,33 @@ async function checkInToServicePoint(servicePointId) {
  */
 async function checkOutOfServicePoint() {
     return request("/staff/me/service-point/check-out", {
+        method: HTTP_METHOD.POST,
+        headers: buildAuthHeaders(),
+    });
+}
+
+/**
+ * Read the current staff member's shift/on-duty state.
+ * GET /staff/me/status
+ */
+async function getMyDutyStatus() {
+    return request("/staff/me/status", {
+        method: HTTP_METHOD.GET,
+        headers: buildAuthHeaders(),
+    });
+}
+
+/** Begin a work shift; separate from binding to a desk or room. */
+async function checkInForDuty() {
+    return request("/staff/me/check-in", {
+        method: HTTP_METHOD.POST,
+        headers: buildAuthHeaders(),
+    });
+}
+
+/** End a work shift; separate from checking out of a desk or room. */
+async function checkOutFromDuty() {
+    return request("/staff/me/check-out", {
         method: HTTP_METHOD.POST,
         headers: buildAuthHeaders(),
     });
@@ -656,6 +725,8 @@ async function saveClinicalAssessment(visitId, payload) {
 export {
     /* Authentication */
     login,
+    completeAdminSetup,
+    completeStaffPasswordChange,
     logout,
     getCurrentUser,
     getCachedCurrentUser,
@@ -667,6 +738,9 @@ export {
     getDepartmentServicePoints,
     checkInToServicePoint,
     checkOutOfServicePoint,
+    getMyDutyStatus,
+    checkInForDuty,
+    checkOutFromDuty,
     getDepartmentOccupancy,
 
     /* Queue — Read */

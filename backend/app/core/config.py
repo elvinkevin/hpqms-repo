@@ -51,9 +51,9 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
 
-    # Used only by seed.py when a database has no administrator yet.
-    # In development seed.py falls back to a documented local-only account;
-    # other environments must provide both values explicitly.
+    # Used by bootstrap_admin.py to create the first administrator.
+    # Development has documented local-only defaults; other environments
+    # must provide both values explicitly.
     INITIAL_ADMIN_EMPLOYEE_ID: str | None = None
     INITIAL_ADMIN_PASSWORD: str | None = None
 

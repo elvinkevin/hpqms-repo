@@ -98,6 +98,9 @@ const stationElements = {
     popover: null,
 };
 
+const dutyElements = { pill: null };
+let dutyState = false;
+
 let stationState = null;   // { service_point_id, code, label } | null
 let stationPopoverOpen = false;
 
@@ -137,6 +140,53 @@ export function renderStationPill(station, department = null) {
         : "Not checked in to a station — click to select one";
 
     pill.onclick = () => toggleStationPopover(department);
+}
+
+/** Show explicit shift attendance controls, independent of station binding. */
+export function renderDutyPill(status) {
+    const anchor = document.getElementById("staffProfile");
+    if (!anchor) return;
+    dutyState = Boolean(status?.is_on_duty);
+
+    if (!dutyElements.pill) {
+        dutyElements.pill = document.createElement("button");
+        dutyElements.pill.type = "button";
+        dutyElements.pill.id = "dutyPill";
+        dutyElements.pill.className = "duty-pill";
+        anchor.parentNode.insertBefore(dutyElements.pill, anchor);
+    }
+
+    const pill = dutyElements.pill;
+    pill.classList.toggle("on-duty", dutyState);
+    pill.innerHTML = `<span class="duty-pill-dot"></span><span>${dutyState ? "On duty" : "Start shift"}</span>`;
+    pill.title = dutyState
+        ? "On duty. Click to end your shift. This is separate from your service-point binding."
+        : "Off duty. Click to start your shift. Logging in or selecting a station does not start a shift.";
+    pill.setAttribute("aria-label", dutyState ? "End shift" : "Start shift");
+    pill.onclick = async () => {
+        pill.disabled = true;
+        try {
+            const { getMyDutyStatus, checkInForDuty, checkOutFromDuty } = await import("../staff-api.js");
+            const current = await getMyDutyStatus();
+            dutyState = Boolean(current.is_on_duty);
+            const updated = dutyState
+                ? await checkOutFromDuty()
+                : await checkInForDuty();
+            renderDutyPill({ is_on_duty: updated.is_on_duty });
+            if (!updated.is_on_duty) renderStationPill(null);
+        } catch (error) {
+            try {
+                const { getMyDutyStatus } = await import("../staff-api.js");
+                renderDutyPill(await getMyDutyStatus());
+            } catch {
+                pill.innerHTML = `<span class="duty-pill-dot"></span><span>Status unavailable</span>`;
+            }
+            pill.title = error?.message || "Unable to update shift status.";
+            pill.setAttribute("aria-label", `Shift status update failed: ${error?.message || "unknown error"}`);
+        } finally {
+            pill.disabled = false;
+        }
+    };
 }
 
 function closeStationPopover() {

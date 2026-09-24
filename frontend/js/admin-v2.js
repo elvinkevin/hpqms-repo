@@ -14,16 +14,17 @@ async function initializeAdminDashboard() {
         adminWorkspace.mount(root, {
             firstName: user.first_name,
             lastName: user.last_name,
+            employeeId: user.employee_id,
             role: user.role,
-            onLogout: () => {
+            onLogout: async () => {
                 adminWorkspace.unmount();
-                logout();
+                await logout();
                 window.location.replace("./staff-login.html");
             },
         });
     } catch (error) {
         console.error("[AdminDashboard] Session check failed:", error);
-        logout();
+        await logout();
         window.location.replace("./staff-login.html");
     }
 }

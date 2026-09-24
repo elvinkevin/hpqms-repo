@@ -94,9 +94,10 @@ docker compose logs -f backend
 #      https://hpqms.internal/static/kiosk.html  -> kiosk page loads
 ```
 
-The startup command chain (`alembic upgrade head && python seed.py && uvicorn`)
-is idempotent: rerunning it never duplicates departments/staff, and re-running
-`docker compose up -d` on an existing volume **does not wipe data**.
+The startup command chain (`alembic upgrade head && python bootstrap_admin.py && uvicorn`)
+is idempotent: bootstrap creates the initial departments/admin if needed and
+reconciles administrator department assignment without changing credentials.
+Re-running `docker compose up -d` on an existing volume **does not wipe data**.
 
 ### Wiping the database intentionally (demo/reset)
 
@@ -106,7 +107,7 @@ is idempotent: rerunning it never duplicates departments/staff, and re-running
 ```powershell
 docker compose down                       # keep the volume? then skip next line
 docker volume rm hpqms-project_hpqms_postgres_data
-docker compose up -d --build              # fresh DB + migrations + seed
+docker compose up -d --build              # fresh DB + migrations + admin bootstrap
 ```
 
 ### Deploying a code update

@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+import secrets
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -14,7 +16,6 @@ from app.domain.schemas.schemas import (
     StaffRead,
     StaffRoleUpdate,
     StaffUpdate,
-    AdminPasswordResetRequest,
 )
 from app.core.security import hash_password
 from sqlalchemy.orm import selectinload
@@ -73,6 +74,7 @@ class StaffService:
             role=data.role,
             specialization=data.specialization,
             hashed_password=hash_password(data.password),
+            requires_password_change=True,
         )
 
         self.db.add(staff)
@@ -255,6 +257,7 @@ class StaffService:
         staff = await self.get_by_id(staff_id)
 
         staff.is_on_duty = False
+        staff.active_service_point_id = None
 
         await self.db.flush()
 
@@ -286,6 +289,7 @@ class StaffService:
 
         staff.is_active = False
         staff.is_on_duty = False
+        staff.active_service_point_id = None
 
         await self.db.flush()
 
@@ -359,20 +363,26 @@ class StaffService:
     async def reset_password(
         self,
         staff_id: UUID,
-        data: AdminPasswordResetRequest,
-    ) -> Staff:
+    ) -> tuple[Staff, str]:
         """
-        Admin-initiated password reset. Bypasses the current-password check
-        that change_password requires — intended for forgotten credentials.
+        Admin-initiated lockout recovery. The current password is replaced by
+        an unknown random value and only a hashed, expiring recovery code is
+        retained for the staff member's next sign-in.
         """
         staff = await self.get_by_id(staff_id)
 
-        staff.hashed_password = hash_password(data.new_password)
+        recovery_code = f"HPQMS-{secrets.randbelow(10**10):010d}"
+        staff.hashed_password = hash_password(secrets.token_urlsafe(32))
+        staff.requires_password_change = True
+        staff.password_reset_code_hash = hash_password(recovery_code)
+        staff.password_reset_code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        staff.is_on_duty = False
+        staff.active_service_point_id = None
 
         await self.db.flush()
         await self.db.refresh(staff)
 
-        return staff
+        return staff, recovery_code
 
     async def get_me(self, staff_id: UUID) -> Staff:
             return await self.get_staff(staff_id)
@@ -411,6 +421,7 @@ class StaffService:
             )
 
         staff.is_on_duty = False
+        staff.active_service_point_id = None
 
         await self.db.flush()
         await self.db.refresh(staff)

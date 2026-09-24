@@ -24,6 +24,7 @@ import {
 
 import {
     getSession,
+    clearSession,
 } from "./staff-session.js";
 
 
@@ -326,6 +327,24 @@ async function handleLogin(event) {
          */
         saveRememberedEmployee(employeeId);
 
+        if (auth?.setup_required) {
+            if (!auth.setup_token) {
+                throw new Error("Administrator setup could not be started. Please contact support.");
+            }
+            window.sessionStorage.setItem("hpqms_admin_setup_token", auth.setup_token);
+            window.location.href = "./admin-setup.html";
+            return;
+        }
+
+        if (auth?.password_change_required) {
+            if (!auth.password_change_token) {
+                throw new Error("Password setup could not be started. Please contact an administrator.");
+            }
+            window.sessionStorage.setItem("hpqms_password_change_token", auth.password_change_token);
+            window.location.href = "./force-reset.html";
+            return;
+        }
+
         elements.successMessage?.classList.add("show");
 
         /*
@@ -406,13 +425,14 @@ async function redirectIfAlreadyAuthenticated() {
         return false;
     }
 
-    getCurrentUser()
-        .then((user) => {
-            window.location.replace(user.role === "ADMIN" ? "./admin.html" : "./staff-v2.html");
-        })
-        .catch(() => window.location.replace("./staff-v2.html"));
-
-    return true;
+    try {
+        const user = await getCurrentUser();
+        window.location.replace(user.role === "ADMIN" ? "./admin.html" : "./staff-v2.html");
+        return true;
+    } catch {
+        clearSession();
+        return false;
+    }
 }
 
 

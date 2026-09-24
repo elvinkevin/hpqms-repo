@@ -14,6 +14,7 @@ class WebSocketManager:
     def __init__(self) -> None:
         self._display_connections: dict[str, list[WebSocket]] = {}
         self._staff_connections: dict[str, WebSocket] = {}
+        self._admin_connections: list[WebSocket] = []
 
     async def connect_display(
         self,
@@ -103,6 +104,9 @@ class WebSocketManager:
 
             if not connections:
                 self._display_connections.pop(key, None)
+
+        # Admin dashboards mirror every queue/display event.
+        await self.notify_admin_changed(reason="DISPLAY_EVENT")
 
         return delivered
 
@@ -235,6 +239,61 @@ class WebSocketManager:
         }
         return await self.broadcast_display(payload)
 
+
+    # -------------------------------------------------------------
+    # ADMIN DASHBOARD CHANNEL
+    # -------------------------------------------------------------
+
+    async def connect_admin(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self._admin_connections.append(websocket)
+        logger.info(
+            "Admin websocket connected (total=%d)",
+            len(self._admin_connections),
+        )
+
+        await websocket.send_json(
+            {
+                "event_type": "CONNECTION_ESTABLISHED",
+                "message": "Connected to the admin live-update stream",
+                "occurred_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+    def disconnect_admin(self, websocket: WebSocket) -> None:
+        if websocket in self._admin_connections:
+            self._admin_connections.remove(websocket)
+
+    async def notify_admin_changed(
+        self,
+        reason: str = "QUEUE_EVENT",
+    ) -> int:
+        """
+        Signal admin dashboards that the hospital overview changed.
+
+        A lightweight ping (not a full snapshot) keeps the channel cheap;
+        clients refresh their authoritative snapshot via the overview API.
+        """
+        payload = {
+            "event_type": "ADMIN_OVERVIEW_CHANGED",
+            "reason": reason,
+            "occurred_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        delivered = 0
+        dead: list[WebSocket] = []
+
+        for websocket in list(self._admin_connections):
+            try:
+                await websocket.send_json(payload)
+                delivered += 1
+            except Exception:
+                dead.append(websocket)
+
+        for websocket in dead:
+            self.disconnect_admin(websocket)
+
+        return delivered
 
     async def broadcast_department(
         self,

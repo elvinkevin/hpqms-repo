@@ -81,7 +81,7 @@ removed once proper DNS + CA distribution exists.
                  │  NOT published to the host)     │
                  │                                 │
                  │  startup: alembic upgrade head  │
-                 │           && python seed.py     │
+                 │           && python bootstrap_admin.py     │
                  │           && uvicorn :8000      │
                  └───────────────┬─────────────────┘
                                  │  postgres:5432 (Docker network)
@@ -153,7 +153,7 @@ Quick checklist when a device shows unexpected behaviour:
 2. Confirm which origin the page was loaded from (look at the browser address
    bar — is it `:8000`? then the device is on a stale bookmark/cached JS).
 3. Hard-refresh the device page to drop cached JavaScript.
-4. Check `docker compose logs backend --tail 50` for startup/seed lines.
+4. Check `docker compose logs backend --tail 50` for startup/bootstrap lines.
 
 ---
 

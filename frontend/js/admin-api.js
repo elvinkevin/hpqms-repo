@@ -24,7 +24,7 @@ export const createStaff = (body) => adminRequest("/staff/", HTTP_METHOD.POST, b
 export const updateStaff = (id, body) => adminRequest(`/staff/${id}`, HTTP_METHOD.PUT, body);
 export const updateStaffRole = (id, role) => adminRequest(`/staff/${id}/role`, HTTP_METHOD.PATCH, { role });
 export const transferStaff = (id, dept_id) => adminRequest(`/staff/${id}/transfer`, HTTP_METHOD.PATCH, { dept_id });
-export const resetStaffPassword = (id, new_password) => adminRequest(`/staff/${id}/reset-password`, HTTP_METHOD.PATCH, { new_password });
+export const resetStaffPassword = (id) => adminRequest(`/staff/${id}/reset-password`, HTTP_METHOD.PATCH);
 export const setStaffActive = (id, active) => adminRequest(`/staff/${id}/${active ? "activate" : "deactivate"}`, HTTP_METHOD.PATCH);
 export const getDepartments = () => adminRequest("/departments");
 export const createDepartment = (body) => adminRequest("/departments", HTTP_METHOD.POST, body);

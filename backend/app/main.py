@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.api.router import api_router
 from app.api.routes.display import websocket_router
+from app.api.routes.admin import websocket_router as admin_websocket_router
 
 app = FastAPI(
     title="Hospital Queue Management API",
@@ -58,6 +59,7 @@ app.mount(
 
 app.include_router(api_router)
 app.include_router(websocket_router)
+app.include_router(admin_websocket_router)
 
 
 @app.get("/health", include_in_schema=False)

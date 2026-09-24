@@ -9,6 +9,7 @@ from app.domain.models.models import Staff, StaffRole
 from app.domain.schemas.schemas import (
     CurrentUser,
     ServicePointCreate,
+    ServicePointBase,
     ServicePointOccupancy,
     ServicePointRead,
     ServicePointUpdate,
@@ -41,15 +42,16 @@ router = APIRouter(
 )
 async def create_service_point(
     dept_id: UUID,
-    payload: ServicePointCreate,
+    payload: ServicePointBase,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Create a new service point (desk, room, window) within a department."""
     ensure_department_access(current_user, dept_id)
-    # Ensure path matches payload dept_id
-    payload.dept_id = dept_id
-    return await ServicePointService.create_service_point(db, payload)
+    # The URL is the authoritative source for department ownership; clients
+    # only send the service-point fields in the request body.
+    data = ServicePointCreate(dept_id=dept_id, **payload.model_dump())
+    return await ServicePointService.create_service_point(db, data)
 
 
 @router.get(

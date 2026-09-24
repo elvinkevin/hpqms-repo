@@ -2,17 +2,23 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import WebSocket, WebSocketDisconnect
 
+from app.core.security import decode_access_token
+from app.db.session import AsyncSessionLocal
+from app.domain.models.models import Staff, StaffRole
 from app.domain.schemas.schemas import AuditLogRead
 from app.domain.services.admin_service import AdminService
 from app.domain.services.auth_service import get_current_user, require_role
-from app.domain.models.models import StaffRole
+from app.api.routes.websocket_manager import ws_manager
 
 router = APIRouter(
     prefix="/admin",
     tags=["Admin Dashboard"],
     dependencies=[Depends(require_role(StaffRole.ADMIN))],
 )
+
+websocket_router = APIRouter(tags=["Admin Dashboard"])
 
 
 # ============================================================================
@@ -85,3 +91,68 @@ async def list_audit_logs(
         limit=limit,
         offset=offset,
     )
+
+
+# ============================================================================
+# LIVE UPDATE WEBSOCKET
+# ============================================================================
+
+
+@websocket_router.websocket("/ws/admin")
+async def admin_websocket_endpoint(
+    websocket: WebSocket,
+    token: str | None = None,
+):
+    """
+    Live-update channel for the admin dashboard.
+
+    Auth is done via the `token` query parameter (browsers cannot set
+    Authorization headers on WebSocket handshakes). Only active ADMIN
+    accounts are admitted; anything else is rejected during the handshake.
+
+    The channel carries lightweight `ADMIN_OVERVIEW_CHANGED` pings whenever a
+    queue/display event occurs anywhere in the hospital; clients refresh
+    their snapshot through the overview API in response.
+    """
+
+    def _reject(code: int, reason: str):
+        return websocket.close(code=code, reason=reason)
+
+    if not token:
+        await _reject(4401, "Missing token.")
+        return
+
+    try:
+        payload = decode_access_token(token)
+    except HTTPException:
+        await _reject(4401, "Invalid or expired token.")
+        return
+
+    staff_id = payload.get("sub")
+
+    if not staff_id:
+        await _reject(4401, "Invalid token payload.")
+        return
+
+    async with AsyncSessionLocal() as db:
+        staff = await db.get(Staff, UUID(staff_id))
+
+    if (
+        staff is None
+        or not staff.is_active
+        or staff.role != StaffRole.ADMIN
+        or not staff.admin_setup_complete
+        or staff.requires_password_change
+    ):
+        await _reject(4403, "Active, fully set up admin role required.")
+        return
+
+    await ws_manager.connect_admin(websocket)
+
+    try:
+        while True:
+            # Client pings keep the connection alive; payloads are ignored.
+            await websocket.receive_text()
+
+    except WebSocketDisconnect:
+        ws_manager.disconnect_admin(websocket)

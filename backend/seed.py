@@ -15,7 +15,7 @@ def initial_admin_credentials():
     employee_id = settings.INITIAL_ADMIN_EMPLOYEE_ID
     password = settings.INITIAL_ADMIN_PASSWORD
     if settings.ENVIRONMENT.lower() == "development":
-        employee_id = employee_id or "ADMIN001"
+        employee_id = employee_id or "EMP-ADMIN01"
         password = password or "AdminAccess123!"
     if not employee_id or not password:
         return None
@@ -56,6 +56,13 @@ async def seed_hospital_data():
                     "department_code": "CONSULT",  # Shortened to fit VARCHAR(10)
                     "type": DeptType.OPD,
                     "max_capacity": 25,
+                },
+                {
+                    "name": "Administration",
+                    "department_code": "ADMIN",
+                    # DeptType has no administrative value; OPD is its general type.
+                    "type": DeptType.OPD,
+                    "max_capacity": 1,
                 },
             ]
 
@@ -289,7 +296,12 @@ async def seed_hospital_data():
             )
             existing_admin = existing_admin_result.scalar_one_or_none()
             if existing_admin:
-                print(f"Administrator already exists ({existing_admin.employee_id}); bootstrap skipped.")
+                admin_department = seeded_departments["ADMIN"]
+                existing_admin.dept_id = admin_department.dept_id
+                print(
+                    f"Administrator already exists ({existing_admin.employee_id}); "
+                    f"assigned to {admin_department.name} without changing the password."
+                )
             else:
                 credentials = initial_admin_credentials()
                 if credentials is None:
@@ -307,7 +319,7 @@ async def seed_hospital_data():
                         )
                     admin = Staff(
                         employee_id=admin_employee_id,
-                        dept_id=seeded_departments["REC"].dept_id,
+                        dept_id=seeded_departments["ADMIN"].dept_id,
                         first_name="Hospital",
                         last_name="Administrator",
                         role=StaffRole.ADMIN,
@@ -315,7 +327,7 @@ async def seed_hospital_data():
                         hashed_password=hash_password(admin_password),
                     )
                     db.add(admin)
-                    print(f"Seeded initial administrator: {admin_employee_id} (Reception department)")
+                    print(f"Seeded initial administrator: {admin_employee_id} (Administration department)")
 
             await db.commit()
             print("🎉 Database seeding finalized successfully. System codes and credentials synchronized.")

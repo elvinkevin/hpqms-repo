@@ -1,4 +1,5 @@
 from hmac import compare_digest
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Security, status
@@ -13,8 +14,12 @@ from app.core.security import (
     hash_password,
     create_access_token,
     create_refresh_token,
+    create_admin_setup_token,
+    create_password_change_token,
     decode_access_token,
     decode_refresh_token,
+    decode_admin_setup_token,
+    decode_password_change_token,
 )
 from app.core.config import settings
 from app.db.session import get_db
@@ -24,6 +29,8 @@ from app.domain.schemas.schemas import (
     TokenResponse,
     AccessTokenResponse,
     ChangePasswordRequest,
+    AdminSetupCompleteRequest,
+    StaffPasswordChangeCompleteRequest,
     CurrentUser,
     StationBinding,
 )
@@ -78,7 +85,7 @@ class AuthService:
             select(Staff).where(
                 Staff.employee_id == employee_id,
                 Staff.is_active == True,
-            )
+            ).with_for_update()
         )
 
         return result.scalar_one_or_none()
@@ -109,15 +116,178 @@ class AuthService:
             credentials.employee_id
         )
 
-        if not staff or not verify_password(
-            credentials.password,
-            staff.hashed_password,
-        ):
+        if not staff:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid employee ID or password.",
             )
 
+        # Admin-initiated account recovery uses a distinct single-use code.
+        # The old password was replaced when the code was issued.
+        if staff.requires_password_change and staff.password_reset_code_hash:
+            expires_at = staff.password_reset_code_expires_at
+            if expires_at is not None and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if (
+                expires_at is None
+                or expires_at <= datetime.now(timezone.utc)
+                or not verify_password(
+                    credentials.password,
+                    staff.password_reset_code_hash,
+                )
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid employee ID or recovery code.",
+                )
+
+            # Consume the recovery code at login; only the short-lived
+            # password-change token remains usable from this point.
+            staff.password_reset_code_hash = None
+            staff.password_reset_code_expires_at = None
+            await self.db.commit()
+            await self.db.refresh(staff)
+            return TokenResponse(
+                password_change_required=True,
+                password_change_token=create_password_change_token(str(staff.staff_id)),
+                staff=staff,
+            )
+
+        if not verify_password(credentials.password, staff.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid employee ID or password.",
+            )
+
+        if staff.role == StaffRole.ADMIN and not staff.admin_setup_complete:
+            return TokenResponse(
+                setup_required=True,
+                setup_token=create_admin_setup_token(str(staff.staff_id)),
+                staff=staff,
+            )
+
+        if staff.requires_password_change:
+            return TokenResponse(
+                password_change_required=True,
+                password_change_token=create_password_change_token(str(staff.staff_id)),
+                staff=staff,
+            )
+
+        # Desktop workstation sign-in starts a shift automatically. The
+        # staff header still exposes an explicit status toggle for breaks
+        # and early shift checkout.
+        staff.is_on_duty = True
+        await self.db.commit()
+        await self.db.refresh(staff)
+
+        return TokenResponse(
+            access_token=self._build_access_token(staff),
+            refresh_token=create_refresh_token(str(staff.staff_id)),
+            staff=staff,
+        )
+
+    async def complete_admin_setup(
+        self,
+        data: AdminSetupCompleteRequest,
+    ) -> TokenResponse:
+        payload = decode_admin_setup_token(data.setup_token)
+        staff_id = payload.get("sub")
+        if not staff_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid administrator setup token.",
+            )
+
+        try:
+            parsed_staff_id = UUID(staff_id)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid administrator setup token.",
+            )
+
+        result = await self.db.execute(
+            select(Staff)
+            .where(Staff.staff_id == parsed_staff_id)
+            .with_for_update()
+        )
+        staff = result.scalar_one_or_none()
+        if not staff or not staff.is_active or staff.role != StaffRole.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Administrator account is unavailable.",
+            )
+        if staff.admin_setup_complete:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Administrator setup has already been completed.",
+            )
+        if verify_password(data.new_password, staff.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Choose a password different from the temporary password.",
+            )
+
+        staff.first_name = data.first_name
+        staff.last_name = data.last_name
+        staff.hashed_password = hash_password(data.new_password)
+        staff.admin_setup_complete = True
+        staff.requires_password_change = False
+        staff.password_reset_code_hash = None
+        staff.password_reset_code_expires_at = None
+        staff.is_on_duty = True
+        await self.db.commit()
+        await self.db.refresh(staff)
+
+        return TokenResponse(
+            access_token=self._build_access_token(staff),
+            refresh_token=create_refresh_token(str(staff.staff_id)),
+            staff=staff,
+        )
+
+    async def complete_staff_password_change(
+        self,
+        data: StaffPasswordChangeCompleteRequest,
+    ) -> TokenResponse:
+        payload = decode_password_change_token(data.password_change_token)
+        staff_id = payload.get("sub")
+        try:
+            parsed_staff_id = UUID(staff_id)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid password change token.",
+            )
+
+        result = await self.db.execute(
+            select(Staff)
+            .where(Staff.staff_id == parsed_staff_id)
+            .with_for_update()
+        )
+        staff = result.scalar_one_or_none()
+        if not staff or not staff.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Staff account is unavailable.",
+            )
+        if not staff.requires_password_change:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This password change has already been completed.",
+            )
+        if verify_password(data.new_password, staff.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Choose a password different from the temporary password.",
+            )
+
+        staff.hashed_password = hash_password(data.new_password)
+        staff.requires_password_change = False
+        staff.password_reset_code_hash = None
+        staff.password_reset_code_expires_at = None
+        staff.is_on_duty = True
+        await self.db.commit()
+        await self.db.refresh(staff)
         return TokenResponse(
             access_token=self._build_access_token(staff),
             refresh_token=create_refresh_token(str(staff.staff_id)),
@@ -149,6 +319,17 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Staff account is inactive.",
+            )
+
+        if staff.role == StaffRole.ADMIN and not staff.admin_setup_complete:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Complete administrator setup before refreshing the session.",
+            )
+        if staff.requires_password_change:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Change the temporary password before refreshing the session.",
             )
 
         return AccessTokenResponse(
@@ -190,11 +371,19 @@ class AuthService:
 # -----------------------------------------------------
 # LOGOUT
 # -----------------------------------------------------
-    async def logout(self) -> dict[str, str]:
+    async def logout(self, staff_id: UUID | None = None) -> dict[str, str]:
         """
         Signals successful logout to the client to trigger clearing of
         stored tokens (e.g., localStorage, HTTP-only cookies).
         """
+        if staff_id is not None:
+            staff = await self.get_staff(staff_id)
+            staff.is_on_duty = False
+            # Release the workstation at shift end so another staff member
+            # can use it after this account signs out.
+            staff.active_service_point_id = None
+            await self.db.commit()
+
         return {
             "message": "Logged out successfully."
         }
@@ -233,6 +422,17 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Staff account not found or inactive.",
+        )
+
+    if staff.role == StaffRole.ADMIN and not staff.admin_setup_complete:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Complete administrator setup before accessing the system.",
+        )
+    if staff.requires_password_change:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Change the temporary password before accessing the system.",
         )
 
     station = None

@@ -83,6 +83,24 @@ def create_refresh_token(staff_id: str) -> str:
     )
 
 
+def create_admin_setup_token(staff_id: str) -> str:
+    """Issue a short-lived token that can only complete initial admin setup."""
+    return _create_token(
+        payload={"sub": staff_id, "scope": "admin_setup"},
+        expires_delta=timedelta(minutes=15),
+        token_type="admin_setup",
+    )
+
+
+def create_password_change_token(staff_id: str) -> str:
+    """Issue a short-lived token restricted to changing a temporary password."""
+    return _create_token(
+        payload={"sub": staff_id, "scope": "password_change"},
+        expires_delta=timedelta(minutes=15),
+        token_type="password_change",
+    )
+
+
 # ---------------------------------------------------------
 # JWT DECODING
 # ---------------------------------------------------------
@@ -127,4 +145,30 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
             detail="Refresh token required.",
         )
 
+    return payload
+
+
+def decode_admin_setup_token(token: str) -> dict[str, Any]:
+    payload = _decode_token(token)
+    if (
+        payload.get("type") != "admin_setup"
+        or payload.get("scope") != "admin_setup"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Administrator setup token required.",
+        )
+    return payload
+
+
+def decode_password_change_token(token: str) -> dict[str, Any]:
+    payload = _decode_token(token)
+    if (
+        payload.get("type") != "password_change"
+        or payload.get("scope") != "password_change"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Password change token required.",
+        )
     return payload

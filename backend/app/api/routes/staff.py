@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.domain.models.models import StaffRole
 from app.domain.schemas.schemas import (
-    AdminPasswordResetRequest,
+    AdminPasswordResetResponse,
     CurrentUser,
     StaffCreate,
     StaffDepartmentUpdate,
@@ -90,7 +90,9 @@ async def check_in(
     current_user: CurrentUser = Depends(get_current_user),
     service: StaffService = Depends(StaffService.get_instance),
 ):
-    return await service.check_in(current_user.staff_id)
+    staff = await service.check_in(current_user.staff_id)
+    await service.db.commit()
+    return staff
 
 
 @router.post(
@@ -101,7 +103,9 @@ async def check_out(
     current_user: CurrentUser = Depends(get_current_user),
     service: StaffService = Depends(StaffService.get_instance),
 ):
-    return await service.check_out(current_user.staff_id)
+    staff = await service.check_out(current_user.staff_id)
+    await service.db.commit()
+    return staff
 
 
 @router.get(
@@ -243,22 +247,20 @@ async def transfer_staff_department(
 
 @router.patch(
     "/{staff_id}/reset-password",
-    response_model=dict,
+    response_model=AdminPasswordResetResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_role(StaffRole.ADMIN))],
 )
 async def admin_reset_password(
     staff_id: UUID,
-    data: AdminPasswordResetRequest,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Admin-initiated password reset for a staff member who has lost access.
-    Issues a new temporary credential; bypasses the current-password check.
+    Invalidate the current password and issue a one-time recovery code.
     """
     service = StaffService(db)
-    await service.reset_password(staff_id, data)
+    _staff, recovery_code = await service.reset_password(staff_id)
 
     await AuditService(db).log_action(
         entity_id=staff_id,
@@ -270,6 +272,7 @@ async def admin_reset_password(
     await db.commit()
 
     return {
-        "message": "Password reset successfully. "
-        "Share the temporary credential with the staff member securely."
+        "message": "Password invalidated. Share the recovery code securely.",
+        "recovery_code": recovery_code,
+        "expires_in_minutes": 15,
     }

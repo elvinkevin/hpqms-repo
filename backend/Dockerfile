@@ -14,7 +14,7 @@ COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini .
 COPY backend/pytest.ini .
-COPY backend/seed.py .
+COPY backend/bootstrap_admin.py .
 
 COPY frontend /frontend
 

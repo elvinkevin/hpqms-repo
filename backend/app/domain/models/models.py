@@ -385,6 +385,10 @@ class Staff(Base):
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, nullable=False, server_default=true())
     is_on_duty = Column(Boolean, nullable=False, server_default=false())
+    admin_setup_complete = Column(Boolean, nullable=False, server_default=true())
+    requires_password_change = Column(Boolean, nullable=False, server_default=false())
+    password_reset_code_hash = Column(String(255), nullable=True)
+    password_reset_code_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

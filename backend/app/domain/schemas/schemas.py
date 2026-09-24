@@ -2,6 +2,7 @@ from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Any, Union
 from uuid import UUID, uuid4
 from enum import Enum
+import re
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict, Field, model_validator
 from sqlalchemy import Integer
 from app.domain.models.models import (
@@ -256,9 +257,33 @@ class VitalsRead(VitalsBase):
 
 class DepartmentBase(BaseModel):
     name: str = Field(..., max_length=100, description="The name of the department")
-    department_code: str = Field(..., max_length=10, description="Unique short code")
+    department_code: str = Field(
+        ...,
+        min_length=3,
+        max_length=10,
+        description="Unique short code, 3-10 uppercase alphanumerics (e.g. REC, TRIAGE, CONSULT)",
+    )
     type: DeptType = DeptType.OPD
     max_capacity: int = 50
+
+    @field_validator("department_code")
+    @classmethod
+    def validate_department_code(cls, value: str) -> str:
+        """
+        Enforce the department code convention: 3-10 characters, starting
+        with a letter, uppercase letters/digits only (normalized from any
+        input case). Existing codes such as REC, EMERGENCY, TRIAGE, and
+        CONSULT already comply; uniqueness and the VARCHAR(10) limit are
+        unchanged, so no migration or behavior change is required.
+        """
+        normalized = value.strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9]{2,9}", normalized):
+            raise ValueError(
+                "department_code must be 3-10 characters, start with a "
+                "letter, and use uppercase letters/digits only "
+                "(e.g. REC, LAB, CONSULT)"
+            )
+        return normalized
 
 
 class DepartmentCreate(DepartmentBase):
@@ -267,10 +292,24 @@ class DepartmentCreate(DepartmentBase):
 
 class DepartmentUpdate(BaseModel):
     name: str | None = Field(None, max_length=100)
-    department_code: str | None = Field(None, max_length=10)
+    department_code: str | None = Field(None, min_length=3, max_length=10)
     type: DeptType | None = None
     is_active: bool | None = None
     max_capacity: int | None = Field(None, gt=0)
+
+    @field_validator("department_code")
+    @classmethod
+    def validate_department_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9]{2,9}", normalized):
+            raise ValueError(
+                "department_code must be 3-10 characters, start with a "
+                "letter, and use uppercase letters/digits only "
+                "(e.g. REC, LAB, CONSULT)"
+            )
+        return normalized
 
 
 class DepartmentRead(ORMBase):
@@ -319,12 +358,42 @@ class ServicePointRead(ServicePointBase):
 # ════════════════════════════════════════════════════════════════════════════
 
 class StaffBase(BaseModel):
-    employee_id: str
+    employee_id: str = Field(
+        ...,
+        min_length=5,
+        max_length=20,
+        description="Uniform format: EMP-<DEPTCODE><2+ digit sequence>, e.g. EMP-TRIAGE01 or EMP-DOC-001",
+    )
     dept_id: UUID
     first_name: str
     last_name: str
     role: StaffRole
     specialization: Optional[str] = None
+
+    @field_validator("employee_id")
+    @classmethod
+    def validate_employee_id(cls, value: str) -> str:
+        """
+        Enforce the deployment-wide employee ID convention:
+
+            EMP-<DEPTCODE><sequence>   e.g. EMP-RECEP01, EMP-TRIAGE02
+            EMP<DEPTCODE><sequence>    e.g. EMP001, EMPADMIN01 (no dash)
+            EMP-<DEPTCODE>-<sequence>  e.g. EMP-LAB-001 (extra dash optional)
+
+        The segment after EMP is a short department mnemonic (1-8
+        alphanumerics) followed by a 2-4 digit sequence. The dash after the
+        EMP prefix is optional for compatibility with legacy EMP001-style
+        IDs. Normalized to uppercase so 'emp-triage02' and 'EMP-TRIAGE02'
+        are the same ID.
+        """
+        normalized = value.strip().upper()
+        if not re.fullmatch(r"EMP-?[A-Z0-9]{1,8}-?\d{2,4}", normalized):
+            raise ValueError(
+                "employee_id must follow EMP-<DEPTCODE><sequence> "
+                "(e.g. EMP-TRIAGE01, EMP-DOC-004, EMP001): 'EMP' prefix, "
+                "1-8 letters/digits, then a 2-4 digit sequence"
+            )
+        return normalized
 
 
 class StaffCreate(StaffBase):
@@ -383,11 +452,64 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    access_token: str | None = None
+    refresh_token: str | None = None
     token_type: str = "bearer"
-    staff: StaffRead
+    staff: StaffRead | None = None
+    setup_required: bool = False
+    setup_token: str | None = None
+    password_change_required: bool = False
+    password_change_token: str | None = None
 
+
+class AdminSetupCompleteRequest(BaseModel):
+    setup_token: str = Field(min_length=1)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    new_password: str = Field(min_length=12, max_length=72)
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_personal_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Enter your first and last name.")
+        return value
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_setup_password(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be no more than 72 UTF-8 bytes.")
+        if not any(char.isupper() for char in value):
+            raise ValueError("Password must contain an uppercase letter.")
+        if not any(char.islower() for char in value):
+            raise ValueError("Password must contain a lowercase letter.")
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contain a number.")
+        if not any(not char.isalnum() for char in value):
+            raise ValueError("Password must contain a symbol.")
+        return value
+
+
+class StaffPasswordChangeCompleteRequest(BaseModel):
+    password_change_token: str = Field(min_length=1)
+    new_password: str = Field(min_length=12, max_length=72)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_permanent_password(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be no more than 72 UTF-8 bytes.")
+        if not any(char.isupper() for char in value):
+            raise ValueError("Password must contain an uppercase letter.")
+        if not any(char.islower() for char in value):
+            raise ValueError("Password must contain a lowercase letter.")
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contain a number.")
+        if not any(not char.isalnum() for char in value):
+            raise ValueError("Password must contain a symbol.")
+        return value
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
@@ -416,25 +538,10 @@ class ChangePasswordRequest(BaseModel):
         return value
 
 
-class AdminPasswordResetRequest(BaseModel):
-    """
-    Payload for admin-initiated password reset.
-    No current_password required — the admin identity is the authorization.
-    """
-    new_password: str = Field(
-        ...,
-        min_length=8,
-        description="Temporary password to issue; must be at least 8 characters long"
-    )
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_password_complexity(cls, value: str) -> str:
-        if not any(char.isdigit() for char in value):
-            raise ValueError("Password must contain at least one digit")
-        if not any(char.isupper() for char in value):
-            raise ValueError("Password must contain at least one uppercase letter")
-        return value
+class AdminPasswordResetResponse(BaseModel):
+    message: str
+    recovery_code: str
+    expires_in_minutes: int = 15
 
 
 class StationBinding(BaseModel):

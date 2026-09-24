@@ -27,6 +27,7 @@ const elements = {
 let servicePoints = [];
 let selectedId = null;
 let submitting = false;
+let currentDepartmentName = "your department";
 
 /* ==========================================================================
    AUTH GUARD
@@ -86,7 +87,7 @@ function renderStationList() {
     if (!servicePoints.length) {
         elements.stationList.innerHTML = `
             <div class="station-list-empty">
-                No service points are configured for your department yet.
+                No active service points are configured for ${escapeHtml(currentDepartmentName)}.
                 Ask an administrator to set them up, or skip for now.
             </div>
         `;
@@ -214,6 +215,12 @@ async function initialize() {
             return;
         }
 
+        currentDepartmentName = `${department.name} (${department.department_code})`;
+        if (name && elements.greeting) {
+            elements.greeting.textContent =
+                `Hi ${name} — choose a service point for ${currentDepartmentName}.`;
+        }
+
         const points = await request(
             `/departments/${department.dept_id}/service-points`,
             {
@@ -222,7 +229,9 @@ async function initialize() {
             }
         );
 
-        servicePoints = Array.isArray(points) ? points : [];
+        servicePoints = Array.isArray(points)
+            ? points.filter((point) => point.is_active !== false)
+            : [];
 
         renderStationList();
     } catch (error) {

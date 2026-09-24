@@ -12,6 +12,8 @@ from app.domain.schemas.schemas import (
     AccessTokenResponse,
     RefreshTokenRequest,
     ChangePasswordRequest,
+    AdminSetupCompleteRequest,
+    StaffPasswordChangeCompleteRequest,
     CurrentUser,
     StationBinding,
     StaffCheckInRequest,
@@ -52,6 +54,34 @@ async def login(
     auth_service = AuthService(db)
 
     return await auth_service.login(credentials)
+
+
+@router.post(
+    "/complete-admin-setup",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(rate_limit_auth_dependency)],
+)
+async def complete_admin_setup(
+    data: AdminSetupCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Finalize the first administrator profile using its restricted setup token."""
+    return await AuthService(db).complete_admin_setup(data)
+
+
+@router.post(
+    "/complete-password-change",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(rate_limit_auth_dependency)],
+)
+async def complete_staff_password_change(
+    data: StaffPasswordChangeCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Replace a temporary staff password using its restricted login token."""
+    return await AuthService(db).complete_staff_password_change(data)
 
 
 # ---------------------------------------------------------
@@ -238,4 +268,4 @@ async def logout(
     """
     Endpoint to gracefully log out the current staff member.
     """
-    return await auth_service.logout()
+    return await auth_service.logout(current_staff.staff_id)

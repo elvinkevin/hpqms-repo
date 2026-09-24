@@ -32,7 +32,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://hpqms:hpqms_dev_password@postgres:5432/hpqms
       SECRET_KEY: UtJncvzaPqitbWOgG8ZOrcZtUegLLc8298lX6AVj7PBOJVcwSZ125qkvG75hylYb
       KIOSK_INTERNAL_API_KEY: 0ndirTKm52OfNevwW1nRLWxM4m8W-y9hsT4tDDba3vs
-      ENVIRONMENT: development
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       INITIAL_ADMIN_EMPLOYEE_ID: ${INITIAL_ADMIN_EMPLOYEE_ID:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
 
@@ -52,7 +52,7 @@ services:
 
     command: >
       sh -c "alembic upgrade head &&
-             python seed.py &&
+             python bootstrap_admin.py &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 

@@ -48,6 +48,7 @@ function resolveDynamicUrls() {
     return {
         apiBaseUrl: `${protocol}//${backendHost}/api`,
         websocketUrl: `${wsProtocol}//${backendHost}/ws/display`,
+        adminWebsocketUrl: `${wsProtocol}//${backendHost}/ws/admin`,
     };
 }
 
@@ -87,6 +88,7 @@ const DEFAULT_CONFIG = {
     backend: {
         apiBaseUrl: dynamicBackendDefaults.apiBaseUrl,
         websocketUrl: dynamicBackendDefaults.websocketUrl,
+        adminWebsocketUrl: dynamicBackendDefaults.adminWebsocketUrl,
         connectionTimeoutMs: 10000,
     },
 

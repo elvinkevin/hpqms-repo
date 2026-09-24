@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102d3b">
+  <title>Administrator setup | Horizon General Hospital</title>
+  <link rel="stylesheet" href="css/admin-setup.css">
+</head>
+<body>
+  <header class="setup-brand">
+    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="26" cy="26" r="25" fill="#0F5B78"/><circle cx="26" cy="26" r="25" fill="url(#setupLogoGrad)"/><circle cx="26" cy="26" r="17" fill="#fff"/><path d="M26 16v20M16 26h20" stroke="#13A6A6" stroke-width="5" stroke-linecap="round"/><defs><linearGradient id="setupLogoGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpaceOnUse"><stop stop-color="#0F5B78"/><stop offset="1" stop-color="#13A6A6"/></linearGradient></defs></svg>
+    <div><strong>Horizon General Hospital</strong><span>Quality Care. Every Patient.</span></div>
+  </header>
+  <main class="setup-shell">
+    <section class="setup-card" aria-labelledby="setup-title">
+      <div class="setup-kicker">First-time administrator activation</div>
+      <h1 id="setup-title">Secure your administrator account</h1>
+      <p class="setup-intro">Replace the shared setup password with your personal password and add your name. You’ll then continue to Staff management.</p>
+      <div class="setup-error" data-error role="alert" hidden></div>
+      <form data-admin-setup-form>
+        <fieldset>
+          <legend><span>1</span> Your profile</legend>
+          <div class="setup-name-grid">
+            <label>First name<input name="first_name" autocomplete="given-name" maxlength="100" required></label>
+            <label>Last name<input name="last_name" autocomplete="family-name" maxlength="100" required></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend><span>2</span> Your permanent password</legend>
+          <label>New password<input name="new_password" type="password" autocomplete="new-password" minlength="12" maxlength="72" required aria-describedby="password-help"></label>
+          <label>Confirm new password<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" maxlength="72" required></label>
+          <p id="password-help" class="setup-help">Use at least 12 characters with uppercase and lowercase letters, a number, and a symbol. Maximum 72 UTF-8 bytes.</p>
+        </fieldset>
+        <button class="setup-submit" type="submit"><span data-submit-label>Complete setup</span><span class="setup-spinner" aria-hidden="true" hidden></span></button>
+      </form>
+      <p class="setup-security-note">Your temporary setup access expires after 15 minutes and cannot open other parts of the system.</p>
+      <a class="setup-back-link" href="./staff-login.html">Return to sign in</a>
+    </section>
+  </main>
+  <script type="module" src="js/admin-setup.js"></script>
+</body>
+</html>

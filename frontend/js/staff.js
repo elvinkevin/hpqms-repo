@@ -634,9 +634,9 @@ async function identifyDepartment() {
     }
 }
 
-function handleLogout() {
+async function handleLogout() {
     stopStaffWebSocket();
-    logout();
+    await logout();
 
     currentUser = null;
     clearStaffContext();
