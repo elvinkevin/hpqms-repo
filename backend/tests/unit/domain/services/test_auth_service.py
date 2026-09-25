@@ -16,7 +16,7 @@ async def staff(db, department):
 
     staff_service = StaffService(db)
 
-    return await staff_service.create_staff(
+    staff = await staff_service.create_staff(
         StaffCreate(
             employee_id="EMP001",
             dept_id=department.dept_id,
@@ -26,6 +26,11 @@ async def staff(db, department):
             password="Password123!",
         )
     )
+    # create_staff flags new accounts for a first-login password change;
+    # these tests exercise the normal login/change-password paths.
+    staff.requires_password_change = False
+    await db.commit()
+    return staff
 
 #--------------------------------
 # Department Fixture

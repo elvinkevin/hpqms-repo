@@ -313,7 +313,7 @@ async def test_admin_reset_password_success(
     assert "message" in response.json()
 
 
-async def test_admin_reset_password_credential_actually_changes(
+async def test_admin_reset_password_replaces_password_and_issues_code(
     client: AsyncClient,
     db,
     admin_staff,
@@ -321,63 +321,31 @@ async def test_admin_reset_password_credential_actually_changes(
     department,
 ):
     """
-    Full verification: after reset the new password verifies against the
-    stored hash and the old one no longer does.
+    Reset must replace the stored password with an unknown value, flag the
+    account for a password change, and return a one-time recovery code.
     """
     old_password = "Password123!"
-    admin_staff.hashed_password = None  # placeholder; set real hash below
     from app.core.security import hash_password
 
     admin_staff.hashed_password = hash_password(old_password)
     await db.commit()
 
-    new_password = "BrandNew456"
-
     response = await client.patch(
         f"/api/staff/{admin_staff.staff_id}/reset-password",
-        json={"new_password": new_password},
         headers=admin_headers,
     )
 
     assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert "recovery_code" in body
+    assert body["recovery_code"].startswith("HPQMS-")
+    assert body["expires_in_minutes"] == 15
 
     await db.refresh(admin_staff)
-    assert verify_password(new_password, admin_staff.hashed_password)
+    assert admin_staff.requires_password_change is True
+    assert admin_staff.password_reset_code_hash is not None
+    # The original password must no longer work.
     assert not verify_password(old_password, admin_staff.hashed_password)
-
-
-async def test_admin_reset_password_rejects_weak_password(
-    client: AsyncClient,
-    admin_headers,
-    db,
-    department,
-):
-    staff = await make_staff(db, department)
-
-    response = await client.patch(
-        f"/api/staff/{staff.staff_id}/reset-password",
-        json={"new_password": "weak"},
-        headers=admin_headers,
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-
-async def test_admin_reset_password_rejects_no_digit(
-    client: AsyncClient,
-    admin_headers,
-    db,
-    department,
-):
-    staff = await make_staff(db, department)
-
-    response = await client.patch(
-        f"/api/staff/{staff.staff_id}/reset-password",
-        json={"new_password": "NoDigitsHere"},
-        headers=admin_headers,
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 async def test_admin_reset_password_not_found(
