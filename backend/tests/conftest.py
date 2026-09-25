@@ -239,7 +239,7 @@ async def auth_staff(db, department):
     service = StaffService(db)
     staff = await service.create_staff(
         StaffCreate(
-            employee_id="ADM001",
+            employee_id="EMP-ADM001",
             first_name="System",
             last_name="Admin",
             role=StaffRole.ADMIN,
@@ -247,6 +247,9 @@ async def auth_staff(db, department):
             password="Password123!",
         )
     )
+    # create_staff flags new accounts for a first-login password change;
+    # tests here need a fully provisioned account that returns real tokens.
+    staff.requires_password_change = False
     await db.commit()
     return staff
 
@@ -256,7 +259,7 @@ async def auth_headers(client, auth_staff):
     response = await client.post(
         "/api/auth/login",
         json={
-            "employee_id": "ADM001",
+            "employee_id": "EMP-ADM001",
             "password": "Password123!",
         },
     )

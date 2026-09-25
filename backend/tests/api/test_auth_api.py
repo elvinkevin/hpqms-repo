@@ -17,7 +17,7 @@ async def test_login_success(
     response = await client.post(
         "/api/auth/login",
         json={
-            "employee_id": "ADM001",
+            "employee_id": "EMP-ADM001",
             "password": "Password123!",
         },
     )
@@ -59,7 +59,7 @@ async def test_wrong_password(
     response = await client.post(
         "/api/auth/login",
         json={
-            "employee_id": "ADM001",
+            "employee_id": "EMP-ADM001",
             "password": "WrongPassword",
         },
     )
@@ -84,7 +84,7 @@ async def test_inactive_staff_cannot_login(
     response = await client.post(
         "/api/auth/login",
         json={
-            "employee_id": "ADM001",
+            "employee_id": "EMP-ADM001",
             "password": "Password123!",
         },
     )
@@ -101,7 +101,7 @@ async def test_missing_password(client):
     response = await client.post(
         "/api/auth/login",
         json={
-            "employee_id": "ADM001",
+            "employee_id": "EMP-ADM001",
         },
     )
 
