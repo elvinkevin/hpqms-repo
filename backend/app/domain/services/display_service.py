@@ -65,7 +65,10 @@ class DisplayService:
 
         result = await self.db.execute(
             select(Department)
-            .where(Department.is_active.is_(True))
+            .where(
+                Department.is_active.is_(True),
+                Department.department_code != "ADMIN",
+            )
             .order_by(Department.name)
         )
 

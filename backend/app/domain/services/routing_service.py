@@ -82,6 +82,7 @@ class RoutingService:
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.CRITICAL,
                 notes="Emergency patient routed directly to Emergency.",
+                notify_routing_notes=False,
             )
 
         # 4. Handle paths that skip triage (Incomplete registration or Walk-ins / Referrals)
@@ -100,6 +101,7 @@ class RoutingService:
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
                 notes=notes,
+                notify_routing_notes=False,
             )
 
         # 5. Standard booked appointments bypass Reception and go straight to Triage
@@ -111,6 +113,7 @@ class RoutingService:
                 reason=TransferReason.DIRECT_ROUTING,
                 priority=QueuePriority.NORMAL,
                 notes="Appointment patient routed directly to Triage.",
+                notify_routing_notes=False,
             )
 
         # 6. Fallback safety route to Reception
@@ -121,6 +124,7 @@ class RoutingService:
             reason=TransferReason.DIRECT_ROUTING,
             priority=QueuePriority.NORMAL,
             notes="Patient routed to Reception by default.",
+            notify_routing_notes=False,
         )
 
 
@@ -136,6 +140,7 @@ class RoutingService:
         priority: Optional[QueuePriority] = None,
         notes: Optional[str] = None,
         initiated_by_staff_id: Optional[UUID] = None,
+        notify_routing_notes: bool = True,
     ) -> QueueEntry:
         """
         Transfer a patient to a target department.
@@ -258,6 +263,8 @@ class RoutingService:
                     str(current_entry.dept_id) if current_entry else None
                 ),
                 "target_dept_id": str(target_dept.dept_id),
+                "notes": notes,
+                "notify_routing_notes": bool(notify_routing_notes and notes and notes.strip()),
             },
         )
 

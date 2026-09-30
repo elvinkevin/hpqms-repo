@@ -32,5 +32,10 @@
              └─────────────────┘
 
 
-             Employee ID: EMP-RECEP01
-Temporary password: AiijB!o4TdtVmARU2P
+
+Employee ID: EMP-RECEP01
+Temporary password: Z#9W!Jw86fTPBrL4=R
+
+
+Employee ID: EMP-TRIAGE01
+Temporary password: 42G?Rwd!Dc3aA%#5Cq

@@ -287,6 +287,21 @@ class StaffService:
 
         staff = await self.get_by_id(staff_id)
 
+        # Never allow the last active administrator to be deactivated — the
+        # deployment would otherwise have no account able to administer it.
+        if staff.role == StaffRole.ADMIN and staff.is_active:
+            admin_count_result = await self.db.execute(
+                select(Staff.staff_id).where(
+                    Staff.role == StaffRole.ADMIN,
+                    Staff.is_active.is_(True),
+                )
+            )
+            if len(admin_count_result.scalars().all()) <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Cannot deactivate the last active administrator account.",
+                )
+
         staff.is_active = False
         staff.is_on_duty = False
         staff.active_service_point_id = None

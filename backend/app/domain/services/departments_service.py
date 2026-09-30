@@ -111,7 +111,10 @@ class DepartmentService:
 
         result = await self.db.execute(
             select(Department)
-            .where(Department.is_active.is_(True))
+            .where(
+                Department.is_active.is_(True),
+                Department.department_code != "ADMIN",
+            )
             .order_by(Department.name)
         )
 
@@ -182,6 +185,15 @@ class DepartmentService:
     ) -> Department:
 
         department = await self.get_by_id(dept_id)
+
+        # The Administration department hosts administrator accounts and is
+        # not a patient service area; deactivating it would break admin
+        # account routing, so it is reserved and cannot be deactivated.
+        if department.department_code == "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The Administration department is reserved and cannot be deactivated.",
+            )
 
         department.is_active = False
 

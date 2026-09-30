@@ -538,6 +538,12 @@ class QueueService:
         if new_status is None:
             return
 
+        if (
+            entry.department is not None
+            and entry.department.department_code == "ADMIN"
+        ):
+            return
+
         dept_id = str(entry.dept_id)
 
         token_number = (

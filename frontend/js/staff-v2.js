@@ -67,6 +67,106 @@ let currentContext = null;
 let syncInProgress = false;
 let syncPending = false;
 let websocketSubscriptions = [];
+const routedNotes = [];
+const pendingRoutingNotes = new Map();
+
+function initializeRoutingNotifications() {
+    const button = document.querySelector(".notification-btn");
+    if (!button) return;
+
+    button.setAttribute("aria-haspopup", "true");
+    button.setAttribute("aria-expanded", "false");
+    const badge = button.querySelector(".badge");
+    if (badge) badge.hidden = true;
+
+    let popup = document.getElementById("routingNotesPopup");
+    if (!popup) {
+        popup = document.createElement("div");
+        popup.id = "routingNotesPopup";
+        popup.className = "routing-notes-popup";
+        popup.hidden = true;
+        popup.setAttribute("role", "status");
+        button.closest(".icon-btn-container")?.appendChild(popup);
+    }
+
+    const render = () => {
+        popup.replaceChildren();
+        if (!routedNotes.length) {
+            const empty = document.createElement("p");
+            empty.className = "routing-notes-empty";
+            empty.textContent = "No routing notes.";
+            popup.appendChild(empty);
+            return;
+        }
+        for (const item of routedNotes) {
+            const card = document.createElement("article");
+            card.className = "routing-note-item";
+            const title = document.createElement("strong");
+            title.textContent = `${item.patient || item.token || "Routed patient"}${item.department ? ` · ${item.department}` : ""}`;
+            const note = document.createElement("p");
+            note.textContent = item.notes;
+            card.append(title, note);
+            popup.appendChild(card);
+        }
+    };
+
+    button.addEventListener("click", () => {
+        const opening = popup.hidden;
+        popup.hidden = !opening;
+        button.setAttribute("aria-expanded", String(opening));
+        if (opening) {
+            routedNotes.length = 0;
+            if (badge) badge.hidden = true;
+            render();
+        }
+    });
+
+    return (event) => {
+        if (!event?.notify_routing_notes || !String(event?.notes || "").trim()) return;
+        const patient = event.queue_entry?.visit?.patient;
+        pendingRoutingNotes.set(String(event.queue_entry_id || ""), {
+            notes: String(event.notes).trim(),
+            token: event.token_number,
+            patient: patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : "",
+            department: event.department_name,
+        });
+    };
+}
+
+function notifyCalledRoutingNote(event) {
+    const entryId = String(event?.queue_entry_id || "");
+    const pending = pendingRoutingNotes.get(entryId);
+    if (!pending) return;
+    pendingRoutingNotes.delete(entryId);
+
+    routedNotes.unshift({
+        ...pending,
+        token: event.token_number || pending.token,
+    });
+    const button = document.querySelector(".notification-btn");
+    const popup = document.getElementById("routingNotesPopup");
+    if (!button || !popup) return;
+    const badge = button.querySelector(".badge");
+    if (badge) {
+        badge.textContent = String(routedNotes.length);
+        badge.hidden = false;
+    }
+    popup.replaceChildren();
+    for (const item of routedNotes) {
+        const card = document.createElement("article");
+        card.className = "routing-note-item";
+        const title = document.createElement("strong");
+        title.textContent = `${item.patient || (item.token ? `Token ${item.token}` : "Routed patient")}${item.department ? ` · ${item.department}` : ""}`;
+        const note = document.createElement("p");
+        note.textContent = item.notes;
+        card.append(title, note);
+        popup.appendChild(card);
+    }
+    popup.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+}
+
+let showRoutingNote = null;
 
 function setStatus(message) {
     const lastUpdated = document.getElementById("lastUpdated");
@@ -126,6 +226,14 @@ async function handleWebSocketMessage(event) {
 
     if (event.event_type !== "QUEUE_UPDATED") {
         applyEvent(event);
+    }
+
+    if (event.event_type === "PATIENT_ROUTED"
+        && String(event.target_dept_id || event.dept_id || "") === String(currentContext?.departmentId || "")) {
+        showRoutingNote?.(event);
+    }
+    if (event.event_type === "TOKEN_CALLED") {
+        notifyCalledRoutingNote(event);
     }
 
     await synchronizeQueue();
@@ -272,6 +380,7 @@ async function handleLogout() {
 }
 
 subscribe(renderQueuePanel);
+showRoutingNote = initializeRoutingNotifications();
 initializeQueuePanel({
     onRefresh: synchronizeQueue,
     onRequeue: requeueEntry,

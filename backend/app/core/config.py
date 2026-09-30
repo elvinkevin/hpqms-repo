@@ -42,11 +42,13 @@ class Settings(BaseSettings):
 
     # Allowed browser origins. Override in deployment environment.
     # Includes the Caddy IP-address fallback path used by display TVs
-    # (keep in sync with SERVER_IP / Caddyfile).
+    # (keep in sync with SERVER_IP / Caddyfile). Covers any RFC1918
+    # private address so the stack works on any LAN, not just the
+    # workplace 192.168.1.x network.
     CORS_ORIGIN_REGEX: str = (
     r"(https://hpqms\.internal|"
-    r"https://192\.168\.\d+\.\d+|"
-    r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?)"
+    r"https://(192\.168|10(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})|"
+    r"http://(localhost|127\.0\.0\.1|(192\.168|10(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}))(:\d+)?)"
    )
 
     ENVIRONMENT: str = "development"

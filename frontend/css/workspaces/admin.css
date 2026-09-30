@@ -453,8 +453,8 @@
 .admin-inline-form { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .admin-inline-form input, .admin-inline-form select, .admin-filter-form input, .admin-field-label select, .admin-service-create input, .admin-service-create select { min-width: 120px; border: 1px solid #dce5e9; border-radius: 6px; padding: 7px 8px; background: #fff; color: #304b58; font: inherit; font-size: 10.5px; }
 
-.admin-row-actions { display: flex; align-items: center; gap: 6px; min-width: 110px; }
-.admin-row-actions button, .admin-row-button { border: 1px solid #dce5e9; border-radius: 5px; background: white; color: #496575; padding: 4px 6px; font: inherit; font-size: 8.5px; cursor: pointer; }
+.admin-row-actions { display: flex; align-items: center; gap: 6px; }
+.admin-row-actions button, .admin-row-button { border: 1px solid #dce5e9; border-radius: 5px; background: white; color: #496575; padding: 4px 4px; font: inherit; font-size: 8.5px; cursor: pointer; }
 .admin-row-actions button:hover, .admin-row-button:hover { background: #edf7f7; }
 .admin-row-actions .danger-text { color: #b14a46; }
 .admin-row-actions .admin-manage-button { padding: 6px 11px; font-size: 9.5px; }
@@ -566,6 +566,16 @@
 .admin-staff-created-dialog .admin-copy-status:not([hidden]) { border-color:#c8eadb; background:#edf8f2; color:#26734d; }
 .admin-reset-confirm-dialog > p { margin-top:14px; }
 .admin-reset-account-button { background:#a83939; }
+
+/* Confirmation / edit popups (replace native confirm()/prompt()) */
+.admin-button.danger { background:#a83939; border-color:#a83939; color:#fff; }
+.admin-button.danger:hover { background:#8f2f2f; }
+.admin-confirm-dialog > p { margin-top:14px; }
+.admin-confirm-dialog .admin-drawer-kicker { color:#a83939; }
+.admin-edit-dialog form { display:grid; gap:10px; }
+.admin-edit-dialog form label { display:grid; gap:6px; color:#536c78; font-size:10.5px; font-weight:650; }
+.admin-edit-dialog form input { min-height:39px; padding:8px 10px; border:1px solid #dce5e9; border-radius:6px; font:inherit; }
+.admin-edit-dialog form footer { display:flex; justify-content:flex-end; gap:7px; margin-top:6px; padding-top:12px; border-top:1px solid #edf1f4; }
 .admin-reset-account-button:hover { background:#922e2e; }
 .admin-recovery-code-dialog { width:min(100%,500px); }
 .admin-recovery-code-value { width:100%; min-height:62px; padding:12px; border:1px solid #cfe0e5; border-radius:9px; background:#f5f9fa; color:#173c4a; font:700 23px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.08em; text-align:center; }

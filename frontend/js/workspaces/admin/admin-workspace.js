@@ -13,6 +13,7 @@ let audit = [];
 let selectedDepartment = "";
 let servicePointLoadVersion = 0;
 let busy = false;
+let confirmDialogAction = null;
 let timer;
 let noticeTimer;
 
@@ -185,7 +186,7 @@ function renderStaff() {
         ? `${filtered.length} of ${staff.length} staff match "${esc(staffQuery)}"`
         : `${staff.length} staff records · Shift status is separate from account status and station assignment`;
 
-    const html = `<section class="admin-panel"><div class="admin-panel-head admin-panel-head--staff"><div class="admin-panel-head-left"><div><h2>Staff directory</h2><p>${subtitle}</p></div><div class="admin-staff-search"><span class="admin-staff-search-icon">⌕</span><input class="admin-staff-search-input" data-staff-search type="search" placeholder="Search by name, ID, department, role…" value="${esc(staffQuery)}" autocomplete="off" spellcheck="false" aria-label="Search staff"><button class="admin-staff-search-clear" data-action="staff-search-clear" aria-label="Clear search" ${hasQuery ? "" : "hidden"}>✕</button></div></div><button class="admin-button primary" data-action="open-create-staff-drawer">＋ Add staff</button></div><div class="admin-table-wrap"><table><thead><tr><th>Staff member</th><th>Employee ID</th><th>Department</th><th>Role</th><th>Station</th><th>Shift</th><th>Account</th><th>Actions</th></tr></thead><tbody>${pageStaff.map((s) => `<tr><td><b>${esc(s.first_name)} ${esc(s.last_name)}</b></td><td>${esc(s.employee_id)}</td><td>${esc(departments.find((d) => d.dept_id === s.dept_id)?.name || s.department_name || "—")}</td><td><span class="admin-role-tag">${esc(s.role)}</span></td><td>${s.active_service_point_id ? "Assigned" : "—"}</td><td><span class="admin-pill ${s.is_on_duty ? "success" : "muted"}">${s.is_on_duty ? "On duty" : "Off duty"}</span></td><td><span class="admin-pill ${s.is_active ? "success" : "muted"}">${s.is_active ? "Active" : "Inactive"}</span></td><td><div class="admin-row-actions"><button class="admin-button secondary admin-manage-button" data-action="manage-staff" data-id="${s.staff_id}">Manage</button><div class="admin-menu-wrap"><button class="admin-overflow-trigger" data-action="staff-menu" data-id="${s.staff_id}" aria-label="More actions for ${esc(s.first_name)} ${esc(s.last_name)}" aria-expanded="false">⋮</button><div class="admin-overflow-menu" data-staff-menu="${s.staff_id}" role="menu" hidden><button role="menuitem" data-action="staff-toggle-active" data-id="${s.staff_id}" data-active="${s.is_active}" class="${s.is_active ? "danger-text" : ""}">${s.is_active ? "Deactivate account" : "Activate account"}</button><button role="menuitem" data-action="staff-reset-password" data-id="${s.staff_id}">Reset account</button></div></div></div></td></tr>`).join("") || `<tr><td colspan="8" class="admin-search-empty">${hasQuery ? `No staff match "<strong>${esc(staffQuery)}</strong>"` : "No staff records found."}</td></tr>`}</tbody></table></div><nav class="admin-pagination" aria-label="Staff directory pages"><span>Showing ${start}–${end} of ${filtered.length} record${filtered.length !== 1 ? "s" : ""}${hasQuery ? ` (filtered)` : ""}</span><div class="admin-pagination-controls"><button data-action="staff-page" data-page="${staffPage - 1}" ${staffPage <= 1 ? "disabled" : ""}>‹ Prev</button>${Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => `<button data-action="staff-page" data-page="${page}" class="${page === staffPage ? "active" : ""}" ${page === staffPage ? 'aria-current="page"' : ""}>${page}</button>`).join("")}<button data-action="staff-page" data-page="${staffPage + 1}" ${staffPage >= pageCount ? "disabled" : ""}>Next ›</button></div></nav></section>`;
+    const html = `<section class="admin-panel"><div class="admin-panel-head admin-panel-head--staff"><div class="admin-panel-head-left"><div><h2>Staff directory</h2><p>${subtitle}</p></div><div class="admin-staff-search"><span class="admin-staff-search-icon">⌕</span><input class="admin-staff-search-input" data-staff-search type="search" placeholder="Search by name, ID, department, role…" value="${esc(staffQuery)}" autocomplete="off" spellcheck="false" aria-label="Search staff"><button class="admin-staff-search-clear" data-action="staff-search-clear" aria-label="Clear search" ${hasQuery ? "" : "hidden"}>✕</button></div></div><button class="admin-button primary" data-action="open-create-staff-drawer">＋ Add staff</button></div><div class="admin-table-wrap"><table><thead><tr><th>Staff member</th><th>Employee ID</th><th>Department</th><th>Role</th><th>Station</th><th>Shift</th><th>Account</th><th>Actions</th></tr></thead><tbody>${pageStaff.map((s) => { const isSelf = String(s.employee_id) === String(context?.employeeId || ""); return `<tr><td><b>${esc(s.first_name)} ${esc(s.last_name)}</b></td><td>${esc(s.employee_id)}</td><td>${esc(departments.find((d) => d.dept_id === s.dept_id)?.name || s.department_name || "—")}</td><td><span class="admin-role-tag">${esc(s.role)}</span></td><td>${s.active_service_point_id ? "Assigned" : "—"}</td><td><span class="admin-pill ${s.is_on_duty ? "success" : "muted"}">${s.is_on_duty ? "On duty" : "Off duty"}</span></td><td><span class="admin-pill ${s.is_active ? "success" : "muted"}">${s.is_active ? "Active" : "Inactive"}</span></td><td><div class="admin-row-actions"><button class="admin-button secondary admin-manage-button" data-action="manage-staff" data-id="${s.staff_id}">Manage</button><div class="admin-menu-wrap"><button class="admin-overflow-trigger" data-action="staff-menu" data-id="${s.staff_id}" aria-label="More actions for ${esc(s.first_name)} ${esc(s.last_name)}" aria-expanded="false">⋮</button><div class="admin-overflow-menu" data-staff-menu="${s.staff_id}" role="menu" hidden>${s.is_active ? (isSelf ? "" : `<button role="menuitem" data-action="staff-toggle-active" data-id="${s.staff_id}" data-active="true" class="danger-text">Deactivate account</button>`) : `<button role="menuitem" data-action="staff-toggle-active" data-id="${s.staff_id}" data-active="false">Activate account</button>`}<button role="menuitem" data-action="staff-reset-password" data-id="${s.staff_id}">Reset account</button></div></div></div></td></tr>`; }).join("") || `<tr><td colspan="8" class="admin-search-empty">${hasQuery ? `No staff match "<strong>${esc(staffQuery)}</strong>"` : "No staff records found."}</td></tr>`}</tbody></table></div><nav class="admin-pagination" aria-label="Staff directory pages"><span>Showing ${start}–${end} of ${filtered.length} record${filtered.length !== 1 ? "s" : ""}${hasQuery ? ` (filtered)` : ""}</span><div class="admin-pagination-controls"><button data-action="staff-page" data-page="${staffPage - 1}" ${staffPage <= 1 ? "disabled" : ""}>‹ Prev</button>${Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => `<button data-action="staff-page" data-page="${page}" class="${page === staffPage ? "active" : ""}" ${page === staffPage ? 'aria-current="page"' : ""}>${page}</button>`).join("")}<button data-action="staff-page" data-page="${staffPage + 1}" ${staffPage >= pageCount ? "disabled" : ""}>Next ›</button></div></nav></section>`;
 
     return html;
 }
@@ -203,7 +204,7 @@ function onInput(event) {
 function renderDepartments() {
     const selected = departments.find((d) => d.dept_id === selectedDepartment) || departments[0];
     if (selected && selectedDepartment !== selected.dept_id) selectedDepartment = selected.dept_id;
-    return `<div class="admin-dept-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Departments</h2><p>Configure hospital departments</p></div><button class="admin-button primary" data-action="toggle-create-dept">＋ Add department</button></div><div data-create-dept class="admin-form-panel" hidden><form data-form="department-create" class="admin-inline-form"><input name="name" placeholder="Department name" required><input name="department_code" placeholder="Code" maxlength="10" required><select name="type">${["OPD", "EMERGENCY", "SPECIALIST", "PAEDS"].map((x) => `<option>${x}</option>`).join("")}</select><input name="max_capacity" type="number" min="1" value="50" aria-label="Maximum capacity"><button class="admin-button primary">Create department</button></form></div><div class="admin-table-wrap"><table><thead><tr><th>Name</th><th>Code</th><th>Type</th><th>Capacity</th><th>Status</th><th></th></tr></thead><tbody>${departments.map((d) => `<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.department_code)}</td><td>${esc(d.type)}</td><td>${d.max_capacity}</td><td><span class="admin-pill ${d.is_active ? "success" : "muted"}">${d.is_active ? "Active" : "Inactive"}</span></td><td><div class="admin-row-actions"><button class="admin-row-button" data-action="dept-edit" data-id="${d.dept_id}">Edit</button><button class="admin-row-button" data-action="dept-status" data-id="${d.dept_id}" data-active="${d.is_active}">${d.is_active ? "Deactivate" : "Activate"}</button></div></td></tr>`).join("") || `<tr><td colspan="6">No departments available.</td></tr>`}</tbody></table></div></section>
+    return `<div class="admin-dept-layout"><section class="admin-panel"><div class="admin-panel-head"><div><h2>Departments</h2><p>Configure hospital departments</p></div><button class="admin-button primary" data-action="toggle-create-dept">＋ Add department</button></div><div data-create-dept class="admin-form-panel" hidden><form data-form="department-create" class="admin-inline-form"><input name="name" placeholder="Department name" required><input name="department_code" placeholder="Code" maxlength="10" required><select name="type">${["OPD", "EMERGENCY", "SPECIALIST", "PAEDS"].map((x) => `<option>${x}</option>`).join("")}</select><input name="max_capacity" type="number" min="1" value="50" aria-label="Maximum capacity"><button class="admin-button primary">Create department</button></form></div><div class="admin-table-wrap"><table><thead><tr><th>Name</th><th>Code</th><th>Type</th><th>Capacity</th><th>Status</th><th></th></tr></thead><tbody>${departments.map((d) => { const isReservedAdminDept = String(d.department_code || "").toUpperCase() === "ADMIN"; return `<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.department_code)}</td><td>${esc(d.type)}</td><td>${d.max_capacity}</td><td><span class="admin-pill ${d.is_active ? "success" : "muted"}">${d.is_active ? "Active" : "Inactive"}</span></td><td><div class="admin-row-actions"><button class="admin-row-button ${isReservedAdminDept ? "admin-dept-edit-only" : ""}" data-action="dept-edit" data-id="${d.dept_id}">Edit</button>${isReservedAdminDept ? "" : `<button class="admin-row-button" data-action="dept-status" data-id="${d.dept_id}" data-active="${d.is_active}">${d.is_active ? "Deactivate" : "Activate"}</button>`}</div></td></tr>`; }).join("") || `<tr><td colspan="6">No departments available.</td></tr>`}</tbody></table></div></section>
       <section class="admin-panel"><div class="admin-panel-head"><div><h2>Service points</h2><p>Stations configured for a department</p></div></div><label class="admin-field-label">Department<select data-department-select>${departmentOptions(selectedDepartment)}</select></label><div data-service-points class="admin-service-list">${selected ? `<div class="admin-loading"><span class="admin-spinner"></span>Loading service points…</div>` : empty("Create a department to configure service points.")}</div></section></div><p class="admin-footnote">TODO: add richer department editing and service-point availability controls as configuration needs grow.</p>`;
 }
 
@@ -225,6 +226,36 @@ function closeStaffDrawer() { root?.querySelector("[data-staff-drawer-backdrop]"
 function closeCreateStaffDrawer() { root?.querySelector("[data-create-staff-drawer-backdrop]")?.remove(); }
 
 function closePasswordDialog() { root?.querySelector("[data-password-dialog-backdrop]")?.remove(); }
+
+function closeConfirmDialog() {
+    root?.querySelector("[data-confirm-dialog-backdrop]")?.remove();
+    confirmDialogAction = null;
+}
+
+function closeDeptEditDialog() { root?.querySelector("[data-dept-edit-backdrop]")?.remove(); }
+
+function closeServicePointEditDialog() { root?.querySelector("[data-sp-edit-backdrop]")?.remove(); }
+
+// In-workspace confirmation popup replacing native browser confirm().
+function openConfirmDialog({ kicker = "Please confirm", title, message, confirmLabel = "Confirm", onConfirm }) {
+    closeConfirmDialog();
+    root.insertAdjacentHTML("beforeend", `<div class="admin-password-backdrop" data-confirm-dialog-backdrop><section class="admin-password-dialog admin-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title"><button class="admin-password-close" type="button" data-action="close-confirm-dialog" aria-label="Close">×</button><span class="admin-drawer-kicker">${esc(kicker)}</span><h2 id="confirm-dialog-title">${esc(title)}</h2><p>${esc(message)}</p><footer><button class="admin-button secondary" type="button" data-action="close-confirm-dialog">Cancel</button><button class="admin-button danger" type="button" data-action="confirm-dialog-confirm">${esc(confirmLabel)}</button></footer></section></div>`);
+    confirmDialogAction = onConfirm;
+}
+
+function openDeptEditDialog(d) {
+    closeDeptEditDialog();
+    root.insertAdjacentHTML("beforeend", `<div class="admin-password-backdrop" data-dept-edit-backdrop><section class="admin-password-dialog admin-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="dept-edit-title"><button class="admin-password-close" type="button" data-action="close-dept-edit-dialog" aria-label="Close">×</button><span class="admin-drawer-kicker">Department administration</span><h2 id="dept-edit-title">Edit department</h2><form data-form="department-edit" data-dept-id="${esc(d.dept_id)}"><label>Department name<input name="name" value="${esc(d.name)}" required></label><label>Department code<input name="department_code" value="${esc(d.department_code)}" maxlength="10" required></label><label>Maximum capacity<input name="max_capacity" type="number" min="1" value="${esc(d.max_capacity)}" required></label><footer><button class="admin-button secondary" type="button" data-action="close-dept-edit-dialog">Cancel</button><button class="admin-button primary">Save changes</button></footer></form></section></div>`);
+    root.querySelector("[data-dept-edit-backdrop] input")?.focus();
+}
+
+async function openServicePointEditDialog(id) {
+    const point = await api.getServicePoints(selectedDepartment).then((items) => items.find((item) => item.service_point_id === id));
+    if (!point) return;
+    closeServicePointEditDialog();
+    root.insertAdjacentHTML("beforeend", `<div class="admin-password-backdrop" data-sp-edit-backdrop><section class="admin-password-dialog admin-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="sp-edit-title"><button class="admin-password-close" type="button" data-action="close-sp-edit-dialog" aria-label="Close">×</button><span class="admin-drawer-kicker">Service point administration</span><h2 id="sp-edit-title">Edit service point</h2><form data-form="service-point-edit" data-sp-id="${esc(id)}"><label>Station label<input name="label" value="${esc(point.label)}" required></label><label>Station code<input name="code" value="${esc(point.code)}" required></label><footer><button class="admin-button secondary" type="button" data-action="close-sp-edit-dialog">Cancel</button><button class="admin-button primary">Save changes</button></footer></form></section></div>`);
+    root.querySelector("[data-sp-edit-backdrop] input")?.focus();
+}
 
 function secureRandomIndex(max) {
     if (!globalThis.crypto?.getRandomValues || !Number.isInteger(max) || max < 1 || max > 256) {
@@ -336,6 +367,9 @@ async function onClick(event) {
     if (event.target.matches("[data-staff-drawer-backdrop]")) { closeStaffDrawer(); return; }
     if (event.target.matches("[data-create-staff-drawer-backdrop]")) { closeCreateStaffDrawer(); return; }
     if (event.target.matches("[data-password-dialog-backdrop]")) { closePasswordDialog(); return; }
+    if (event.target.matches("[data-confirm-dialog-backdrop]")) { closeConfirmDialog(); return; }
+    if (event.target.matches("[data-dept-edit-backdrop]")) { closeDeptEditDialog(); return; }
+    if (event.target.matches("[data-sp-edit-backdrop]")) { closeServicePointEditDialog(); return; }
     if (event.target.matches("[data-staff-created-backdrop]")) { event.target.remove(); return; }
     if (event.target.matches("[data-recovery-code-backdrop]")) { event.target.remove(); return; }
     const button = event.target.closest("[data-action], [data-tab]");
@@ -359,6 +393,10 @@ async function onClick(event) {
         if (action === "close-create-staff-drawer") { closeCreateStaffDrawer(); return; }
         if (action === "staff-reset-password") { openPasswordDialog(id); return; }
         if (action === "close-password-dialog") { closePasswordDialog(); return; }
+        if (action === "close-confirm-dialog") { closeConfirmDialog(); return; }
+        if (action === "close-dept-edit-dialog") { closeDeptEditDialog(); return; }
+        if (action === "close-sp-edit-dialog") { closeServicePointEditDialog(); return; }
+        if (action === "confirm-dialog-confirm") { const runConfirm = confirmDialogAction; closeConfirmDialog(); if (typeof runConfirm === "function") await runConfirm(); return; }
         if (action === "confirm-staff-reset") {
             const member = staff.find((item) => item.staff_id === id);
             if (!member) return;
@@ -380,7 +418,23 @@ async function onClick(event) {
         }
         if (action === "close-staff-created") { root.querySelector("[data-staff-created-backdrop]")?.remove(); return; }
         if (action === "copy-staff-credentials") { await copyStaffCredentials(); return; }
-        if (action === "staff-toggle-active") { const s = staff.find((x) => x.staff_id === id); const activating = button.dataset.active !== "true"; if (!activating && !confirm(`Deactivate ${s?.first_name || "this staff member"}'s account? This ends access to the system.`)) return; await api.setStaffActive(id, activating); await reloadCurrent(); return; }
+        if (action === "staff-toggle-active") {
+            const s = staff.find((x) => x.staff_id === id);
+            const activating = button.dataset.active !== "true";
+            if (activating) {
+                await api.setStaffActive(id, true);
+                await reloadCurrent();
+                return;
+            }
+            openConfirmDialog({
+                kicker: "Account administration",
+                title: `Deactivate ${s?.first_name || "this staff member"}'s account?`,
+                message: "This immediately ends the staff member's access to the system. Any active session stops working and their station is released.",
+                confirmLabel: "Deactivate account",
+                onConfirm: async () => { await api.setStaffActive(id, false); await reloadCurrent(); },
+            });
+            return;
+        }
         if (action === "refresh") return await reloadCurrent();
         if (action === "drill") {
             const d = await api.getDepartmentOverview(id);
@@ -388,10 +442,42 @@ async function onClick(event) {
             output.innerHTML = `<div class="admin-drill-card"><b>${esc(d.name)} detail</b><span>Waiting ${d.waiting} · Called ${d.called} · In service ${d.in_progress} · Urgent ${d.critical_waiting} · Staff on duty ${d.staff_on_duty}</span></div>`;
         }
         if (action === "toggle-create-dept") root.querySelector("[data-create-dept]").hidden = !root.querySelector("[data-create-dept]").hidden;
-        if (action === "dept-status") { await api.updateDepartment(id, { is_active: button.dataset.active !== "true" }); departments = await api.getDepartments(); render(); }
-        if (action === "dept-edit") { const d = departments.find((x) => x.dept_id === id); const name = prompt("Department name", d.name); if (name === null) return; const department_code = prompt("Department code", d.department_code); if (department_code === null) return; const max_capacity = prompt("Maximum capacity", d.max_capacity); if (max_capacity === null) return; await api.updateDepartment(id, { name, department_code, max_capacity: Number(max_capacity) }); departments = await api.getDepartments(); render(); }
-        if (action === "service-point-status") { await api.updateServicePoint(id, { is_active: button.dataset.active !== "true" }); await loadServicePoints(); }
-        if (action === "service-point-edit") { const point = await api.getServicePoints(selectedDepartment).then((items) => items.find((item) => item.service_point_id === id)); if (!point) return; const label = prompt("Station label", point.label); if (label === null) return; const code = prompt("Station code", point.code); if (code === null) return; await api.updateServicePoint(id, { label, code }); await loadServicePoints(); }
+        if (action === "dept-status") {
+            const activating = button.dataset.active !== "true";
+            if (activating) {
+                await api.updateDepartment(id, { is_active: true });
+                departments = await api.getDepartments();
+                render();
+                return;
+            }
+            const d = departments.find((x) => x.dept_id === id);
+            openConfirmDialog({
+                kicker: "Department administration",
+                title: `Deactivate ${d?.name || "this department"}?`,
+                message: "This department is removed from kiosk routing and stops accepting new queue entries. Existing queue entries are unaffected.",
+                confirmLabel: "Deactivate department",
+                onConfirm: async () => { await api.updateDepartment(id, { is_active: false }); departments = await api.getDepartments(); render(); },
+            });
+            return;
+        }
+        if (action === "dept-edit") { const d = departments.find((x) => x.dept_id === id); if (d) openDeptEditDialog(d); return; }
+        if (action === "service-point-status") {
+            const activating = button.dataset.active !== "true";
+            if (activating) {
+                await api.updateServicePoint(id, { is_active: true });
+                await loadServicePoints();
+                return;
+            }
+            openConfirmDialog({
+                kicker: "Service point administration",
+                title: "Disable this service point?",
+                message: "New patients will no longer be routed or called to this station. Staff assigned here should be moved to another station first.",
+                confirmLabel: "Disable service point",
+                onConfirm: async () => { await api.updateServicePoint(id, { is_active: false }); await loadServicePoints(); },
+            });
+            return;
+        }
+        if (action === "service-point-edit") { await openServicePointEditDialog(id); return; }
     } catch (error) { showError(error); }
 }
 
@@ -427,6 +513,21 @@ async function onSubmit(event) {
         } else if (form.dataset.form === "department-create") {
             data.max_capacity = Number(data.max_capacity);
             const created = await api.createDepartment(data); departments = await api.getDepartments(); selectedDepartment = created.dept_id; render(); await loadServicePoints(); return;
+        } else if (form.dataset.form === "department-edit") {
+            const id = form.dataset.deptId;
+            await api.updateDepartment(id, { name: data.name, department_code: data.department_code, max_capacity: Number(data.max_capacity) });
+            closeDeptEditDialog();
+            departments = await api.getDepartments();
+            render();
+            notice("Department updated.", "success");
+            return;
+        } else if (form.dataset.form === "service-point-edit") {
+            const id = form.dataset.spId;
+            await api.updateServicePoint(id, { label: data.label, code: data.code });
+            closeServicePointEditDialog();
+            await loadServicePoints();
+            notice("Service point updated.", "success");
+            return;
         } else if (form.dataset.form === "service-point-create") {
             await api.createServicePoint(selectedDepartment, data);
             await loadServicePoints();

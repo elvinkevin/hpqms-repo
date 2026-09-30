@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -163,8 +163,16 @@ async def update_staff(
 )
 async def deactivate_staff(
     staff_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Deactivate a staff account. Self-deactivation is refused so an admin
+    cannot lock themselves out of the deployment."""
+    if staff_id == current_user.staff_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You cannot deactivate your own account. Ask another administrator to deactivate it.",
+        )
     service = StaffService(db)
     staff = await service.deactivate_staff(staff_id)
     await db.commit()
