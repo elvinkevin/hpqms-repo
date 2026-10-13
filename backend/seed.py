@@ -11,12 +11,9 @@ from app.core.config import settings
 
 
 def initial_admin_credentials():
-    """Return bootstrap credentials; fixed defaults are limited to development."""
+    """Return explicitly configured bootstrap credentials."""
     employee_id = settings.INITIAL_ADMIN_EMPLOYEE_ID
     password = settings.INITIAL_ADMIN_PASSWORD
-    if settings.ENVIRONMENT.lower() == "development":
-        employee_id = employee_id or "EMP-ADMIN01"
-        password = password or "AdminAccess123!"
     if not employee_id or not password:
         return None
     if len(password) < 12:
@@ -25,6 +22,15 @@ def initial_admin_credentials():
 
 
 async def seed_hospital_data():
+    if settings.ENVIRONMENT.lower() != "development":
+        raise RuntimeError("seed.py is for development environments only.")
+    demo_staff_password = settings.DEMO_STAFF_PASSWORD
+    if not demo_staff_password or len(demo_staff_password) < 12:
+        raise ValueError(
+            "Set DEMO_STAFF_PASSWORD to a value of at least 12 characters "
+            "before running seed.py."
+        )
+
     print(" Starting logic-aligned hospital database seeding pipeline...")
 
     async with AsyncSessionLocal() as db:
@@ -136,7 +142,7 @@ async def seed_hospital_data():
             # -----------------------------------------------------------
             # 3. SEED STAFF MEMBERS USING NATIVE HASHER
             # -----------------------------------------------------------
-            secure_hash = hash_password("SecurePassword123")
+            secure_hash = hash_password(demo_staff_password)
 
             staff_to_create = [
                 # Receptionists (4 members)
@@ -305,7 +311,10 @@ async def seed_hospital_data():
             else:
                 credentials = initial_admin_credentials()
                 if credentials is None:
-                    print("No administrator exists. Set INITIAL_ADMIN_EMPLOYEE_ID and INITIAL_ADMIN_PASSWORD to bootstrap one.")
+                    raise RuntimeError(
+                        "No administrator exists. Set INITIAL_ADMIN_EMPLOYEE_ID "
+                        "and INITIAL_ADMIN_PASSWORD before running seed.py."
+                    )
                 else:
                     admin_employee_id, admin_password = credentials
                     collision_result = await db.execute(

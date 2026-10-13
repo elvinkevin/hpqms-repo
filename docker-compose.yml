@@ -7,7 +7,7 @@ services:
 
     environment:
       POSTGRES_USER: hpqms
-      POSTGRES_PASSWORD: hpqms_dev_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}
       POSTGRES_DB: hpqms
 
     volumes:
@@ -29,10 +29,10 @@ services:
     restart: unless-stopped
 
     environment:
-      DATABASE_URL: postgresql+asyncpg://hpqms:hpqms_dev_password@postgres:5432/hpqms
-      SECRET_KEY: UtJncvzaPqitbWOgG8ZOrcZtUegLLc8298lX6AVj7PBOJVcwSZ125qkvG75hylYb
-      KIOSK_INTERNAL_API_KEY: 0ndirTKm52OfNevwW1nRLWxM4m8W-y9hsT4tDDba3vs
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+asyncpg://hpqms:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}@postgres:5432/hpqms
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the root .env file}
+      KIOSK_INTERNAL_API_KEY: ${KIOSK_INTERNAL_API_KEY:?Set KIOSK_INTERNAL_API_KEY in the root .env file}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
       INITIAL_ADMIN_EMPLOYEE_ID: ${INITIAL_ADMIN_EMPLOYEE_ID:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
 
@@ -64,10 +64,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-
-    environment:
-      # Override when running off-site: SERVER_IP=10.10.48.174 docker compose up
-      SERVER_IP: ${SERVER_IP:-169.254.164.98}
 
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

@@ -1,15 +1,13 @@
 # HPQMS Operations Runbook
 
-> **Audience:** whoever is on duty at the pilot site. This document assumes no
-> familiarity with the codebase — only access to the server machine and this
-> repository.
+> **Audience:** whoever operates the HPQMS VPS.
 >
 > **Golden rules:**
-> 1. Users reach the system via `https://hpqms.internal` — **never**
->    `https://localhost` (the TLS certificate is issued for `hpqms.internal`).
+> 1. Users reach the system via `https://hpqms.cloud` — never the backend or
+>    database ports directly.
 > 2. Never restore a backup directly into the live `hpqms` database. The
 >    restore script enforces this.
-> 3. When in doubt, take a backup first: `.\scripts\backup_db.ps1`.
+> 3. When in doubt, take a backup first and verify that it can be restored.
 
 ---
 
@@ -30,14 +28,14 @@ Expected state:
 | `hpqms-backend`  | Up **(healthy)**, no host ports |
 | `hpqms-postgres` | Up **(healthy)**, no host ports |
 
-The definitive check is the health endpoint (works from any LAN device):
+The definitive check is the public health endpoint:
 
 ```
-https://hpqms.internal/health        ->  {"status":"ok"}
+https://hpqms.cloud/health        ->  {"status":"ok"}
 ```
 
-Note: from a *new* device you must complete onboarding (§3) first, otherwise
-TLS will fail.
+The certificate should be trusted by browsers automatically. If the site
+doesn't load, check DNS, the VPS firewall, and Caddy logs.
 
 ### Read application logs
 
@@ -48,8 +46,8 @@ docker compose logs caddy  --tail 50            # TLS/proxy errors
 docker compose logs postgres --tail 50          # DB errors (rare, but fatal)
 ```
 
-Migration and seed output appear in the backend log at each container start —
-the 🏥 / 👤 seed lines confirm a clean start.
+Migration and administrator bootstrap output appear in backend logs at
+container startup.
 
 ### Planned stop / start
 
@@ -63,40 +61,71 @@ services). After a reboot, give the stack ~1 minute, then check `/health`.
 
 ---
 
-## 2. Clean-database deployment (fresh install)
+## 2. Production VPS deployment (fresh install)
 
-This is the full from-zero procedure. It has been verified end-to-end.
+This procedure assumes the provider has given you a public IPv4 address and
+you control DNS for `hpqms.cloud`.
 
-**Prerequisites on the target machine:** Docker Desktop (or Engine) running,
-this repository cloned, port 80/443 free.
+**Prerequisites:** a Linux VPS with Docker Engine and the Compose plugin
+installed; the repository cloned on the VPS; ports 80 and 443 allowed through
+both the provider firewall and the VPS firewall; and DNS for `hpqms.cloud`
+pointing to the VPS. In HostAfrica DNS, create an `A` record for `@` pointing
+to `102.68.86.149`. Do not add an `AAAA` record unless the VPS has working
+IPv6. This Caddy configuration serves `hpqms.cloud` (not `www.hpqms.cloud`).
 
-```powershell
-# 1. Configure the deployment secrets.
-#    Copy the template and fill in real values (see §5 for the policy).
-Copy-Item backend\.env.example backend\.env
-notepad backend\.env
-#    Minimum to set: SECRET_KEY, KIOSK_INTERNAL_API_KEY, and — if the
-#    compose file does not already carry them — DATABASE_URL credentials.
+Allow SSH and web traffic in the VPS firewall, keeping your SSH access allowed
+before changing firewall rules. For UFW, for example:
 
-# 2. Build and start the whole stack (first build takes a few minutes).
+```sh
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw status
+```
+
+Apply the corresponding inbound rules in the provider firewall as well. Do not
+open ports 5432 (PostgreSQL) or 8000 (FastAPI) to the internet.
+
+On the VPS, from the repository root:
+
+```sh
+# 1. Create the private Compose environment file.
+cp .env.example .env
+chmod 600 .env
+nano .env
+#    Set POSTGRES_PASSWORD, SECRET_KEY (at least 32 characters),
+#    KIOSK_INTERNAL_API_KEY, INITIAL_ADMIN_EMPLOYEE_ID, and
+#    INITIAL_ADMIN_PASSWORD (at least 12 characters).
+#    Generate a separate URL-safe value for each secret, e.g.:
+#      python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+#    Keep ENVIRONMENT=production. Use a URL-safe password for PostgreSQL.
+
+# 2. Check the Compose configuration, then build and start the stack.
+docker compose config --quiet
 docker compose up -d --build
 
-# 3. Watch the first startup until it settles.
+# 3. Watch startup until migrations, admin bootstrap, and the app complete.
 docker compose logs -f backend
 #    You should see, in order:
 #      - alembic migration output ("running upgrade ... -> head")
-#      - seed lines (🏥 departments, service points, 👤 staff)
+#      - administrator bootstrap confirmation
 #      - "Application startup complete"
-#    Ctrl+C to stop following (this does NOT stop the container).
+#    Press Ctrl+C to stop following logs (this does NOT stop the container).
 
-# 4. Verify from a browser (after onboarding, §3):
-#      https://hpqms.internal/health   -> {"status":"ok"}
-#      https://hpqms.internal/static/kiosk.html  -> kiosk page loads
+# 4. Verify public HTTPS and application health.
+curl -fsS https://hpqms.cloud/health
 ```
 
+The Caddyfile uses `hpqms.cloud` as its site name. Caddy automatically obtains
+and renews a publicly trusted TLS certificate; no internal CA installation or
+separate certificate file is needed. Certificate issuance requires public DNS
+to resolve to this VPS and inbound ports 80 and 443 to reach it. HTTP requests
+are redirected to HTTPS automatically.
+
 The startup command chain (`alembic upgrade head && python bootstrap_admin.py && uvicorn`)
-is idempotent: bootstrap creates the initial departments/admin if needed and
-reconciles administrator department assignment without changing credentials.
+is idempotent: bootstrap creates the initial departments/admin when required
+and reconciles administrator department assignment without changing
+credentials.
 Re-running `docker compose up -d` on an existing volume **does not wipe data**.
 
 ### Wiping the database intentionally (demo/reset)
@@ -124,60 +153,17 @@ in the release notes; back up first (§4).
 
 ---
 
-## 3. LAN device onboarding (kiosk / staff PC / display board)
+## 3. User access (staff / kiosk / display board)
 
-Every new device that will use HPQMS needs three things:
+Use the public HTTPS hostname from each device:
 
-### 3.1 Name resolution
+- Health: `https://hpqms.cloud/health`
+- Kiosk: `https://hpqms.cloud/static/kiosk.html`
+- Staff login: `https://hpqms.cloud/static/staff-login.html`
 
-The server is reached as `hpqms.internal`. Two options, in order of
-preference:
-
-- **Proper DNS entry** on the hospital's internal DNS server:
-  `hpqms.internal -> <server IP>` (e.g. `192.168.1.76`).
-- **Per-device hosts file** (no DNS control needed):
-  - Windows: edit `C:\Windows\System32\drivers\etc\hosts` (as Administrator),
-    add: `<server IP>    hpqms.internal`
-  - Android (display/kiosk tablets): needs root, or use a private-DNS app.
-
-### 3.2 Trust the internal certificate authority
-
-Caddy generates a private root CA (`tls internal`). Devices must trust it or
-browsers show certificate warnings.
-
-- **Export the root CA from the server:**
-
-```powershell
-docker compose exec caddy caddy trust          # installs into THIS machine
-# To get a copy for other machines, export from the Caddy data volume:
-docker run --rm -v hpqms-project_caddy_data:/data -v ${PWD}\backups:/out alpine \
-    cp /data/caddy/pki/authorities/local/root.crt /out/hpqms-root.crt
-```
-
-- **Windows staff PCs / kiosk PCs:** double-click `hpqms-root.crt`
-  → *Install Certificate* → *Local Machine* → **Trusted Root Certification
-  Authorities**.
-- **Android kiosk tablets:** *Settings → Security → Install from storage*
-  (user CA). Note: some apps ignore user CAs; the HPQMS frontend in a browser
-  is fine.
-
-### 3.3 Access and accounts
-
-- Always use `https://hpqms.internal` (bookmark it). Never `https://localhost`
-  and never the raw server IP — both fail TLS by design.
-- Kiosk devices authenticate with the injected API key — no browser
-  configuration needed beyond opening
-  `https://hpqms.internal/static/kiosk.html`.
-- Staff log in with their `employee_id` and password on
-  `https://hpqms.internal/static/staff-login.html`.
-
-### Verification checklist for a newly onboarded device
-
-1. `https://hpqms.internal/health` shows `{"status":"ok"}` with **no**
-   certificate warning.
-2. The kiosk page loads and a (test) check-in succeeds.
-3. The staff login works and the dashboard receives live queue updates
-   (WebSocket path — the most integration-sensitive piece).
+Browsers should show a valid HTTPS connection without installing a private
+certificate authority. Verify staff login and live queue updates (WebSockets)
+after deployment.
 
 ---
 
@@ -255,14 +241,20 @@ machine weekly; the retention prune never touches files you copied away.
 
 ## 5. Secrets & rotation policy
 
-Current secrets and where they live:
+Deployment secrets are supplied through the ignored root `.env` file (or an
+equivalent protected environment on the deployment host). Never put actual
+secret values in the Compose file, `backend/.env.example`, or source control.
+Earlier versions had credential values in tracked files, so generate new
+values for the VPS; editing the current files does not remove values from Git
+history.
 
-| Secret | Committed? | Used for |
+| Secret | Configured in | Used for |
 |---|---|---|
-| `SECRET_KEY` | ❌ (compose + `backend/.env`, both git-ignored) | Signs JWTs; knowing it = forging staff sessions |
-| `KIOSK_INTERNAL_API_KEY` | ❌ (same) | Kiosk devices calling `/api/kiosk/*` |
-| `POSTGRES_PASSWORD` | ❌ in compose (git-ignored? **verify**) | DB access; currently internal-network only |
-| Caddy internal CA root | in volume | TLS trust for LAN devices |
+| `SECRET_KEY` | root `.env` | Signs JWTs; knowing it = forging staff sessions |
+| `KIOSK_INTERNAL_API_KEY` | root `.env` | Kiosk devices calling `/api/kiosk/*` |
+| `POSTGRES_PASSWORD` | root `.env` | Database access; backend connection is private to Compose |
+| Initial admin credentials | root `.env` | Creates the first administrator on a fresh database |
+| Caddy certificate state | `caddy_data` Docker volume | Public TLS certificate renewal |
 
 **Policy going forward:**
 
@@ -271,16 +263,19 @@ Current secrets and where they live:
    rewrite history.
 2. Rotate `SECRET_KEY` and `KIOSK_INTERNAL_API_KEY`:
    - Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"`
-   - Update `docker-compose.yml` + `backend/.env`, then
-     `docker compose up -d backend`.
+   - Update the values in the root `.env`, then
+     `docker compose up -d --force-recreate backend`.
    - Effect: all existing JWTs die instantly (everyone re-logs in — expected),
      and kiosk devices must refresh their page (key is injected at serve time,
      so no device-side work).
 3. Rotate the DB password (more moving parts — plan a maintenance window):
-   `ALTER USER hpqms WITH PASSWORD '...'` inside the container, update
-   `DATABASE_URL` in compose + `backend/.env`, `docker compose up -d backend`.
-4. `backend/.env.example` stays a placeholder forever — it documents shape,
-   not values.
+   use `docker compose exec postgres psql -U hpqms -d hpqms` and run
+   `\password hpqms` to set the new password without putting it in shell
+   history. Update `POSTGRES_PASSWORD` in the root `.env` using a URL-safe
+   value, then recreate the backend with
+   `docker compose up -d --force-recreate backend`.
+4. The `.env.example` files are blank templates; store real values only in
+   ignored `.env` files or a protected deployment environment.
 
 ---
 

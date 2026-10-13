@@ -16,8 +16,8 @@ You are correct — HPQMS has three distinct environments:
 | # | Environment | Where the code runs | How it's started | Who uses it |
 |---|---|---|---|---|
 | 1 | **Local / bare-metal dev** | Python venv on the host (`uvicorn app.main:app`) run from `backend/` | `uvicorn app.main:app --reload` (or similar) in a terminal | Developer only, quick iteration |
-| 2 | **Docker (the pilot stack)** | Containers: `hpqms-backend`, `hpqms-postgres`, `hpqms-caddy`, built from `backend/Dockerfile` | `docker compose up -d --build` | **This is what the hospital devices hit** |
-| 3 | **Production** | Not deployed yet — same compose stack, intended to run on the hospital server with hardened secrets | Same as (2) + ops policy from RUNBOOK.md | Future |
+| 2 | **Docker (local/pilot)** | Containers: `hpqms-backend`, `hpqms-postgres`, `hpqms-caddy`, built from `backend/Dockerfile` | `docker compose up -d --build` | Local testing or private LAN |
+| 3 | **Production** | Same Compose stack on the VPS, with production secrets and public DNS | Follow `documentation/RUNBOOK.md` | Public users at `https://hpqms.cloud` |
 
 **Important truth that caused the recent bug:** environments 1 and 2 run
 *separate copies of the code*. Editing files on disk changes environment 1
@@ -35,43 +35,43 @@ kept being served: the container was running the pre-fix frontend.
 |---|---|
 | API + frontend | `http://localhost:8000` |
 | Health | `http://localhost:8000/health` |
-| Database | `postgresql://postgres:password@localhost:5432/hpqms` (from `DATABASE_URL` default in `config.py`) |
+| Database | `postgres:5432` on the Compose network |
 
 Caddy is **not** involved here. Only useful for development; hospital devices
 never use this.
 
-### Environment 2 — Docker pilot stack (currently active)
+### Environment 2 — Docker (local/pilot)
 
-| Entry point | URL | Notes |
+The current Caddy configuration is for the production VPS hostname, not a
+standalone local Docker test. For quick local development use the bare-metal
+environment above. On the VPS, Caddy serves `https://hpqms.cloud`.
+
+| Service | Address | Notes |
 |---|---|---|
-| **HTTPS + hostname (primary)** | `https://hpqms.internal` | Caddy, TLS internal CA. Requires hosts-entry + CA trust on the device. |
-| **HTTP + IP (fallback)** | `http://192.168.1.76` | Caddy plain-HTTP site block, added for TVs/kiosks that can't do TLS or DNS. **No port number — not `:8000`.** |
-| Direct backend (LAN) | `http://192.168.1.76:8000` | ⚠️ **Not published anymore.** Docker no longer maps host port 8000; this URL is exactly what the stale-code bug kept producing. It should never be used. |
-| Direct backend (internal) | `http://backend:8000` | Container-network name only — reachable by Caddy, not by browsers. |
-| Database | `postgres:5432` on the compose network | Not exposed to the host. |
+| Caddy | `https://hpqms.cloud` | Production entry point; public DNS and inbound 80/443 must reach the VPS. |
+| Backend | `http://backend:8000` | Compose network only; reachable by Caddy, not directly by browsers. |
+| PostgreSQL | `postgres:5432` | Compose network only; never publish this port publicly. |
 
-### Environment 3 — production (planned)
+### Environment 3 — production VPS
 
-Same shape as environment 2, with: production secrets in `backend/.env`,
-`ENVIRONMENT=production`, tightened CORS, and the HTTP/IP fallback path
-removed once proper DNS + CA distribution exists.
+Uses the same container topology, with `ENVIRONMENT=production`, production
+secrets in the ignored root `.env`, and public DNS resolving `hpqms.cloud` to
+the VPS. Caddy obtains and renews the public TLS certificate automatically.
 
 ---
 
-## 3. How the layers connect (environment 2)
+## 3. How the layers connect (Docker and production)
 
 ```text
-                     HOSPITAL LAN devices
-                      (kiosk, staff PCs, TV displays)
-                          │            │
-          HTTPS :443 ─────┘            └───── HTTP :80 (fallback, no TLS)
-                          ▼                  ▼
+                     USERS / HOSPITAL DEVICES
+                          │
+                     HTTPS :443
+                          ▼
                  ┌─────────────────────────────────┐
                  │        hpqms-caddy              │
                  │  ports 80 + 443 published       │
                  │                                 │
-                 │  hpqms.internal  → TLS internal │
-                 │  192.168.1.76   → plain HTTP    │
+                 │  hpqms.cloud → public TLS       │
                  └───────────────┬─────────────────┘
                                  │  reverse_proxy (Docker network, HTTP)
                                  ▼
@@ -98,11 +98,8 @@ Key points:
 - **Only Caddy has published host ports** (80, 443). The backend and database
   are reachable only through the proxy — that is the intended security
   boundary.
-- Both Caddy site blocks forward to the **same** backend, so the hostname
-  path and the IP path serve identical content.
 - The frontend `js/config.js` now builds API/WebSocket URLs from
-  `window.location.host`, so whatever origin the page was loaded from
-  (`https://hpqms.internal` or `http://192.168.1.76`) is the origin it calls.
+  `window.location.host`, so the origin it calls matches the URL used to load it.
   If a device still requests `:8000`, it is running **cached old JavaScript**
   → hard-refresh (Ctrl+Shift+R) or clear the browser cache.
 
@@ -110,9 +107,9 @@ Key points:
 
 ## 4. Which environment is currently running?
 
-The Docker stack (environment 2) is the active deployment — it is the only
-one with Caddy, the published ports, and the pilot data. The local
-bare-metal environment exists for development but is not what devices use.
+The Docker stack runs locally or on the VPS depending on where Compose is
+started. The production VPS uses `https://hpqms.cloud`; local development can
+continue to use the bare-metal environment.
 
 **Confirm on your machine** (Docker must be running / in PATH):
 
@@ -141,7 +138,7 @@ blocked.
 
 ```powershell
 docker compose up -d --build backend
-docker compose logs -f backend      # watch migrations + seed + startup complete
+docker compose logs -f backend      # watch migrations + bootstrap + startup complete
 ```
 
 (`--build` is the part people forget — plain `restart` reuses the old image
@@ -150,8 +147,8 @@ and the old code.)
 Quick checklist when a device shows unexpected behaviour:
 
 1. **Was the code changed recently?** If yes, `docker compose up -d --build`.
-2. Confirm which origin the page was loaded from (look at the browser address
-   bar — is it `:8000`? then the device is on a stale bookmark/cached JS).
+2. Confirm the page is loaded from `https://hpqms.cloud`, not a direct
+   backend port or old bookmark.
 3. Hard-refresh the device page to drop cached JavaScript.
 4. Check `docker compose logs backend --tail 50` for startup/bootstrap lines.
 
@@ -161,5 +158,5 @@ Quick checklist when a device shows unexpected behaviour:
 
 - `documentation/RUNBOOK.md` — daily ops, backups, device onboarding,
   incidents.
-- `Caddyfile` — the two site blocks (HTTPS hostname + HTTP IP fallback).
+- `Caddyfile` — public HTTPS hostname and reverse proxy.
 - `docker-compose.yml` — service topology, ports, startup command chain.

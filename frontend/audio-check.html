@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Announcement Capability Check</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0; line-height: 1.5;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 28px 0 10px; color: #94a3b8;
+       text-transform: uppercase; letter-spacing: .06em; }
+  .sub { color: #94a3b8; margin: 0 0 20px; font-size: .95rem; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+          padding: 16px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; gap: 16px;
+         align-items: flex-start; padding: 10px 0;
+         border-bottom: 1px solid #263449; }
+  .row:last-child { border-bottom: none; }
+  .label { flex: 1 1 auto; }
+  .name { font-weight: 600; }
+  .hint { color: #94a3b8; font-size: .85rem; margin-top: 3px; }
+  .val { flex: 0 0 auto; text-align: right; font-weight: 600;
+         white-space: pre-wrap; max-width: 45%; word-break: break-word; }
+  .pass { color: #4ade80; } .fail { color: #f87171; }
+  .warn { color: #fbbf24; } .info { color: #60a5fa; }
+  button { font: inherit; font-weight: 600; cursor: pointer;
+           background: #3b82f6; color: #fff; border: none;
+           padding: 12px 20px; border-radius: 8px; margin: 6px 8px 6px 0; }
+  button:hover { background: #2563eb; }
+  button.sec { background: #475569; } button.sec:hover { background: #334155; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #verdict { padding: 18px; border-radius: 10px; font-size: 1.05rem;
+             font-weight: 700; margin: 8px 0 20px; }
+  .ok { background: #14532d; color: #d9f99d; }
+  .bad { background: #7f1d1d; color: #fecaca; }
+  .part { background: #78350f; color: #fde68a; }
+  textarea { width: 100%; height: 160px; margin-top: 12px;
+             background: #0f172a; color: #cbd5e1; border: 1px solid #334155;
+             border-radius: 8px; padding: 12px; font-family: ui-monospace, monospace;
+             font-size: .8rem; }
+  #log { background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+         padding: 12px; font-family: ui-monospace, monospace; font-size: .8rem;
+         max-height: 220px; overflow-y: auto; white-space: pre-wrap;
+         color: #cbd5e1; }
+</style>
+</head>
+<body>
+
+<h1>Audio Announcement Capability Check</h1>
+<p class="sub">
+  Run this on the actual display screen that will be mounted in the waiting area.
+  Press <strong>Run Check</strong>, listen for both the chime and the spoken
+  announcement, then confirm what you hear.
+  <br><br>
+  Voice detection can take a second or two to settle — this page waits for it
+  before judging, so let it finish before copying the report.
+</p>
+
+<div id="verdict">Not yet run.</div>
+
+<h2>Automatic Checks</h2>
+<div class="card">
+  <button id="btn-run">Run Check</button>
+  <button class="sec" id="btn-rerun">Re-run Check</button>
+  <span class="hint" id="runstate" style="margin-left:8px"></span>
+</div>
+<div class="card" id="checks"><div class="hint">Press Run Check to begin. The first tap also unlocks audio.</div></div>
+
+<h2>Listen Tests</h2>
+<div class="card">
+  <div class="name">1. Chime (normal call)</div>
+  <div class="hint">Should be four rising notes, like a doorbell going up.</div>
+  <button class="sec" id="btn-chime">Play Normal Chime</button>
+  <button class="sec" id="btn-chime-crit">Pla y Critical Chime</button>
+</div>
+
+<div class="card">
+  <div class="name">2. Spoken announcement</div>
+  <div class="hint">Should read: "Token P zero one four please proceed to Counter 2"</div>
+  <button id="btn-speak">Speak Sample Token</button>
+  <button class="sec" id="btn-speak-rate">Speak at rate 0.8 (slow)</button>
+</div>
+
+<h2>Console Output <span class="hint" style="display:inline">(for IT staff)</span></h2>
+<div id="log"></div>
+<div class="card" style="margin-top:12px">
+  <button class="sec" id="btn-copy">Copy Report</button>
+  <textarea id="report" readonly placeholder="Full report appears here after the check runs."></textarea>
+</div>
+
+<script>
+/* ==========================================================================
+   Capability check for HPQMS audio announcements.
+   Mirrors the techniques used in js/audio-player.js so the results are
+   representative of what the real display board will do.
+   ========================================================================== */
+
+let ctx = null, gain = null, unlocked = false;
+const results = [];
+
+const CHIME = [
+  { frequency: 659.25, durationMs: 180 },
+  { frequency: 783.99, durationMs: 180 },
+  { frequency: 880.00, durationMs: 180 },
+  { frequency: 987.77, durationMs: 320 },
+];
+const CRITICAL = [
+  { frequency: 880.00, durationMs: 120 },
+  { frequency: 783.99, durationMs: 120 },
+  { frequency: 880.00, durationMs: 300 },
+];
+
+function log(m) {
+  document.getElementById('log').textContent += m + '\n';
+  console.log(m);
+}
+
+function add(key, label, hint, value, status) {
+  results.push({ key, label, value, status });
+}
+
+function ensureContext() {
+  if (ctx) return ctx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  ctx = new AC();
+  gain = ctx.createGain();
+  gain.connect(ctx.destination);
+  return ctx;
+}
+
+function unlock() {
+  const c = ensureContext();
+  if (!c) return Promise.resolve();
+  if (c.state === 'suspended') {
+    return c.resume().then(() => { unlocked = c.state === 'running'; });
+  }
+  unlocked = c.state === 'running';
+  return Promise.resolve();
+}
+
+function playChime(priority) {
+  const c = ensureContext();
+  if (!c || !gain) return Promise.resolve();
+  const notes = priority === 'CRITICAL' ? CRITICAL : CHIME;
+  const now = c.currentTime;
+  let cursor = 0;
+  return new Promise(resolve => {
+    let i = 0;
+    (function next() {
+      if (i >= notes.length) { gain.gain.setValueAtTime(0, now + cursor); return resolve(); }
+      const n = notes[i++];
+      const start = now + cursor, end = start + n.durationMs / 1000;
+      const osc = c.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.frequency, start);
+      gain.gain.setValueAtTime(1, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, end);
+      osc.connect(gain); osc.start(start); osc.stop(end);
+      cursor += n.durationMs / 1000;
+      setTimeout(next, n.durationMs);
+    })();
+  });
+}
+
+function speak(text, rate) {
+  if (!('speechSynthesis' in window)) return Promise.resolve();
+  return new Promise(resolve => {
+    try { speechSynthesis.cancel(); } catch (e) {}
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = rate || 1; u.pitch = 1; u.volume = 1;
+    u.onend = () => resolve();
+    u.onerror = (e) => { log('speech error: ' + (e.error || 'unknown')); resolve(); };
+    try { speechSynthesis.speak(u); }
+    catch (e) { log('speak threw: ' + e.message); resolve(); }
+  });
+}
+
+function voicesNow() {
+  try { return speechSynthesis.getVoices() || []; }
+  catch (e) { return []; }
+}
+
+/*
+ * getVoices() returns an EMPTY ARRAY on first call in Chrome, even when
+ * voices are installed. The list is populated asynchronously, usually
+ * within a few hundred milliseconds, and Chrome signals it with the
+ * 'voiceschanged' event. Probing immediately therefore reports a false
+ * failure. This polls until the list is genuinely ready.
+ */
+function waitForVoices(timeoutMs) {
+  return new Promise(resolve => {
+    let waited = 0;
+    const step = 100;
+
+    const done = (reason) => {
+      if (typeof speechSynthesis.onvoiceschanged === 'function') {
+        speechSynthesis.onvoiceschanged = null;
+      }
+      resolve({ voices: voicesNow(), waited, reason });
+    };
+
+    if (!('speechSynthesis' in window)) {
+      return done('no-api');
+    }
+
+    speechSynthesis.onvoiceschanged = () => {
+      log('voiceschanged fired after ' + waited + 'ms');
+      const v = voicesNow();
+      if (v.length) done('voiceschanged');
+      else { /* fired but still empty, keep polling */ }
+    };
+
+    const poll = () => {
+      const v = voicesNow();
+      if (v.length) return done('poll');
+      if (waited >= timeoutMs) return done('timeout');
+      waited += step;
+      setTimeout(poll, step);
+    };
+
+    poll();
+  });
+}
+
+function render() {
+  const el = document.getElementById('checks');
+  if (!results.length) return;
+  el.innerHTML = results.map(r =>
+    '<div class="row"><div class="label"><div class="name">' + r.label +
+    '</div><div class="hint">' + r.hint + '</div></div>' +
+    '<div class="val ' + r.status + '">' + r.value + '</div></div>'
+  ).join('');
+
+  const blockers = results.filter(r => r.status === 'fail');
+  const warns = results.filter(r => r.status === 'warn');
+  const v = document.getElementById('verdict');
+  if (!blockers.length && !warns.length) {
+    v.className = 'ok';
+    v.textContent = 'PASS — this device can run token audio announcements.';
+  } else if (blockers.length) {
+    v.className = 'bad';
+    v.textContent = 'FAIL — ' + blockers.length + ' blocking issue(s). Audio will not work as-is.';
+  } else {
+    v.className = 'part';
+    v.textContent = 'PARTIAL — works with caveats. See warnings below.';
+  }
+
+  document.getElementById('report').value =
+    'HPQMS Audio Capability Report\n' +
+    new Date().toISOString() + '\n' +
+    'URL: ' + location.href + '\n' +
+    'Browser: ' + navigator.userAgent + '\n' +
+    'Screen: ' + screen.width + 'x' + screen.height +
+      ' @' + (window.devicePixelRatio || 1) + 'x\n' +
+    'Touch points: ' + (navigator.maxTouchPoints || 0) + '\n' +
+    'OS: ' + (navigator.platform || 'unknown') + '\n\n' +
+    results.map(r => (r.status === 'fail' ? '[FAIL] ' :
+                      r.status === 'warn' ? '[WARN] ' : '[PASS] ') +
+      r.label + ' = ' + r.value).join('\n');
+}
+
+/* --- individual probes --- */
+
+function probeAutoplay() {
+  const c = ensureContext();
+  if (!c) return;
+  add('api', 'Web Audio API', 'Needed to synthesise the chime',
+      window.AudioContext || window.webkitAudioContext ? 'Available' : 'Missing',
+      (window.AudioContext || window.webkitAudioContext) ? 'pass' : 'fail');
+  add('ctx', 'AudioContext state', 'Must read "running" after the tap',
+      c.state, c.state === 'running' ? 'pass' : 'warn');
+}
+
+function probeTTS(voiceInfo) {
+  const has = 'speechSynthesis' in window;
+  add('tts', 'Speech Synthesis API', 'Needed to speak the token number',
+      has ? 'Available' : 'Missing', has ? 'pass' : 'fail');
+  if (!has) return;
+
+  const u = typeof window.SpeechSynthesisUtterance === 'function';
+  add('utt', 'SpeechSynthesisUtterance', 'Constructor for spoken text',
+      u ? 'Available' : 'Missing', u ? 'pass' : 'fail');
+
+  const v = (voiceInfo && voiceInfo.voices) ? voiceInfo.voices : [];
+  const how = voiceInfo ? voiceInfo.reason : 'unknown';
+
+  add('vcount', 'Installed voices',
+      'Count of voices the OS provides (after waiting for the list to load)',
+      v.length ? String(v.length) + ' (detected via ' + how + ')' : '0 (none found)',
+      v.length ? 'pass' : 'fail');
+
+  const en = v.filter(x => /^en([-_]|$)/i.test(x.lang));
+  add('venv', 'English voices', 'Spoken announcements need an English voice',
+      en.length ? en.length + ' available' : 'None found',
+      en.length ? 'pass' : 'fail');
+
+  if (en.length) {
+    add('venvlist', 'English voice names',
+        'Confirm these sound acceptable in the waiting area',
+        en.slice(0, 8).map(x => x.name + ' (' + x.lang + ')').join('\n'), 'info');
+
+    const local = en.filter(x => x.localService);
+    add('vlocal', 'Offline English voices', 'Voices that work without internet',
+        local.length ? local.length + ' local of ' + en.length : '0 local of ' + en.length,
+        local.length ? 'pass' : 'warn');
+  }
+}
+
+function probeOutput() {
+  return results.length;
+}
+
+async function runAll() {
+  results.length = 0;
+  log('--- capability check started ---');
+
+  probeAutoplay();
+
+  await unlock();
+  probeAutoplay2();
+
+  probeEnvironment();
+
+  /*
+   * Chrome returns an empty voice list on the first call and fills it in
+   * asynchronously. Wait for it to become genuinely ready before judging,
+   * otherwise every machine reports a false failure.
+   */
+  const voiceInfo = await waitForVoices(4000);
+  log('voice detection: ' + voiceInfo.voices.length + ' voice(s) via ' +
+      voiceInfo.reason + ' after ' + voiceInfo.waited + 'ms');
+
+  probeTTS(voiceInfo);
+
+  render();
+  log('--- capability check finished ---');
+}
+
+function probeAutoplay2() {
+  const c = ensureContext();
+  add('ctx2', 'Unlocked after tap',
+      'AudioContext must be "running" for sound to play',
+      c ? c.state : 'no context',
+      c && c.state === 'running' ? 'pass' : 'fail');
+}
+
+function probeEnvironment() {
+  add('touch', 'Touch input', 'Needed for the tap-to-enable gesture on kiosks',
+      (navigator.maxTouchPoints || 0) + ' touch points',
+      (navigator.maxTouchPoints || 0) > 0 ? 'info' : 'warn');
+
+  add('online', 'Network at call time',
+      'Some browsers fetch voices/cloud TTS over the internet',
+      navigator.onLine ? 'Online' : 'Offline', 'info');
+
+  add('mute', 'Page/system mute state',
+      'Windows volume mixer can silence a tab specifically',
+      'Cannot detect from page — verify manually', 'warn');
+
+  add('wake', 'Long-running stability',
+      'Chrome suspends audio after long idle on some devices',
+      'Leave the board running 24h and re-check', 'warn');
+}
+
+/* --- wiring --- */
+
+document.getElementById('btn-chime').onclick = async () => {
+  await unlock();
+  await playChime('NORMAL');
+  log('normal chime played, ctx=' + (ctx ? ctx.state : 'n/a'));
+};
+document.getElementById('btn-chime-crit').onclick = async () => {
+  await unlock();
+  await playChime('CRITICAL');
+  log('critical chime played');
+};
+document.getElementById('btn-speak').onclick = async () => {
+  await unlock();
+  await speak('Token P zero one four please proceed to Counter 2');
+  log('speech dispatched');
+};
+document.getElementById('btn-speak-rate').onclick = async () => {
+  await unlock();
+  await speak('Token P zero one four please proceed to Counter 2', 0.8);
+};
+document.getElementById('btn-copy').onclick = () => {
+  const ta = document.getElementById('report');
+  ta.select();
+  try { document.execCommand('copy'); log('report copied to clipboard'); }
+  catch (e) { log('copy failed — select the text manually'); }
+};
+
+async function guardedRun() {
+  const btn = document.getElementById('btn-run');
+  const state = document.getElementById('runstate');
+  btn.disabled = true;
+  state.textContent = 'Running — waiting for voice list to settle…';
+  try { await runAll(); state.textContent = 'Done.'; }
+  catch (e) { log('check failed: ' + e.message); state.textContent = 'Failed.'; }
+  finally { btn.disabled = false; }
+}
+
+document.getElementById('btn-run').onclick = guardedRun;
+document.getElementById('btn-rerun').onclick = guardedRun;
+
+// Also auto-run on first interaction, so the tap counts as the autoplay gesture.
+['click','keydown','touchstart'].forEach(ev => {
+  document.addEventListener(ev, function once() {
+    document.removeEventListener(ev, once);
+    if (!results.length) guardedRun();
+  }, { once: true });
+});
+
+log('Press "Run Check" or tap anywhere to begin (this tap also unlocks audio).');
+</script>
+
+</body>
+</html>

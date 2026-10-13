@@ -1,20 +1,16 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:password@localhost:5432/hpqms"
-    )
+    DATABASE_URL: str = Field(min_length=1)
 
-    TEST_DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:password@localhost/hospital_test"
-    )
-
-    SECRET_KEY: str = "change-this-to-a-real-secret-in-production"
+    SECRET_KEY: str = Field(min_length=32)
     ALGORITHM: str = "HS256"
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -40,24 +36,20 @@ class Settings(BaseSettings):
     # throttled by shared limiter state.
     RATE_LIMIT_ENABLED: bool = True
 
-    # Allowed browser origins. Override in deployment environment.
-    # Includes the Caddy IP-address fallback path used by display TVs
-    # (keep in sync with SERVER_IP / Caddyfile). Covers any RFC1918
-    # private address so the stack works on any LAN, not just the
-    # workplace 192.168.1.x network.
+    # Allowed browser origins. Keep the public hostname in sync with Caddyfile.
     CORS_ORIGIN_REGEX: str = (
-    r"(https://hpqms\.internal|"
-    r"https://(192\.168|10(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})|"
-    r"http://(localhost|127\.0\.0\.1|(192\.168|10(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}))(:\d+)?)"
-   )
+        r"(https://(hpqms\.cloud|hpqms\.internal|"
+        r"(192\.168|10(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}))|"
+        r"http://(localhost|127\.0\.0\.1|"
+        r"(192\.168|10(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}))(:\d+)?)"
+    )
 
     ENVIRONMENT: str = "development"
 
     # Used by bootstrap_admin.py to create the first administrator.
-    # Development has documented local-only defaults; other environments
-    # must provide both values explicitly.
     INITIAL_ADMIN_EMPLOYEE_ID: str | None = None
     INITIAL_ADMIN_PASSWORD: str | None = None
+    DEMO_STAFF_PASSWORD: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

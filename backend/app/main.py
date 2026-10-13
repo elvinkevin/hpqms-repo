@@ -10,10 +10,21 @@ from app.api.router import api_router
 from app.api.routes.display import websocket_router
 from app.api.routes.admin import websocket_router as admin_websocket_router
 
+
+import os
+
+is_production = (
+    os.getenv("ENVIRONMENT", "production").lower() == "production"
+)
+
 app = FastAPI(
     title="Hospital Queue Management API",
     version="1.0.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
+
 
 # Configure CORS for local dev and LAN access
 app.add_middleware(

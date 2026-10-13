@@ -22,7 +22,9 @@ pip install -r requirements.txt
 
 # 4. Create your .env file
 cp .env.example .env
-# Edit .env: set DATABASE_URL, SECRET_KEY
+# Edit .env: set DATABASE_URL, a random SECRET_KEY of at least 32 characters,
+# INITIAL_ADMIN_EMPLOYEE_ID, and INITIAL_ADMIN_PASSWORD (at least 12 characters).
+# To run the demo seed, also set DEMO_STAFF_PASSWORD (at least 12 characters).
 
 # 5. Create the database
 psql -U postgres -c "CREATE DATABASE hpqms;"
@@ -51,20 +53,18 @@ API docs available at: http://localhost:8000/docs
 
 ---
 
-## Test accounts (after seed)
+When no administrator exists, configure `INITIAL_ADMIN_EMPLOYEE_ID` and
+`INITIAL_ADMIN_PASSWORD` before starting the application. There are no built-in
+administrator credentials; the password must be at least 12 characters. The
+bootstrap assigns admins to a dedicated `ADMIN` department and never changes an
+existing administrator's password. Sign in through
+`frontend/staff-login.html`; admins go straight to the dashboard without
+station check-in.
 
-| Employee ID | Password       | Role         | Department  |
-|-------------|----------------|--------------|-------------|
-| EMP-ADMIN01 | AdminAccess123!| ADMIN        | Administration |
-| REC-001     | reception123   | RECEPTIONIST | General OPD |
-| NRS-001     | nurse123       | TRIAGE_NURSE | General OPD |
-| NRS-002     | nurse123       | CHARGE_NURSE | Emergency   |
-| DOC-001     | doctor123      | DOCTOR       | General OPD |
-| DOC-002     | doctor123      | DOCTOR       | Cardiology  |
-
-Test patient national ID: `12345678`
-
-When no administrator exists, the Docker startup bootstrap uses `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD`; only in development does it default to `EMP-ADMIN01` / `AdminAccess123!`. It assigns admins to a dedicated `ADMIN` department (type `OPD`, because `DeptType` has no administrative enum value). Sign in through `frontend/staff-login.html`; admins go straight to the dashboard without station check-in. In non-development environments set `ENVIRONMENT=production` and both credentials in the Compose environment; the password must be at least 12 characters. The bootstrap never changes an existing administrator's password. The manual `seed.py` script is for development data only.
+The manual `seed.py` script is development-only. It requires
+`DEMO_STAFF_PASSWORD` (at least 12 characters) to create or refresh demo staff
+accounts, and the initial administrator credentials above when creating the
+first administrator. Do not use the demo seed on a production database.
 
 ---
 
@@ -657,4 +657,3 @@ Next, we should inspect transfer_patient() and VisitRead before running the kios
 
 
 ChatGPT is AI and can make mistakes.
-

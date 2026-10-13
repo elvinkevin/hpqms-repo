@@ -80,9 +80,11 @@ Your Docker database is:
 ```
 Database: hpqms
 User:     hpqms
-Password: hpqms_dev_password
 Container: hpqms-postgres
 ```
+
+The database password is configured as `POSTGRES_PASSWORD` in the ignored
+root `.env` file. Do not store or share the password in this command sheet.
 
 ### See database tables
 
@@ -136,13 +138,11 @@ docker exec hpqms-backend python seed.py
 
 That's the command you'll use to seed the Docker database.
 
-On a fresh development database, the seed creates the first administrator if one does not already exist:
-
-- Employee ID: `ADMIN001`
-- Password: `AdminAccess123!`
-- Role: `ADMIN`
-
-Sign in from the staff login page. Admin accounts open the dashboard directly and do not need a service-point check-in. Re-running the seed will not reset an existing admin password. These are development-only credentials; change the password after first use. In non-development environments, provide `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD` as environment settings before seeding.
+Before running the development-only seed, set `DEMO_STAFF_PASSWORD` to a
+private password of at least 12 characters. To create the first administrator,
+also set `INITIAL_ADMIN_EMPLOYEE_ID` and `INITIAL_ADMIN_PASSWORD`. No default
+credentials are embedded in the seed script. Do not run the demo seed in
+production.
 
 If you change the seed script, rebuild first:
 

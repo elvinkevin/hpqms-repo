@@ -1,9 +1,9 @@
 import asyncio
 import asyncpg
 
+from app.core.config import settings
 
-DATABASE_URL = "postgresql://postgres:viken@localhost:5432/hpqms"
-
+DATABASE_URL = settings.DATABASE_URL.replace("+asyncpg", "", 1)
 
 async def main():
     conn = await asyncpg.connect(DATABASE_URL)

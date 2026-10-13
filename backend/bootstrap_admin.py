@@ -39,12 +39,9 @@ ADMIN_DEPARTMENT = {
 
 
 def initial_admin_credentials():
-    """Return bootstrap credentials; fixed defaults are limited to development."""
+    """Return explicitly configured bootstrap credentials."""
     employee_id = settings.INITIAL_ADMIN_EMPLOYEE_ID
     password = settings.INITIAL_ADMIN_PASSWORD
-    if settings.ENVIRONMENT.lower() == "development":
-        employee_id = employee_id or "EMP-ADMIN01"
-        password = password or "AdminAccess123!"
     if not employee_id or not password:
         return None
     if len(password) < 12:
@@ -88,11 +85,10 @@ async def bootstrap_admin():
 
         credentials = initial_admin_credentials()
         if credentials is None:
-            print(
+            raise RuntimeError(
                 "No administrator exists. Set INITIAL_ADMIN_EMPLOYEE_ID and "
-                "INITIAL_ADMIN_PASSWORD to bootstrap one."
+                "INITIAL_ADMIN_PASSWORD before starting the application."
             )
-            return
         admin_employee_id, admin_password = credentials
 
         collision_result = await db.execute(
